@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from './_lib/supabase.js'
 import { allowMethods, fail, queryParam, requireAccess } from './_lib/http.js'
 import { practiceTransition, selectPracticeQuestion } from '../shared/practice.js'
+import { cardKey, cardTransition } from '../shared/cards.js'
 
 const classifications = ['certeza', 'duvida', 'eliminacao', 'sem_conhecimento']
 
@@ -30,7 +31,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Resposta, classificacao e tempo validos sao obrigatorios.' })
     }
     const { data: question, error } = await supabase.from('questao')
-      .select('id,tipo,gabarito,explicacao,fonte,trecho_fonte,quantidade_tentativas')
+      .select('id,tipo,gabarito,enunciado,explicacao,fonte,trecho_fonte,quantidade_tentativas,topico:topico_id(id,materia:materia_id(id,objetivo_id))')
       .eq('id', questaoId).eq('marcada_errada', false).single()
     if (error) throw error
 
@@ -60,6 +61,35 @@ export default async function handler(req, res) {
         await supabase.from('revisao_item').update({ motivo: transition.motivo, prioridade: transition.prioridade, agendada_para: transition.proximaRevisao }).eq('id', pending.id)
       } else {
         await supabase.from('revisao_item').insert({ questao_id: question.id, motivo: transition.motivo, prioridade: transition.prioridade, agendada_para: transition.proximaRevisao })
+      }
+    }
+
+    const topico = question.topico
+    const materia = topico?.materia
+    if (topico?.id && materia?.id && materia?.objetivo_id) {
+      const chave = cardKey({ topicoId: topico.id, explicacao: question.explicacao })
+      const cardResult = resultado === 'acerto' && classificacao === 'certeza' ? 'lembrei' : 'revisar'
+      const cardSchedule = cardTransition({ resultado: cardResult })
+      const due = transition.motivo === 'falsa_certeza' ? now : cardSchedule.proximaRevisao
+      const { data: existingCard, error: existingCardError } = await supabase.from('question_card').select('id,ocorrencias').eq('chave', chave).maybeSingle()
+      if (existingCardError) throw existingCardError
+      if (existingCard) {
+        const { error: cardError } = await supabase.from('question_card').update({ ocorrencias: existingCard.ocorrencias + 1, questao_id: question.id, proxima_revisao: due }).eq('id', existingCard.id)
+        if (cardError) throw cardError
+      } else {
+        const { error: cardError } = await supabase.from('question_card').insert({
+          objetivo_id: materia.objetivo_id,
+          materia_id: materia.id,
+          topico_id: topico.id,
+          questao_id: question.id,
+          chave,
+          frente: question.enunciado,
+          verso: `Gabarito: ${question.gabarito}\n\n${question.explicacao}`,
+          fonte: question.fonte,
+          trecho_fonte: question.trecho_fonte,
+          proxima_revisao: due,
+        })
+        if (cardError) throw cardError
       }
     }
 

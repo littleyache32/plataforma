@@ -1,10 +1,10 @@
 const studentAreas = [
-  ['semana', 'Semana', '◫'], ['questoes', 'Questões', '?'], ['simulados', 'Simulados', '◷'], ['desempenho', 'Desempenho', '↗'],
+  ['semana', 'Semana', '◫'], ['questoes', 'Questões', '?'], ['cards', 'Question Cards', '▣'], ['simulados', 'Simulados', '◷'], ['desempenho', 'Desempenho', '↗'],
 ]
 
 const adminAreas = [
   ['semana', 'Semana', '◫'], ['objetivos', 'Objetivos', '◎'], ['materiais', 'Materiais', '▤'],
-  ['questoes', 'Questões', '?'], ['simulados', 'Simulados', '◷'], ['desempenho', 'Desempenho', '↗'],
+  ['questoes', 'Questões', '?'], ['cards', 'Question Cards', '▣'], ['simulados', 'Simulados', '◷'], ['desempenho', 'Desempenho', '↗'],
 ]
 
 export default function Layout({ area, onAreaChange, catalog, objectiveId, onObjectiveChange, context, onContextChange, mode, onModeChange, onLogout, children }) {
