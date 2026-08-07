@@ -1,14 +1,15 @@
 {
-  "name": "mentor-bacen",
+  "name": "mentor-de-estudos",
   "private": true,
   "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "dev:full": "vercel dev",
-    "build": "vite build",
+    "build": "vite build --configLoader runner",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run --configLoader runner",
+    "lint": "node scripts/lint.js",
     "migrate": "node --env-file=.env.local scripts/migrate.js"
   },
   "dependencies": {

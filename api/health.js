@@ -12,7 +12,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       ok: true,
-      service: 'mentor-bacen-api',
+      service: 'mentor-de-estudos-api',
       database: error ? 'connected-schema-pending' : 'connected',
       timestamp: new Date().toISOString(),
     })

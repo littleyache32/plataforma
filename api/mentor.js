@@ -6,25 +6,32 @@ export default async function handler(req, res) {
   if (!allowMethods(req, res, ['GET']) || !requireAccess(req, res)) return
   try {
     const supabase = getSupabaseAdmin()
-    const [{ data: topics, error: topicsError }, { data: records, error: recordsError }] = await Promise.all([
-      supabase.from('topico').select('id,nome,materia:materia_id(nome)'),
+    const [{ data: topics, error: topicsError }, { data: records, error: recordsError }, { data: reviewItems, error: reviewError }] = await Promise.all([
+      supabase.from('topico').select('id,nome,materia:materia_id(nome,objetivo:objetivo_id(id,nome))'),
       supabase.from('registro').select('resultado,classificacao,criado_em,questao!inner(id,topico_id,enunciado)').order('criado_em', { ascending: false }),
+      supabase.from('revisao_item').select('id,motivo,prioridade,agendada_para,questao:questao_id(id,enunciado,topico_id)').eq('status', 'pendente').order('prioridade').order('agendada_para').limit(20),
     ])
     if (topicsError) throw topicsError
     if (recordsError) throw recordsError
+    if (reviewError) throw reviewError
 
     const diagnoses = (topics || []).map((topic) => {
       const topicRecords = (records || []).filter((record) => record.questao?.topico_id === topic.id)
-      return { id: topic.id, nome: topic.nome, materia: topic.materia?.nome, ...calculateTopicDiagnosis(topicRecords) }
+      return { id: topic.id, nome: topic.nome, materia: topic.materia?.nome, objetivo: topic.materia?.objetivo?.nome, ...calculateTopicDiagnosis(topicRecords) }
     })
     const prioridades = diagnoses
       .filter((item) => item.status === 'prioridade')
       .sort((a, b) => b.gravidade - a.gravidade)
       .slice(0, 3)
-    const revisaoImediata = (records || [])
-      .filter((record) => record.resultado === 'erro' && record.classificacao === 'certeza')
-      .slice(0, 10)
-      .map((record) => ({ questao_id: record.questao.id, enunciado: record.questao.enunciado, criado_em: record.criado_em }))
+    const revisaoImediata = (reviewItems || []).map((item) => ({
+      id: item.id,
+      questao_id: item.questao.id,
+      topico_id: item.questao.topico_id,
+      enunciado: item.questao.enunciado,
+      motivo: item.motivo,
+      prioridade: item.prioridade,
+      agendada_para: item.agendada_para,
+    }))
 
     return res.status(200).json({ prioridades, topicos: diagnoses, revisao_imediata: revisaoImediata })
   } catch (error) {

@@ -1,7 +1,7 @@
 import { PDFParse } from 'pdf-parse'
 import { getSupabaseAdmin } from '../_lib/supabase.js'
 import { generateJson } from '../_lib/gemini.js'
-import { allowMethods, fail, requireAccess } from '../_lib/http.js'
+import { allowMethods, enforceRateLimit, fail, requireAccess } from '../_lib/http.js'
 
 const materialSchema = {
   type: 'object',
@@ -47,7 +47,7 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const { data, error } = await supabase
         .from('material')
-        .select('id,tipo,nome,status,motivo,forcado,criado_em,materia:materia_id(nome)')
+        .select('id,tipo,nome,status,motivo,forcado,criado_em,objetivo:objetivo_id(nome),materia:materia_id(nome)')
         .order('criado_em', { ascending: false })
         .limit(50)
       if (error) throw error
@@ -74,14 +74,15 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true })
     }
 
-    const { materiaId, tipo, nome } = req.body || {}
-    if (!materiaId || !['texto', 'pdf'].includes(tipo)) return res.status(400).json({ error: 'Materia e tipo validos sao obrigatorios.' })
+    const { materiaId, objetivoId, tipo, nome } = req.body || {}
+    if (!materiaId || !objetivoId || !['texto', 'pdf'].includes(tipo)) return res.status(400).json({ error: 'Objetivo, materia e tipo validos sao obrigatorios.' })
     const content = await extractContent(req.body || {})
     if (content.length < 120) return res.status(400).json({ error: 'Material curto demais para avaliacao.' })
     if (content.length > 120000) return res.status(413).json({ error: 'Material excede 120 mil caracteres.' })
 
+    await enforceRateLimit(supabase, 'material', 10, 60)
     const [{ data: subject, error: subjectError }, { data: topics, error: topicsError }, { data: existing, error: existingError }] = await Promise.all([
-      supabase.from('materia').select('id,nome').eq('id', materiaId).single(),
+      supabase.from('materia').select('id,nome,objetivo:objetivo_id(id,nome,tipo,banca)').eq('id', materiaId).eq('objetivo_id', objetivoId).single(),
       supabase.from('topico').select('id,nome').eq('materia_id', materiaId),
       supabase.from('conhecimento').select('trecho').eq('materia_id', materiaId).limit(20),
     ])
@@ -89,7 +90,9 @@ export default async function handler(req, res) {
 
     const evaluation = await generateJson({
       schema: materialSchema,
-      prompt: `Avalie um material para o banco de conhecimento do concurso BACEN Tecnico, banca Cebraspe.
+      prompt: `Avalie um material para o banco de conhecimento de uma plataforma pessoal de estudos.
+Objetivo: ${subject.objetivo.nome} (${subject.objetivo.tipo})
+Contexto ou banca: ${subject.objetivo.banca || 'nao definido'}
 Materia: ${subject.nome}
 Topicos existentes: ${(topics || []).map((topic) => topic.nome).join('; ')}
 
@@ -108,6 +111,7 @@ ${content}`,
     }
 
     const { data: saved, error: saveError } = await supabase.from('material').insert({
+      objetivo_id: objetivoId,
       materia_id: materiaId,
       tipo,
       nome: String(nome || '').slice(0, 180) || null,

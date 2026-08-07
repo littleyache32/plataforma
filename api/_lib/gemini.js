@@ -24,6 +24,35 @@ function groundingSources(response) {
     .filter((source, index, all) => all.findIndex((item) => item.url === source.url) === index)
 }
 
+function groundingEvidence(response) {
+  const metadata = response.candidates?.[0]?.groundingMetadata
+  const chunks = metadata?.groundingChunks || []
+  const supports = metadata?.groundingSupports || []
+  const evidence = []
+
+  for (const support of supports) {
+    const text = String(support.segment?.text || '').trim()
+    if (!text) continue
+    for (const chunkIndex of support.groundingChunkIndices || []) {
+      const web = chunks[chunkIndex]?.web
+      if (!web?.uri) continue
+      evidence.push({ texto: text, titulo: web.title || 'Fonte consultada', url: web.uri })
+    }
+  }
+
+  return evidence.filter((item, index, all) => all.findIndex((other) => other.texto === item.texto && other.url === item.url) === index)
+}
+
+export async function researchWithGrounding(prompt) {
+  const ai = getGemini()
+  const response = await ai.models.generateContent({
+    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+    contents: prompt,
+    config: { temperature: 0.1, tools: [{ googleSearch: {} }] },
+  })
+  return { texto: response.text || '', fontes: groundingSources(response), evidencias: groundingEvidence(response) }
+}
+
 export async function generateGroundedJson({ prompt, schema }) {
   const ai = getGemini()
   const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
@@ -73,4 +102,3 @@ export async function generateJson({ prompt, schema }) {
   })
   return parseJson(response.text || '')
 }
-
