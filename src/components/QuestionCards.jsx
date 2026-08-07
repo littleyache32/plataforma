@@ -9,8 +9,8 @@ export default function QuestionCards({ objective }) {
 
   function load() {
     setLoading(true)
-    const suffix = objective?.id ? `?objetivoId=${objective.id}` : ''
-    return api(`/api/question-cards${suffix}`).then((data) => { setCards(data.cards); setMessage('') }).catch((error) => setMessage(error.message)).finally(() => setLoading(false))
+    const suffix = objective?.id ? `&objetivoId=${objective.id}` : ''
+    return api(`/api/questoes?recurso=cards${suffix}`).then((data) => { setCards(data.cards); setMessage('') }).catch((error) => setMessage(error.message)).finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [objective?.id])
 
@@ -19,7 +19,7 @@ export default function QuestionCards({ objective }) {
 
   async function answer(resultado) {
     if (!card) return
-    await api('/api/question-cards', { method: 'POST', body: JSON.stringify({ id: card.id, resultado }) })
+    await api('/api/questoes?recurso=cards', { method: 'PATCH', body: JSON.stringify({ id: card.id, resultado }) })
     setCards((items) => items.filter((item) => item.id !== card.id))
     setRevealed(false)
   }
