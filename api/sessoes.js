@@ -1,13 +1,13 @@
 import { getSupabaseAdmin } from './_lib/supabase.js'
-import { allowMethods, fail, requireAccess } from './_lib/http.js'
+import { allowMethods, fail, queryParam, requireAccess } from './_lib/http.js'
 
 export default async function handler(req, res) {
   if (!allowMethods(req, res, ['GET', 'POST', 'PATCH']) || !requireAccess(req, res)) return
   const supabase = getSupabaseAdmin()
   try {
     if (req.method === 'GET') {
-      const inicio = String(req.query.inicio || '')
-      const fim = String(req.query.fim || '')
+      const inicio = queryParam(req, 'inicio')
+      const fim = queryParam(req, 'fim')
       let query = supabase.from('sessao').select('id,titulo,tipo,data,duracao_estimada,duracao_realizada,status,objetivo:objetivo_id(id,nome),materia:materia_id(nome),topico:topico_id(nome)').order('data')
       if (inicio) query = query.gte('data', inicio)
       if (fim) query = query.lte('data', fim)

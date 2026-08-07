@@ -12,6 +12,10 @@ export function allowMethods(req, res, methods) {
   return true
 }
 
+export function queryParam(req, name) {
+  return new URL(req.url, 'https://mentor-estudos.local').searchParams.get(name) || ''
+}
+
 function safeEqual(left, right) {
   const a = Buffer.from(String(left || ''))
   const b = Buffer.from(String(right || ''))

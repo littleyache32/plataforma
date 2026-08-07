@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from './_lib/supabase.js'
-import { allowMethods, fail, requireAccess } from './_lib/http.js'
+import { allowMethods, fail, queryParam, requireAccess } from './_lib/http.js'
 import { practiceTransition, selectPracticeQuestion } from '../shared/practice.js'
 
 const classifications = ['certeza', 'duvida', 'eliminacao', 'sem_conhecimento']
@@ -9,8 +9,8 @@ export default async function handler(req, res) {
   const supabase = getSupabaseAdmin()
   try {
     if (req.method === 'GET') {
-      const topicoId = String(req.query.topicoId || '')
-      const questaoId = String(req.query.questaoId || '')
+      const topicoId = queryParam(req, 'topicoId')
+      const questaoId = queryParam(req, 'questaoId')
       if (!topicoId && !questaoId) return res.status(400).json({ error: 'Topico ou questao obrigatorio.' })
 
       let query = supabase.from('questao')
@@ -76,4 +76,3 @@ export default async function handler(req, res) {
     return fail(res, error, 'Nao foi possivel processar a pratica.')
   }
 }
-
