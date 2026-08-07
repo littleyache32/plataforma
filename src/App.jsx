@@ -61,7 +61,7 @@ export default function App() {
 
   return (
     <Layout area={area} onAreaChange={setArea} catalog={contextCatalog} objectiveId={objective?.id || ''} onObjectiveChange={setObjectiveId} context={context} onContextChange={changeContext} mode={mode} onModeChange={changeMode} onLogout={logout}>
-      {area === 'semana' && <Week {...common} />}
+      {area === 'semana' && <Week catalog={catalog} />}
       {area === 'objetivos' && mode === 'administrador' && <Objectives {...common} />}
       {area === 'materiais' && mode === 'administrador' && <Materials {...common} />}
       {area === 'questoes' && <Questions {...common} reviewQuestionId={reviewQuestionId} onReviewLoaded={() => setReviewQuestionId('')} />}
