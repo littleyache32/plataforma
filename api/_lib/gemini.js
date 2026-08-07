@@ -10,9 +10,25 @@ function getGemini() {
   return client
 }
 
-function parseJson(text) {
-  const cleaned = text.trim().replace(/^```json\s*/i, '').replace(/\s*```$/, '')
-  return JSON.parse(cleaned)
+export function parseJson(text) {
+  const cleaned = String(text || '').trim().replace(/^```json\s*/i, '').replace(/\s*```$/, '')
+  try {
+    return JSON.parse(cleaned)
+  } catch (initialError) {
+    // Alguns provedores acrescentam uma frase antes ou depois do JSON mesmo com
+    // responseMimeType. Aceitamos somente o primeiro objeto completo, sem tentar
+    // corrigir campos, e registramos falha se ele ainda nao for JSON valido.
+    const start = cleaned.indexOf('{')
+    const end = cleaned.lastIndexOf('}')
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(cleaned.slice(start, end + 1))
+      } catch {
+        // A excecao abaixo preserva uma mensagem clara para o seeding_job.
+      }
+    }
+    throw new Error(`Resposta JSON invalida do Gemini: ${initialError.message}`)
+  }
 }
 
 function groundingSources(response) {

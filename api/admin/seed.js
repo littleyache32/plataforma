@@ -73,31 +73,41 @@ export default async function handler(req, res) {
       schema: questionBatchSchema,
     })
     const hasMaterial = (knowledge || []).length > 0
-    const normalized = (result.questoes || []).map((question) => normalizeQuestion(question, {
-      topicoId,
-      origem: hasMaterial ? 'material' : 'ia',
-      evidencias,
-    }))
-    if (normalized.length !== faltam) throw new Error(`O Gemini devolveu ${normalized.length} de ${faltam} questoes.`)
+    const rejeitadas = []
+    const normalized = (result.questoes || []).flatMap((question, index) => {
+      try {
+        return [normalizeQuestion(question, {
+          topicoId,
+          origem: hasMaterial ? 'material' : 'ia',
+          evidencias,
+        })]
+      } catch (error) {
+        rejeitadas.push(`Questao ${index + 1}: ${String(error.message || error).slice(0, 160)}`)
+        return []
+      }
+    })
+    if (!normalized.length) throw new Error(`Nenhuma questao valida foi devolvida. ${rejeitadas[0] || ''}`)
     if (faltam >= 2 && /cebraspe/i.test(objective.banca || '') && !['CE', 'ME'].every((type) => normalized.some((question) => question.tipo === type))) {
       throw new Error('O lote nao contem os dois formatos Cebraspe obrigatorios.')
     }
 
     let inserted = 0
-    for (const question of normalized) {
+    for (const [index, question] of normalized.entries()) {
       const { error } = await supabase.from('questao').insert(question)
       if (!error) inserted += 1
-      else if (error.code !== '23505') throw error
+      else if (error.code !== '23505') rejeitadas.push(`Questao valida ${index + 1} recusada pelo banco: ${String(error.message || error).slice(0, 160)}`)
     }
+
+    if (!inserted && rejeitadas.length) throw new Error(`O banco recusou todas as questoes. ${rejeitadas[0]}`)
 
     await supabase.from('seeding_job').update({
       status: 'concluido',
       geradas: inserted,
-      mensagem: `${research.fontes.length} fontes e ${webEvidence.length} evidencias vinculadas`,
+      mensagem: `${research.fontes.length} fontes, ${webEvidence.length} evidencias, ${inserted} aceitas e ${rejeitadas.length} recusadas${rejeitadas.length ? `: ${rejeitadas.slice(0, 3).join(' | ')}` : ''}`.slice(0, 500),
       concluido_em: new Date().toISOString(),
     }).eq('id', jobId)
 
-    return res.status(201).json({ geradas: inserted, fontes: research.fontes.length, evidencias: webEvidence.length, cache: false })
+    return res.status(201).json({ geradas: inserted, rejeitadas: rejeitadas.length, fontes: research.fontes.length, evidencias: webEvidence.length, cache: false })
   } catch (error) {
     if (jobId) {
       await supabase.from('seeding_job').update({

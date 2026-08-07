@@ -72,7 +72,7 @@ Banca ou contexto: ${banca || 'nao definido'}
 Materia: ${materia}
 Topico: ${topico}
 
-Priorize fontes oficiais, legislacao vigente, manuais, documentos institucionais e referencias primarias. Produza um dossie factual com afirmacoes curtas e autocontidas. Nao crie questoes ainda. Nao inclua informacao que nao esteja sustentada pelas fontes pesquisadas.`
+Priorize fontes oficiais, legislacao vigente, manuais, documentos institucionais e referencias primarias. Quando consultar provas anteriores publicamente disponiveis, use-as apenas para reconhecer assuntos e estilo da banca: nao reproduza enunciados, alternativas ou explicacoes literalmente. Produza um dossie factual com afirmacoes curtas e autocontidas. Nao crie questoes ainda. Nao inclua informacao que nao esteja sustentada pelas fontes pesquisadas.`
 }
 
 export function generationPrompt({ objetivo, tipoObjetivo, banca, materia, topico, quantidade, evidencias }) {

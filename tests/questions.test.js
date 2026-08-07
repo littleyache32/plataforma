@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { parseJson } from '../api/_lib/gemini.js'
 import { normalizeQuestion } from '../api/_lib/questions.js'
 
 const base = { topicoId: 'topic', origem: 'ia', evidencias: [{ id: 1, texto: 'Trecho oficial verificavel.', titulo: 'Fonte oficial', url: 'https://gov.br/fonte' }] }
@@ -16,5 +17,15 @@ describe('normalizeQuestion', () => {
 
   it('recusa evidencia inexistente', () => {
     expect(() => normalizeQuestion({ tipo: 'CE', enunciado: 'Item.', alternativas: null, gabarito: 'E', explicacao: 'Explica.', evidencia_id: 99 }, base)).toThrow('evidencia individual')
+  })
+})
+
+describe('parseJson', () => {
+  it('aceita JSON envolvido por texto acidental do modelo', () => {
+    expect(parseJson('Aqui esta o resultado:\n{"questoes": []}\nFim.')).toEqual({ questoes: [] })
+  })
+
+  it('recusa resposta sem objeto JSON valido', () => {
+    expect(() => parseJson('resultado indisponivel')).toThrow('Resposta JSON invalida')
   })
 })
