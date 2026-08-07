@@ -68,7 +68,7 @@ export default function App() {
       {area === 'questoes' && <Questions {...common} reviewQuestionId={reviewQuestionId} onReviewLoaded={() => setReviewQuestionId('')} />}
       {area === 'cards' && <QuestionCards objective={objective} />}
       {area === 'simulados' && <Simulations objective={objective} />}
-      {area === 'desempenho' && <Performance objective={objective} onReview={openReview} />}
+      {area === 'desempenho' && <Performance objective={objective} mode={mode} onReview={openReview} />}
     </Layout>
   )
 }
