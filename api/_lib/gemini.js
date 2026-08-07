@@ -62,7 +62,7 @@ function groundingEvidence(response) {
 export async function researchWithGrounding(prompt) {
   const ai = getGemini()
   const response = await ai.models.generateContent({
-    model: process.env.GEMINI_MODEL || 'gemini-3.6-flash',
+    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite',
     contents: prompt,
     config: { tools: [{ googleSearch: {} }] },
   })
@@ -71,7 +71,7 @@ export async function researchWithGrounding(prompt) {
 
 export async function generateGroundedJson({ prompt, schema }) {
   const ai = getGemini()
-  const model = process.env.GEMINI_MODEL || 'gemini-3.6-flash'
+  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite'
   const baseConfig = {
     tools: [{ googleSearch: {} }],
   }
@@ -107,7 +107,7 @@ export async function generateGroundedJson({ prompt, schema }) {
 export async function generateJson({ prompt, schema }) {
   const ai = getGemini()
   const response = await ai.models.generateContent({
-    model: process.env.GEMINI_MODEL || 'gemini-3.6-flash',
+    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite',
     contents: prompt,
     config: {
       responseMimeType: 'application/json',
