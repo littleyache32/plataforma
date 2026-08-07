@@ -12,7 +12,7 @@ O uso principal na proxima segunda deve ser: abrir a Semana, ver as demandas rec
 
 | Area | Estado atual | Decisao |
 | --- | --- | --- |
-| Banco de questoes | Estrutura, seguranca, fontes e motor de seed existem. O banco continua vazio. | Prioridade maxima. Gerar e revisar o primeiro lote antes do inicio de uso. |
+| Banco de questoes | Estrutura, seguranca, fontes e motor de seed existem. O banco continua vazio. | Prioridade maxima. O admin adiciona material aprovado e as questoes sao geradas somente a partir desses trechos. |
 | Semana | Ha grade de dias, mas ainda permite criar manualmente titulo, data e duracao. Tambem mostra objetivos abaixo. | Substituir pelo quadro de demandas do mentor. |
 | Questoes | Fluxo CE e ME, classificacao antes do gabarito, explicacao, fonte e marcar como errada funcionam. | Manter e acrescentar eliminacao visual nas alternativas ME. |
 | Simulados | A area e somente um aviso, ainda sem fluxo. | Construir apos a Semana e o primeiro banco de questoes. |
@@ -81,6 +81,19 @@ Ponto critico: saber que sobram 14 horas no relogio nao significa que existem 14
 
 ## Questoes
 
+### Fonte de conteudo na primeira fase
+
+Nesta primeira fase, o aplicativo nao depende de pesquisa automatica na internet. O administrador prepara ou obtem o material de estudo fora da plataforma e o adiciona em texto ou PDF. O aplicativo entao:
+
+1. Verifica se o material pertence a materia, tem densidade suficiente e nao repete conhecimento ja aceito.
+2. Guarda apenas os trechos novos e uteis como conhecimento aprovado.
+3. Gera questoes exclusivamente a partir desses trechos.
+4. Mantem no banco a referencia do material e o trecho que sustenta cada questao.
+
+Isso permite comecar a usar a plataforma sem depender da cota de pesquisa do Gemini. A qualidade passa a depender diretamente da qualidade e da atualidade do material enviado. Por isso, cada material deve indicar a fonte original quando houver uma, por exemplo legislacao, manual, ementa, livro ou compilacao propria.
+
+Para materiais extensos, o limite inicial e 120 mil caracteres por envio. O conteudo deve ser separado por capitulo ou materia quando ultrapassar esse tamanho. Isso melhora a verificacao, evita misturar assuntos e produz questoes mais precisas.
+
 O fluxo atual permanece e ganha um ajuste importante:
 
 - Nas questoes de multipla escolha, cada alternativa tera um botao X para eliminacao visual.
@@ -104,7 +117,7 @@ Eles serao gerados automaticamente a partir de questoes e simulados:
 | Acerto com Certeza | Gera card apenas quando o conceito for importante ou ainda nao tiver cobertura. Isso evita acumular cards repetidos. |
 | Mesmo conceito repetido | Reforca o card existente, em vez de criar varios iguais. |
 
-Os cards usarao a explicacao e a fonte da questao como base. Assim, eles revisam conhecimento real trabalhado no aplicativo, em vez de virarem uma colecao solta e inflada.
+Os cards usarao a explicacao, a fonte e o trecho do material que sustentam a questao como base. O material nao deve gerar automaticamente uma pilha inteira de cards, pois isso criaria repeticao e revisao desnecessaria. Ele fornece a materia-prima; questoes e simulados definem quais conceitos viram cards ou reforcam cards existentes.
 
 ## Simulados
 
@@ -165,9 +178,9 @@ Nao fazem sentido no momento: desempenho por vestibular, ENEM, UERJ, areas Lingu
 
 ### Necessario para comecar na segunda
 
-1. Destravar a geracao com pesquisa e fonte, gerar um lote piloto e conferir a qualidade antes de ampliar.
-2. Criar o modulo Question Cards automatico a partir de tentativas reais.
-3. Corrigir a Semana: quadro unico Faculdade + BACEN, quatro legendas, carga estimada, dia atual e arrastar entre dias.
+1. Ajustar a geracao para usar exclusivamente material aprovado, mantendo trecho e referencia do material em cada questao.
+2. Criar o modulo Question Cards automatico a partir de tentativas reais, com o material como fonte de apoio e sem duplicidade.
+3. Corrigir a Semana: quadro unico Faculdade + BACEN, quatro legendas, carga estimada, dia atual e arrastar entre dias. Concluido no commit `98d15bd`.
 4. Incluir a eliminacao visual X nas questoes ME.
 
 ### Evolucao durante a primeira semana de uso
@@ -176,18 +189,18 @@ Nao fazem sentido no momento: desempenho por vestibular, ENEM, UERJ, areas Lingu
 6. Painel separado de desempenho de simulados.
 7. Refinar o mentor conforme os seus dados reais de uso.
 
-## Dependencia atual do banco de questoes
+## Regra atual do banco de questoes
 
-O motor foi preparado para usar pesquisa e fonte. No projeto Gemini atual, o modelo que aceita a chave esta sem cota de pesquisa no plano gratuito, por isso o primeiro seed nao conseguiu criar questoes. Gerar sem essa pesquisa quebraria a regra mais importante do produto: toda questao precisa ter uma fonte verificavel.
+A pesquisa automatica com Google Search fica fora desta primeira fase. A fonte verificavel de cada questao sera o material aceito pelo administrador e seu respectivo trecho de origem. A geracao continuara recusando questoes sem conteudo, explicacao, referencia e trecho vinculados.
 
-Para o lote piloto, e necessario habilitar faturamento ou uma cota de pesquisa compativel no projeto Gemini "app estudo". Assim que isso estiver ativo, o passo seguinte sera gerar uma materia piloto, auditar CE e ME, fonte, explicacao e aderencia Cebraspe, e somente depois expandir o banco.
+Quando a cota de pesquisa estiver disponivel no futuro, ela podera ser adicionada como enriquecimento de fontes. Ela nao sera necessaria para iniciar a plataforma nesta semana.
 
 ## Criterios objetivos de pronto para segunda
 
 - Voce abre a Semana e ve uma unica lista semanal de demandas de Faculdade e BACEN.
 - Nao aparece formulario de nova sessao, reagendamento ou ajuste de meta.
 - Os cards mostram contexto, tipo, prioridade e carga, e podem ser arrastados entre dias.
-- O modulo Questoes tem questoes reais, com fonte, de ambos os formatos CE e ME.
+- O modulo Questoes tem questoes reais, com material e trecho de origem, de ambos os formatos CE e ME.
 - O X de eliminacao funciona nas alternativas ME sem entregar resposta.
 - Erros e falsas certezas passam a alimentar a revisao e os Question Cards.
 - Tudo continua salvo apos recarregar.
