@@ -39,7 +39,11 @@ export default async function handler(req, res) {
       titulo: item.material?.nome || item.origem || 'Material aprovado',
       url: '',
     }))
-    if (!evidencias.length) throw new Error('Adicione e aceite material desta materia antes de gerar questoes para este topico.')
+    if (!evidencias.length) {
+      const error = new Error('Adicione e aceite material desta materia antes de gerar questoes para este topico.')
+      error.statusCode = 422
+      throw error
+    }
 
     await enforceRateLimit(supabase, 'seed', 4, 60)
     const { data: job, error: jobError } = await supabase
