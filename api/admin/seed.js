@@ -1,6 +1,6 @@
 import { getSupabaseAdmin } from '../_lib/supabase.js'
-import { generateJson, researchWithGrounding } from '../_lib/gemini.js'
-import { generationPrompt, normalizeQuestion, questionBatchSchema, researchPrompt } from '../_lib/questions.js'
+import { generateJson } from '../_lib/gemini.js'
+import { generationPrompt, normalizeQuestion, questionBatchSchema } from '../_lib/questions.js'
 import { allowMethods, enforceRateLimit, fail, requireAccess } from '../_lib/http.js'
 
 export default async function handler(req, res) {
@@ -24,9 +24,24 @@ export default async function handler(req, res) {
       return res.status(200).json({ geradas: 0, disponiveis: count, cache: true, mensagem: 'O banco ja possui questoes suficientes neste topico.' })
     }
 
-    await enforceRateLimit(supabase, 'seed', 4, 60)
-
     const faltam = Math.min(20, quantidade - (count || 0))
+    const { data: knowledge, error: knowledgeError } = await supabase
+      .from('conhecimento')
+      .select('trecho,origem,material:material_id(nome)')
+      .or(`topico_id.eq.${topicoId},and(topico_id.is.null,materia_id.eq.${topic.materia.id})`)
+      .limit(12)
+    if (knowledgeError) throw knowledgeError
+
+    const objective = topic.materia.objetivo
+    const evidencias = (knowledge || []).map((item, index) => ({
+      id: index + 1,
+      texto: item.trecho,
+      titulo: item.material?.nome || item.origem || 'Material aprovado',
+      url: '',
+    }))
+    if (!evidencias.length) throw new Error('Adicione e aceite material desta materia antes de gerar questoes para este topico.')
+
+    await enforceRateLimit(supabase, 'seed', 4, 60)
     const { data: job, error: jobError } = await supabase
       .from('seeding_job')
       .insert({ topico_id: topicoId, quantidade: faltam, status: 'processando' })
@@ -34,31 +49,6 @@ export default async function handler(req, res) {
       .single()
     if (jobError) throw jobError
     jobId = job.id
-
-    const { data: knowledge, error: knowledgeError } = await supabase
-      .from('conhecimento')
-      .select('trecho,origem')
-      .or(`topico_id.eq.${topicoId},and(topico_id.is.null,materia_id.eq.${topic.materia.id})`)
-      .limit(12)
-    if (knowledgeError) throw knowledgeError
-
-    const objective = topic.materia.objetivo
-    const research = await researchWithGrounding(researchPrompt({
-      objetivo: objective.nome,
-      tipoObjetivo: objective.tipo,
-      banca: objective.banca,
-      materia: topic.materia.nome,
-      topico: topic.nome,
-    }))
-    const webEvidence = research.evidencias.map((item, index) => ({ id: index + 1, texto: item.texto, titulo: item.titulo, url: item.url }))
-    const materialEvidence = (knowledge || []).map((item, index) => ({
-      id: webEvidence.length + index + 1,
-      texto: item.trecho,
-      titulo: item.origem,
-      url: '',
-    }))
-    const evidencias = [...webEvidence, ...materialEvidence]
-    if (!webEvidence.length) throw new Error('O grounding nao devolveu blocos de evidencia vinculados; lote rejeitado.')
 
     const result = await generateJson({
       prompt: generationPrompt({
@@ -72,13 +62,12 @@ export default async function handler(req, res) {
       }),
       schema: questionBatchSchema,
     })
-    const hasMaterial = (knowledge || []).length > 0
     const rejeitadas = []
     const normalized = (result.questoes || []).flatMap((question, index) => {
       try {
         return [normalizeQuestion(question, {
           topicoId,
-          origem: hasMaterial ? 'material' : 'ia',
+          origem: 'material',
           evidencias,
         })]
       } catch (error) {
@@ -103,11 +92,11 @@ export default async function handler(req, res) {
     await supabase.from('seeding_job').update({
       status: 'concluido',
       geradas: inserted,
-      mensagem: `${research.fontes.length} fontes, ${webEvidence.length} evidencias, ${inserted} aceitas e ${rejeitadas.length} recusadas${rejeitadas.length ? `: ${rejeitadas.slice(0, 3).join(' | ')}` : ''}`.slice(0, 500),
+      mensagem: `${evidencias.length} trechos de material, ${inserted} aceitas e ${rejeitadas.length} recusadas${rejeitadas.length ? `: ${rejeitadas.slice(0, 3).join(' | ')}` : ''}`.slice(0, 500),
       concluido_em: new Date().toISOString(),
     }).eq('id', jobId)
 
-    return res.status(201).json({ geradas: inserted, rejeitadas: rejeitadas.length, fontes: research.fontes.length, evidencias: webEvidence.length, cache: false })
+    return res.status(201).json({ geradas: inserted, rejeitadas: rejeitadas.length, fontes: evidencias.length, evidencias: evidencias.length, cache: false })
   } catch (error) {
     if (jobId) {
       await supabase.from('seeding_job').update({
