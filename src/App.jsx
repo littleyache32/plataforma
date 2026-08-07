@@ -14,12 +14,14 @@ export default function App() {
   const [area, setArea] = useState('semana')
   const [catalog, setCatalog] = useState([])
   const [objectiveId, setObjectiveId] = useState('')
+  const [context, setContext] = useState('concurso')
+  const [mode, setMode] = useState('aluno')
   const [reviewQuestionId, setReviewQuestionId] = useState('')
 
   async function loadCatalog() {
     const data = await api('/api/catalogo')
     setCatalog(data.objetivos)
-    setObjectiveId((current) => current || data.objetivos[0]?.id || '')
+    setObjectiveId((current) => current || data.objetivos.find((item) => item.tipo === 'concurso')?.id || data.objetivos[0]?.id || '')
   }
 
   useEffect(() => {
@@ -38,17 +40,30 @@ export default function App() {
     setArea('questoes')
   }
 
+  function changeContext(nextContext) {
+    setContext(nextContext)
+    const nextObjective = catalog.find((item) => item.tipo === nextContext)
+    setObjectiveId(nextObjective?.id || '')
+    setReviewQuestionId('')
+  }
+
+  function changeMode(nextMode) {
+    setMode(nextMode)
+    if (nextMode === 'aluno' && ['objetivos', 'materiais'].includes(area)) setArea('semana')
+  }
+
   if (status === 'loading') return <main className="loading"><span className="brand-mark">ME</span><p>Organizando sua plataforma...</p></main>
   if (status === 'guest') return <AccessGate onSuccess={async () => { await loadCatalog(); setStatus('ready') }} />
 
-  const objective = catalog.find((item) => item.id === objectiveId) || catalog[0]
-  const common = { catalog, objective, objectiveId: objective?.id || '', onCatalogChange: loadCatalog }
+  const contextCatalog = catalog.filter((item) => item.tipo === context)
+  const objective = contextCatalog.find((item) => item.id === objectiveId) || contextCatalog[0]
+  const common = { catalog: contextCatalog, objective, objectiveId: objective?.id || '', onCatalogChange: loadCatalog, mode }
 
   return (
-    <Layout area={area} onAreaChange={setArea} catalog={catalog} objectiveId={objective?.id || ''} onObjectiveChange={setObjectiveId} onLogout={logout}>
+    <Layout area={area} onAreaChange={setArea} catalog={contextCatalog} objectiveId={objective?.id || ''} onObjectiveChange={setObjectiveId} context={context} onContextChange={changeContext} mode={mode} onModeChange={changeMode} onLogout={logout}>
       {area === 'semana' && <Week {...common} />}
-      {area === 'objetivos' && <Objectives {...common} />}
-      {area === 'materiais' && <Materials {...common} />}
+      {area === 'objetivos' && mode === 'administrador' && <Objectives {...common} />}
+      {area === 'materiais' && mode === 'administrador' && <Materials {...common} />}
       {area === 'questoes' && <Questions {...common} reviewQuestionId={reviewQuestionId} onReviewLoaded={() => setReviewQuestionId('')} />}
       {area === 'simulados' && <Simulations objective={objective} />}
       {area === 'desempenho' && <Performance objective={objective} onReview={openReview} />}

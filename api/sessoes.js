@@ -8,9 +8,11 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const inicio = queryParam(req, 'inicio')
       const fim = queryParam(req, 'fim')
+      const objetivoId = queryParam(req, 'objetivoId')
       let query = supabase.from('sessao').select('id,titulo,tipo,data,duracao_estimada,duracao_realizada,status,objetivo:objetivo_id(id,nome),materia:materia_id(nome),topico:topico_id(nome)').order('data')
       if (inicio) query = query.gte('data', inicio)
       if (fim) query = query.lte('data', fim)
+      if (objetivoId) query = query.eq('objetivo_id', objetivoId)
       const { data, error } = await query
       if (error) throw error
       return res.status(200).json({ sessoes: data })

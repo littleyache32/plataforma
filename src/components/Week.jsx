@@ -16,8 +16,8 @@ export default function Week({ catalog, objective }) {
   const [form, setForm] = useState({ titulo: '', data: range.start, duracao: 50 })
   const [message, setMessage] = useState('')
 
-  const load = () => api(`/api/sessoes?inicio=${range.start}&fim=${range.end}`).then((data) => setSessions(data.sessoes)).catch((err) => setMessage(err.message))
-  useEffect(() => { load() }, [range.start, range.end])
+  const load = () => api(`/api/sessoes?inicio=${range.start}&fim=${range.end}&objetivoId=${objective?.id || ''}`).then((data) => setSessions(data.sessoes)).catch((err) => setMessage(err.message))
+  useEffect(() => { load() }, [range.start, range.end, objective?.id])
 
   async function create(event) {
     event.preventDefault()
