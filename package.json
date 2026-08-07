@@ -1,0 +1,31 @@
+{
+  "name": "mentor-de-estudos",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:full": "vercel dev",
+    "build": "vite build --configLoader runner",
+    "preview": "vite preview",
+    "test": "vitest run --configLoader runner",
+    "lint": "node scripts/lint.js",
+    "migrate": "node --env-file=.env.local scripts/migrate.js"
+  },
+  "dependencies": {
+    "@google/genai": "^1.28.0",
+    "@supabase/supabase-js": "^2.57.4",
+    "pdf-parse": "^2.4.5",
+    "pg": "^8.16.3",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.4",
+    "vite": "^7.1.9",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
