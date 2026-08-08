@@ -56,6 +56,15 @@ ${syllabus}
 Explique minuciosamente conceitos, fundamentos, classificações, elementos, relações, exceções, consequências e aplicações. Inclua exemplos apenas explicativos, sem perguntas, exercícios ou gabaritos. Em Direito, confirme a legislação vigente na data da pesquisa e indique alterações relevantes. No BACEN, cubra integralmente o recorte do edital e as armadilhas conceituais comuns. Em cada título, escreva entre 1.600 e 2.400 palavras e use subtítulos para visão geral, fundamentos, desenvolvimento, classificações ou etapas, exemplos, comparações, erros comuns e síntese. Pesquise prioritariamente fontes oficiais, legislação, manuais institucionais e bibliografia acadêmica confiável. Não invente decisões, artigos, números ou citações.`
 }
 
+function standaloneTopicPrompt(spec, topicName, scope) {
+  const audience = spec.type === 'concurso' ? 'candidato ao cargo de Técnico do Banco Central, Área 1, no padrão Cebraspe' : 'estudante do segundo semestre do curso de Direito'
+  return `Produza um capítulo de apostila autossuficiente em português do Brasil.
+Público: ${audience}. Disciplina: ${spec.subject}. Capítulo: ${topicName}.
+Escopo obrigatório: ${scope}. Base curricular e normativa: ${spec.basis}
+
+Explique minuciosamente conceitos, fundamentos, classificações, elementos, relações, exceções, consequências e aplicações. Inclua exemplos apenas explicativos, sem perguntas, exercícios ou gabaritos. Em Direito, não apresente norma revogada como vigente e sinalize qualquer ponto que exija conferência da redação atual em fonte oficial. No BACEN, cubra todo o recorte do edital e armadilhas conceituais comuns. Escreva entre 1.600 e 2.400 palavras, com visão geral, fundamentos, desenvolvimento, classificações ou etapas, exemplos, comparações, erros comuns e síntese. Não invente decisões, artigos, números ou citações.`
+}
+
 function topicSection(content, topicName, nextTopicName) {
   const text = String(content || '')
   const escaped = topicName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -119,7 +128,7 @@ export default async function archiveHandler(req, res) {
     const requestedIndex = Number(req.body?.index ?? queryParam(req, 'index'))
     const topics = librarySpecs.flatMap((spec) => spec.topics.map(([topic, scope]) => ({ spec, topic, scope })))
     if (!Number.isInteger(requestedIndex) || requestedIndex < 0 || requestedIndex >= topics.length) return res.status(400).json({ error: `Índice inválido. Use de 0 a ${topics.length - 1}.`, total: topics.length })
-    const { spec, topic: topicName } = topics[requestedIndex]
+    const { spec, topic: topicName, scope } = topics[requestedIndex]
     const { data: objective, error: objectiveError } = await supabase.from('objetivo').select('id,nome').eq('nome', spec.objective).single()
     if (objectiveError) throw objectiveError
     const { data: subject, error: subjectError } = await supabase.from('materia').select('id,nome').eq('objetivo_id', objective.id).eq('nome', spec.subject).single()
@@ -142,7 +151,10 @@ export default async function archiveHandler(req, res) {
     const researchName = `Pesquisa-base completa - ${spec.subject}`
     let { data: researchMaterial } = await supabase.from('material').select('id,conteudo').eq('materia_id', subject.id).eq('nome', researchName).maybeSingle()
     let researchSources = []
-    if (!researchMaterial) {
+    let chapter = ''
+    if (req.body?.skipGrounding === true) {
+      chapter = String(await generateText(standaloneTopicPrompt(spec, topicName, scope), { model: process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite' })).trim()
+    } else if (!researchMaterial) {
       const researchModel = String(req.body?.researchModel || process.env.GEMINI_RESEARCH_MODEL || 'gemini-3-flash-preview')
       let researched
       let grounded = true
@@ -154,22 +166,27 @@ export default async function archiveHandler(req, res) {
         researched = { texto: await generateText(`${subjectPrompt(spec)}\n\nA busca integrada está indisponível na cota gratuita. Use estritamente a base curricular indicada e conhecimentos normativos consolidados. Quando houver risco de desatualização, declare a necessidade de conferir a redação vigente em fonte oficial.`, { model: process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite' }), fontes: [] }
       }
       const researchText = String(researched.texto || '').trim()
-      if (researchText.length < spec.topics.length * 3500) throw new Error('A pesquisa gerou uma apostila curta demais para a disciplina completa.')
+      if (!grounded) chapter = researchText
+      if (grounded && researchText.length < spec.topics.length * 3500) throw new Error('A pesquisa gerou uma apostila curta demais para a disciplina completa.')
       researchSources = researched.fontes || []
-      const researchContent = `${researchText}\n\n## Fontes verificadas\n${researchSources.map((item) => `- ${item.titulo}: ${item.url}`).join('\n') || `- ${spec.basis}`}`
-      const result = await supabase.from('material').insert({ objetivo_id: objective.id, materia_id: subject.id, tipo: 'texto', nome: researchName, conteudo: researchContent, status: 'aceito', motivo: grounded ? 'Pesquisa-base completa, criada uma única vez para economizar a cota gratuita de busca.' : 'Base curricular completa gerada sem busca integrada porque a cota gratuita de grounding estava indisponível; requer atualização futura de fontes.', forcado: false }).select('id,conteudo').single()
-      if (result.error) throw result.error
-      researchMaterial = result.data
+      if (grounded) {
+        const researchContent = `${researchText}\n\n## Fontes verificadas\n${researchSources.map((item) => `- ${item.titulo}: ${item.url}`).join('\n') || `- ${spec.basis}`}`
+        const result = await supabase.from('material').insert({ objetivo_id: objective.id, materia_id: subject.id, tipo: 'texto', nome: researchName, conteudo: researchContent, status: 'aceito', motivo: 'Pesquisa-base completa, criada uma única vez para economizar a cota gratuita de busca.', forcado: false }).select('id,conteudo').single()
+        if (result.error) throw result.error
+        researchMaterial = result.data
+      }
     }
-    const topicPosition = spec.topics.findIndex(([name]) => name === topicName)
-    const chapter = topicSection(researchMaterial.conteudo, topicName, spec.topics[topicPosition + 1]?.[0])
-    if (chapter.length < 3000) throw new Error('Não foi possível separar um capítulo completo da pesquisa-base.')
+    if (!chapter && researchMaterial) {
+      const topicPosition = spec.topics.findIndex(([name]) => name === topicName)
+      chapter = topicSection(researchMaterial.conteudo, topicName, spec.topics[topicPosition + 1]?.[0])
+    }
+    if (chapter.length < 3000) throw new Error('Não foi possível produzir um capítulo completo para este tópico.')
     const evidence = evidenceBlocks(chapter)
     if (evidence.length < 5) throw new Error('O capítulo não contém evidências suficientes para gerar o treino.')
     const generated = await generateJson({ prompt: trainingPrompt(spec, topicName, evidence, cardCount), schema })
     const training = validateTraining(generated, evidence, cardCount)
     if (!researchSources.length) {
-      const url = String(researchMaterial.conteudo).match(/https?:\/\/\S+/)?.[0]?.replace(/[),.;]+$/, '')
+      const url = String(researchMaterial?.conteudo || '').match(/https?:\/\/\S+/)?.[0]?.replace(/[),.;]+$/, '')
       if (url) researchSources = [{ titulo: `Fonte verificada de ${spec.subject}`, url }]
     }
     const source = sourceLabel(researchSources, spec)

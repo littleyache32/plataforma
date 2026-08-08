@@ -3,6 +3,7 @@ const accessKey = process.env.APP_ACCESS_KEY
 const start = Math.max(0, Number(process.argv.find((item) => item.startsWith('--start='))?.split('=')[1] || 0))
 const requestedLimit = Number(process.argv.find((item) => item.startsWith('--limit='))?.split('=')[1] || Infinity)
 const researchModel = process.argv.find((item) => item.startsWith('--research-model='))?.split('=')[1] || ''
+const skipGrounding = !process.argv.includes('--grounding')
 
 if (!accessKey) throw new Error('APP_ACCESS_KEY não configurada no .env.local.')
 
@@ -17,7 +18,7 @@ async function generate(index) {
   let lastError
   for (let attempt = 1; attempt <= 8; attempt += 1) {
     try {
-      const response = await fetch(`${baseUrl}/api/admin/acervo`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ index, researchModel: researchModel || undefined }) })
+      const response = await fetch(`${baseUrl}/api/admin/acervo`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ index, researchModel: researchModel || undefined, skipGrounding }) })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(`${response.status}: ${data.error || 'falha sem mensagem'}`)
       return data
