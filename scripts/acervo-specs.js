@@ -28,6 +28,8 @@ export const librarySpecs = [
     topics: [
       ['Atos administrativos', 'Conceito, elementos ou requisitos, atributos, espécies, classificação, validade, eficácia e formação.'],
       ['Extinção e controle dos atos administrativos', 'Anulação, revogação, cassação, caducidade, contraposição, convalidação e teoria dos motivos determinantes.'],
+      ['Atos e poderes administrativos', 'Poderes vinculado, discricionário, hierárquico, disciplinar, regulamentar e de polícia; uso, abuso, excesso e desvio de poder.'],
+      ['Licitações e contratos', 'Princípios, planejamento, modalidades, contratação direta, execução e fiscalização conforme a Lei nº 14.133/2021.'],
       ['Lei 8.112: disposições, provimento e vacância', 'Artigos 1º a 35, requisitos, formas de provimento, posse, exercício, estabilidade, recondução e vacância.'],
       ['Lei 8.112: direitos e vantagens', 'Artigos 40 a 115, vencimento, remuneração, vantagens, férias, licenças, afastamentos, concessões e direito de petição.'],
       ['Lei 8.112: deveres, proibições e responsabilidades', 'Artigos 116 a 126-A, deveres, proibições, acumulação e responsabilidades civil, penal e administrativa.'],
@@ -72,6 +74,8 @@ export const librarySpecs = [
       ['Contagem e probabilidade', 'Princípios aditivo e multiplicativo, permutações, arranjos, combinações e probabilidade elementar e condicional.'],
       ['Conjuntos e problemas quantitativos', 'Operações com conjuntos, diagramas, problemas aritméticos, razões, proporções e porcentagens.'],
       ['Geometria e raciocínio matricial', 'Problemas geométricos usuais, sequências, padrões, matrizes e organização lógica de informações.'],
+      ['Estatística', 'Estatística descritiva, tabelas e gráficos, medidas de posição e dispersão e interpretação de dados.'],
+      ['Matemática financeira', 'Juros simples e compostos, taxas equivalentes, descontos, valor presente, valor futuro e séries uniformes.'],
     ],
   },
   {
@@ -89,6 +93,7 @@ export const librarySpecs = [
       ['Estoques e avaliação financeira', 'PEPS, média ponderada móvel, UEPS no contexto fiscal e societário, valor realizável líquido e efeitos no resultado.'],
       ['Imobilizado, depreciação e amortização', 'Reconhecimento, custo, vida útil, valor residual, métodos, baixa, recuperabilidade e atualização do extinto ativo diferido.'],
       ['Perdas de crédito e operações com duplicatas', 'Perdas esperadas, provisão para créditos, desconto de duplicatas, coobrigação e registros.'],
+      ['Contabilidade pública', 'Patrimônio público, receitas e despesas sob enfoque patrimonial e orçamentário, registros e demonstrações básicas do setor público.'],
     ],
   },
   {
@@ -199,4 +204,3 @@ export const librarySpecs = [
     ],
   },
 ]
-
