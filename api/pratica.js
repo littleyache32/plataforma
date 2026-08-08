@@ -11,19 +11,28 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       const topicoId = queryParam(req, 'topicoId')
+      const materiaId = queryParam(req, 'materiaId')
       const questaoId = queryParam(req, 'questaoId')
-      if (!topicoId && !questaoId) return res.status(400).json({ error: 'Topico ou questao obrigatorio.' })
+      if (!topicoId && !materiaId && !questaoId) return res.status(400).json({ error: 'Materia, topico ou questao obrigatorio.' })
 
       let query = supabase.from('questao')
-        .select('id,tipo,enunciado,alternativas,origem,estado,quantidade_tentativas,ultima_resolucao,proxima_revisao')
+        .select('id,tipo,enunciado,alternativas,origem,estado,quantidade_tentativas,ultima_resolucao,proxima_revisao,topico:topico_id(id,nome,materia_id)', { count: 'exact' })
         .eq('marcada_errada', false)
         .neq('estado', 'arquivada')
-      query = questaoId ? query.eq('id', questaoId).limit(1) : query.eq('topico_id', topicoId).limit(100)
-      const { data: questions, error } = await query
+      if (questaoId) query = query.eq('id', questaoId).limit(1)
+      else if (topicoId) query = query.eq('topico_id', topicoId).limit(1000)
+      else {
+        const { data: subjectTopics, error: topicsError } = await supabase.from('topico').select('id').eq('materia_id', materiaId)
+        if (topicsError) throw topicsError
+        const topicIds = (subjectTopics || []).map((item) => item.id)
+        if (!topicIds.length) return res.status(404).json({ error: 'Esta disciplina ainda nao possui topicos.' })
+        query = query.in('topico_id', topicIds).limit(1000)
+      }
+      const { data: questions, count, error } = await query
       if (error) throw error
       const question = questaoId ? questions?.[0] : selectPracticeQuestion(questions || [])
       if (!question) return res.status(404).json({ error: 'Nao ha questoes disponiveis. Gere um lote em Administracao.' })
-      return res.status(200).json({ questao: question })
+      return res.status(200).json({ questao: question, disponiveis: count || questions?.length || 0 })
     }
 
     const { questaoId, resposta, classificacao, tempo } = req.body || {}

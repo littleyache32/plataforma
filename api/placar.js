@@ -8,7 +8,7 @@ function confidenceBreakdown(records) {
   return ['certeza', 'duvida', 'eliminacao', 'sem_conhecimento'].map((id) => {
     const group = records.filter((record) => record.classificacao === id)
     const correct = group.filter((record) => record.resultado === 'acerto').length
-    return { id, total: group.length, acertos: correct, taxa: percent(correct, group.length) }
+    return { id, total: group.length, acertos: correct, erros: group.length - correct, taxa: percent(correct, group.length) }
   })
 }
 
@@ -39,17 +39,44 @@ function bySubject(records) {
   return [...groups.values()].map((item) => ({ ...item, taxa: percent(item.acertos, item.total) })).sort((a, b) => a.taxa - b.taxa || b.total - a.total)
 }
 
+function byTopic(records) {
+  const groups = new Map()
+  records.forEach((record) => {
+    const key = `${record.materia || 'Sem disciplina'}\u0000${record.topico || 'Sem tópico'}`
+    const current = groups.get(key) || { materia: record.materia || 'Sem disciplina', topico: record.topico || 'Sem tópico', total: 0, acertos: 0, falsa_certeza: 0 }
+    current.total += 1
+    current.acertos += record.resultado === 'acerto' ? 1 : 0
+    current.falsa_certeza += record.resultado === 'erro' && record.classificacao === 'certeza' ? 1 : 0
+    groups.set(key, current)
+  })
+  return [...groups.values()].map((item) => ({ ...item, taxa: percent(item.acertos, item.total) })).sort((a, b) => a.taxa - b.taxa || b.total - a.total)
+}
+
+function timeBreakdown(records) {
+  const ranges = [
+    { id: 'ate_30', label: 'Até 30s', test: (value) => value <= 30 },
+    { id: '31_60', label: '31s a 1min', test: (value) => value > 30 && value <= 60 },
+    { id: '61_120', label: '1 a 2min', test: (value) => value > 60 && value <= 120 },
+    { id: 'mais_120', label: 'Mais de 2min', test: (value) => value > 120 },
+  ]
+  return ranges.map((range) => {
+    const items = records.filter((item) => Number(item.tempo) > 0 && range.test(Number(item.tempo)))
+    const correct = items.filter((item) => item.resultado === 'acerto').length
+    return { id: range.id, label: range.label, total: items.length, acertos: correct, taxa: percent(correct, items.length) }
+  })
+}
+
 export default async function handler(req, res) {
   if (!allowMethods(req, res, ['GET']) || !requireAccess(req, res)) return
   try {
     const supabase = getSupabaseAdmin()
-    let query = supabase.from('registro').select('resultado,classificacao,tempo,criado_em,questao!inner(topico:topico_id(materia:materia_id(nome,objetivo_id)))')
+    let query = supabase.from('registro').select('resultado,classificacao,tempo,criado_em,questao!inner(topico:topico_id(nome,materia:materia_id(nome,objetivo_id)))')
     const topicoId = queryParam(req, 'topicoId')
     const objetivoId = queryParam(req, 'objetivoId')
     if (topicoId) query = query.eq('questao.topico_id', topicoId)
     const { data, error } = await query
     if (error) throw error
-    const records = (objetivoId ? (data || []).filter((item) => item.questao?.topico?.materia?.objetivo_id === objetivoId) : (data || [])).map((item) => ({ ...item, materia: item.questao?.topico?.materia?.nome }))
+    const records = (objetivoId ? (data || []).filter((item) => item.questao?.topico?.materia?.objetivo_id === objetivoId) : (data || [])).map((item) => ({ ...item, materia: item.questao?.topico?.materia?.nome, topico: item.questao?.topico?.nome }))
     const questionScore = scoreboard(records)
     const questionTime = records.filter((item) => Number(item.tempo) > 0)
 
@@ -63,7 +90,7 @@ export default async function handler(req, res) {
     const skipped = (simulations || []).reduce((total, simulation) => total + (simulation.itens || []).filter((item) => item.pulada || !item.resposta).length, 0)
     const simulationTime = simulationRecords.filter((item) => Number(item.tempo) > 0)
     return res.status(200).json({
-      questoes: { ...questionScore, acertos: records.filter((item) => item.resultado === 'acerto').length, confianca: confidenceBreakdown(records), tempo_medio: questionTime.length ? Math.round(questionTime.reduce((sum, item) => sum + Number(item.tempo), 0) / questionTime.length) : 0, evolucao: timeline(records), materias: bySubject(records) },
+      questoes: { ...questionScore, acertos: records.filter((item) => item.resultado === 'acerto').length, confianca: confidenceBreakdown(records), tempo_medio: questionTime.length ? Math.round(questionTime.reduce((sum, item) => sum + Number(item.tempo), 0) / questionTime.length) : 0, evolucao: timeline(records), materias: bySubject(records), topicos: byTopic(records), ritmo: timeBreakdown(records) },
       simulados: { ...scoreboard(simulationRecords), total: simulationRecords.length, acertos: simulationRecords.filter((item) => item.resultado === 'acerto').length, feitos: (simulations || []).length, puladas: skipped, confianca: confidenceBreakdown(simulationRecords), tempo_medio: simulationTime.length ? Math.round(simulationTime.reduce((sum, item) => sum + Number(item.tempo), 0) / simulationTime.length) : 0, evolucao: timeline(simulationRecords), materias: bySubject(simulationRecords) },
     })
   } catch (error) {

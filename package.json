@@ -10,7 +10,10 @@
     "preview": "vite preview",
     "test": "vitest run --configLoader runner",
     "lint": "node scripts/lint.js",
-    "migrate": "node --env-file=.env.local scripts/migrate.js"
+    "migrate": "node --env-file=.env.local scripts/migrate.js",
+    "import:bacen": "node --env-file=.env.local scripts/import-curated-bacen.js",
+    "acervo:gerar": "node --env-file=.env.local scripts/build-complete-library.js --generate",
+    "acervo:importar": "node --env-file=.env.local scripts/build-complete-library.js --apply"
   },
   "dependencies": {
     "@google/genai": "^1.28.0",

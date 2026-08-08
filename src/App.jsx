@@ -9,6 +9,7 @@ import Questions from './components/Questions.jsx'
 import Simulations from './components/Simulations.jsx'
 import Performance from './components/Performance.jsx'
 import QuestionCards from './components/QuestionCards.jsx'
+import StudyMaterials from './components/StudyMaterials.jsx'
 
 export default function App() {
   const [status, setStatus] = useState('loading')
@@ -66,6 +67,7 @@ export default function App() {
       {area === 'objetivos' && mode === 'administrador' && <Objectives {...common} />}
       {area === 'materiais' && mode === 'administrador' && <Materials {...common} />}
       {area === 'questoes' && <Questions {...common} reviewQuestionId={reviewQuestionId} onReviewLoaded={() => setReviewQuestionId('')} />}
+      {area === 'apostilas' && <StudyMaterials objective={objective} />}
       {area === 'cards' && <QuestionCards objective={objective} />}
       {area === 'simulados' && <Simulations objective={objective} />}
       {area === 'desempenho' && <Performance objective={objective} mode={mode} onReview={openReview} />}
