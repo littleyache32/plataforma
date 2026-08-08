@@ -16,8 +16,18 @@ const request = async (path, options = {}) => {
   return data
 }
 
-const [{ data: questions }, { data: cards }, { data: knowledge }, { data: objectives }] = await Promise.all([
-  supabase.from('questao').select('id,tipo,alternativas,gabarito,fonte,trecho_fonte,topico_id'),
+async function allRows(table, columns) {
+  const rows = []
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.from(table).select(columns).range(from, from + 999)
+    if (error) throw error
+    rows.push(...data)
+    if (data.length < 1000) return rows
+  }
+}
+
+const [questions, { data: cards }, { data: knowledge }, { data: objectives }] = await Promise.all([
+  allRows('questao', 'id,tipo,alternativas,gabarito,fonte,trecho_fonte,topico_id'),
   supabase.from('question_card').select('id,fonte,trecho_fonte,topico_id'),
   supabase.from('conhecimento').select('id,origem,topico_id'),
   supabase.from('objetivo').select('id,tipo,materias:materia(id,nome)').eq('ativo', true),

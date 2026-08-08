@@ -29,6 +29,25 @@ export function canGenerateMentorWeek({ weekStart, today }) {
   return current.getUTCDay() === 0 && isoDate(tomorrow) === weekStart
 }
 
+export function planOverdueMoves(sessions, today, weekEnd) {
+  if (today > weekEnd) return []
+  const movable = sessions.filter((item) => item.status === 'planejada' && item.data < today && !item.movida_em)
+  const candidates = []
+  for (let date = today; date <= weekEnd;) {
+    candidates.push(date)
+    const next = new Date(`${date}T12:00:00Z`); next.setUTCDate(next.getUTCDate() + 1); date = isoDate(next)
+  }
+  if (!movable.length || !candidates.length) return []
+  const load = Object.fromEntries(candidates.map((date) => [date, sessions.filter((item) => item.data === date && item.status !== 'feita').reduce((sum, item) => sum + (item.duracao_estimada || 0), 0)]))
+  return movable.sort((a, b) => (a.prioridade || 2) - (b.prioridade || 2)).map((item) => {
+    const duration = item.duracao_estimada || 30
+    const fitting = candidates.filter((date) => load[date] + duration <= ([0, 6].includes(new Date(`${date}T12:00:00Z`).getUTCDay()) ? 180 : 270))
+    const destination = (fitting.length ? fitting : candidates).sort((a, b) => load[a] - load[b])[0]
+    load[destination] += duration
+    return { id: item.id, data: destination }
+  })
+}
+
 function demand({ weekStart, day, slot, target, title, type, duration, priority = 2 }) {
   if (!target) return null
   const date = new Date(`${weekStart}T12:00:00Z`)

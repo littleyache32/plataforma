@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildMentorWeek, canGenerateMentorWeek } from '../shared/planner.js'
+import { buildMentorWeek, canGenerateMentorWeek, planOverdueMoves } from '../shared/planner.js'
 
 const catalog = [
   { id: 'bacen', tipo: 'concurso', materias: [{ id: 'cont', nome: 'Contabilidade', topicos: [{ id: 'cont-1', nome: 'Balanço' }] }] },
@@ -62,5 +62,21 @@ describe('buildMentorWeek', () => {
     const preparation = result.find((item) => item.chave_mentor.endsWith('preparo:prova-1'))
     expect(exam).toMatchObject({ data: '2026-08-13', tipo: 'prova', duracao_estimada: 120, prioridade: 1 })
     expect(preparation).toMatchObject({ data: '2026-08-11', tipo: 'revisao', duracao_estimada: 90, materia_id: 'civil' })
+  })
+
+  it('remaneja pendencias vencidas sem alterar demandas movidas pelo aluno', () => {
+    const moves = planOverdueMoves([
+      { id: 'alta', data: '2026-08-10', status: 'planejada', prioridade: 1, duracao_estimada: 60 },
+      { id: 'manual', data: '2026-08-10', status: 'planejada', prioridade: 1, duracao_estimada: 60, movida_em: '2026-08-10T12:00:00Z' },
+      { id: 'feita', data: '2026-08-10', status: 'feita', prioridade: 1, duracao_estimada: 60 },
+      { id: 'carga', data: '2026-08-12', status: 'planejada', prioridade: 2, duracao_estimada: 240 },
+    ], '2026-08-12', '2026-08-16')
+    expect(moves).toEqual([{ id: 'alta', data: '2026-08-13' }])
+  })
+
+  it('prioriza topico fraco na recalibracao diaria', () => {
+    const expanded = [{ id: 'bacen', tipo: 'concurso', materias: [{ id: 'cont', nome: 'Contabilidade', topicos: [{ id: 'forte', nome: 'Fortes' }, { id: 'fraco', nome: 'Fracos' }] }] }]
+    const result = buildMentorWeek({ weekStart: '2026-08-10', catalog: expanded, priorities: [{ id: 'fraco' }] })
+    expect(result.some((item) => item.topico_id === 'fraco')).toBe(true)
   })
 })

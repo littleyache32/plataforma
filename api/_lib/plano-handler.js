@@ -1,36 +1,20 @@
 import { getSupabaseAdmin } from './supabase.js'
 import { allowMethods, fail, requireAccess } from './http.js'
 import { calculateTopicDiagnosis } from '../../shared/mentor.js'
-import { buildMentorWeek, canGenerateMentorWeek } from '../../shared/planner.js'
+import { buildMentorWeek, canGenerateMentorWeek, planOverdueMoves } from '../../shared/planner.js'
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
-const DAY_MS = 86_400_000
-
 function addDays(date, days) {
   const value = new Date(`${date}T12:00:00Z`)
   value.setUTCDate(value.getUTCDate() + days)
   return value.toISOString().slice(0, 10)
 }
 
-function dayOfWeek(date) {
-  return new Date(`${date}T12:00:00Z`).getUTCDay()
-}
-
 async function reallocateOverdue(supabase, sessions, today, weekEnd) {
-  if (today > weekEnd) return 0
-  const movable = sessions.filter((item) => item.status === 'planejada' && item.data < today && !item.movida_em)
-  if (!movable.length) return 0
-  const candidates = []
-  for (let date = today; date <= weekEnd; date = addDays(date, 1)) candidates.push(date)
-  const load = Object.fromEntries(candidates.map((date) => [date, sessions.filter((item) => item.data === date && item.status !== 'feita').reduce((sum, item) => sum + (item.duracao_estimada || 0), 0)]))
   let moved = 0
-  for (const item of movable.sort((a, b) => (a.prioridade || 2) - (b.prioridade || 2))) {
-    const duration = item.duracao_estimada || 30
-    const fitting = candidates.filter((date) => load[date] + duration <= ([0, 6].includes(dayOfWeek(date)) ? 180 : 270))
-    const destination = (fitting.length ? fitting : candidates).sort((a, b) => load[a] - load[b])[0]
-    const { error } = await supabase.from('sessao').update({ data: destination, movida_pelo_mentor_em: new Date().toISOString() }).eq('id', item.id)
+  for (const move of planOverdueMoves(sessions, today, weekEnd)) {
+    const { error } = await supabase.from('sessao').update({ data: move.data, movida_pelo_mentor_em: new Date().toISOString() }).eq('id', move.id)
     if (error) throw error
-    load[destination] += duration
     moved += 1
   }
   return moved
