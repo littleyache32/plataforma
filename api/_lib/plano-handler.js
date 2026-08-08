@@ -76,7 +76,7 @@ export default async function planHandler(req, res) {
     const existingByKey = new Map((existing || []).map((item) => [item.chave_mentor, item]))
     const recalibrated = demands.map((item) => {
       const previous = existingByKey.get(item.chave_mentor)
-      if (previous?.movida_em || previous?.movida_pelo_mentor_em || previous?.status !== 'planejada') return { ...item, data: previous.data }
+      if (previous && (previous.movida_em || previous.movida_pelo_mentor_em || previous.status !== 'planejada')) return { ...item, data: previous.data }
       return item
     })
     const { data, error } = await supabase.from('sessao').upsert(recalibrated, { onConflict: 'chave_mentor' }).select('id')
