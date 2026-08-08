@@ -4,6 +4,7 @@
   "devCommand": "vite --port $PORT",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "crons": [{ "path": "/api/cron/mentor", "schedule": "0 9 * * *" }],
   "rewrites": [
     { "source": "/api/plano", "destination": "/api/sessoes?recurso=plano" },
     { "source": "/api/estudo", "destination": "/api/catalogo?recurso=estudo" },

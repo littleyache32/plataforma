@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="Mentor alienígena verde em estilo cartoon">
+  <ellipse cx="120" cy="211" rx="76" ry="12" fill="#20362f" opacity=".28"/>
+  <path d="M72 82 13 47l28 56 38 12zm96 0 59-35-28 56-38 12z" fill="#91c98e"/>
+  <path d="m54 82-27-22 19 31 25 12zm132 0 27-22-19 31-25 12z" fill="#e8b38f"/>
+  <path d="M62 172c8-36 30-52 58-52s50 16 58 52l17 32H45z" fill="#a85e36"/>
+  <path d="m76 143 44 28 44-28-14-21H90z" fill="#c57946"/>
+  <path d="M88 155 71 204h98l-17-49-32 19z" fill="#b5683b"/>
+  <path d="M120 25c-48 0-66 35-59 76 7 38 29 58 59 58s52-20 59-58c7-41-11-76-59-76z" fill="#a7d99f"/>
+  <ellipse cx="88" cy="91" rx="20" ry="27" fill="#211b32"/>
+  <ellipse cx="152" cy="91" rx="20" ry="27" fill="#211b32"/>
+  <circle cx="82" cy="82" r="6" fill="#fff" opacity=".85"/>
+  <circle cx="146" cy="82" r="6" fill="#fff" opacity=".85"/>
+  <path d="M103 124c10 8 24 8 34 0" fill="none" stroke="#47755c" stroke-width="4" stroke-linecap="round"/>
+  <path d="M102 48c8-5 28-5 36 0M95 57c7-4 14-5 20-4M145 57c-7-4-14-5-20-4" fill="none" stroke="#6ca478" stroke-width="3" stroke-linecap="round" opacity=".65"/>
+  <circle cx="69" cy="198" r="13" fill="#91c98e"/><circle cx="171" cy="198" r="13" fill="#91c98e"/>
+</svg>

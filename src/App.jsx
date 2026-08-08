@@ -10,6 +10,7 @@ import Simulations from './components/Simulations.jsx'
 import Performance from './components/Performance.jsx'
 import QuestionCards from './components/QuestionCards.jsx'
 import Deadlines from './components/Deadlines.jsx'
+import MentorWidget from './components/MentorWidget.jsx'
 
 export default function App() {
   const [status, setStatus] = useState('loading')
@@ -81,6 +82,7 @@ export default function App() {
       {area === 'cards' && <QuestionCards objective={objective} target={studyTarget?.objectiveId === objective?.id ? studyTarget : null} onTargetApplied={() => setStudyTarget(null)} />}
       {area === 'simulados' && <Simulations objective={objective} />}
       {area === 'desempenho' && <Performance objective={objective} mode={mode} onReview={openReview} />}
+      {mode === 'aluno' && <MentorWidget objectiveId={objective?.id || ''} />}
     </Layout>
   )
 }

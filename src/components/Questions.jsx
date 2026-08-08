@@ -17,7 +17,7 @@ function elapsedLabel(seconds) {
 }
 
 export default function Questions({ objective, target, onTargetApplied, reviewQuestionId, onReviewLoaded }) {
-  const subjects = objective?.materias || []
+  const subjects = (objective?.materias || []).filter((item) => !(objective?.tipo === 'faculdade' && ['análise e produção de texto', 'analise e producao de texto'].includes(item.nome.toLocaleLowerCase('pt-BR'))))
   const [subjectId, setSubjectId] = useState(subjects[0]?.id || '')
   const topics = useMemo(() => subjects.find((item) => item.id === subjectId)?.topicos || [], [subjects, subjectId])
   const [topicId, setTopicId] = useState('')

@@ -4,11 +4,8 @@ import { calculateTopicDiagnosis } from '../../shared/mentor.js'
 import { buildMentorWeek, canGenerateMentorWeek, planOverdueMoves } from '../../shared/planner.js'
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
-function addDays(date, days) {
-  const value = new Date(`${date}T12:00:00Z`)
-  value.setUTCDate(value.getUTCDate() + days)
-  return value.toISOString().slice(0, 10)
-}
+const addDays = (date, days) => { const value = new Date(`${date}T12:00:00Z`); value.setUTCDate(value.getUTCDate() + days); return value.toISOString().slice(0, 10) }
+export const brazilToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 
 async function reallocateOverdue(supabase, sessions, today, weekEnd) {
   let moved = 0
@@ -20,59 +17,62 @@ async function reallocateOverdue(supabase, sessions, today, weekEnd) {
   return moved
 }
 
+export async function prepareMentorWeek({ inicio, today = brazilToday(), force = false }) {
+  if (!DATE_PATTERN.test(String(inicio || ''))) return { status: 400, body: { error: 'Inicio da semana invalido.' } }
+  if (!force && !canGenerateMentorWeek({ weekStart: inicio, today })) return { status: 200, body: { criadas: 0, total_planejado: 0, aguardando_domingo: true } }
+  const supabase = getSupabaseAdmin()
+  const weekEnd = addDays(inicio, 6)
+  const commitmentEnd = addDays(inicio, 13)
+  const results = await Promise.all([
+    supabase.from('objetivo').select('id,tipo,materias:materia(id,nome,topicos:topico(id,nome))').eq('ativo', true).order('criado_em'),
+    supabase.from('registro').select('resultado,classificacao,criado_em,questao!inner(topico_id)').order('criado_em', { ascending: false }),
+    supabase.from('revisao_item').select('id', { count: 'exact', head: true }).eq('status', 'pendente'),
+    supabase.from('compromisso').select('id,objetivo_id,materia_id,titulo,tipo,data,peso,duracao_minutos,concluido').eq('concluido', false).lte('data', commitmentEnd).gte('data', inicio),
+    supabase.from('sessao').select('id,chave_mentor,titulo,tipo,data,status,movida_em,movida_pelo_mentor_em,duracao_estimada,prioridade').gte('data', inicio).lte('data', weekEnd),
+    supabase.from('mentor_conhecimento').select('versao,politica').eq('ativo', true).order('criado_em', { ascending: false }).limit(1).maybeSingle(),
+  ])
+  const error = results.find((item) => item.error)?.error
+  if (error) throw error
+  const [catalogResult, recordsResult, reviewResult, commitmentsResult, existingResult, knowledgeResult] = results
+  const policy = knowledgeResult.data ? { ...knowledgeResult.data.politica, versao: knowledgeResult.data.versao } : {}
+  const grouped = new Map()
+  for (const record of recordsResult.data || []) {
+    const id = record.questao?.topico_id
+    if (!id) continue
+    grouped.set(id, [...(grouped.get(id) || []), record])
+  }
+  const priorities = [...grouped.entries()].map(([id, items]) => ({ id, ...calculateTopicDiagnosis(items, policy) })).filter((item) => item.status === 'prioridade').sort((a, b) => b.gravidade - a.gravidade).slice(0, 3)
+  const demands = buildMentorWeek({ weekStart: inicio, catalog: catalogResult.data || [], priorities, pendingReviews: reviewResult.count || 0, commitments: commitmentsResult.data || [], policy })
+  if (!demands.length) return { status: 200, body: { criadas: 0, motivo: 'Nenhuma disciplina disponivel.' } }
+  const existingByKey = new Map((existingResult.data || []).map((item) => [item.chave_mentor, item]))
+  const recalibrated = demands.map((item) => {
+    const previous = existingByKey.get(item.chave_mentor)
+    return previous && (previous.movida_em || previous.movida_pelo_mentor_em || previous.status !== 'planejada') ? { ...item, data: previous.data } : item
+  })
+  const upsert = await supabase.from('sessao').upsert(recalibrated, { onConflict: 'chave_mentor' }).select('id')
+  if (upsert.error) throw upsert.error
+  const activeKeys = new Set(demands.map((item) => item.chave_mentor))
+  const onboardingWithoutCards = inicio >= '2026-08-10' && inicio < '2026-08-24'
+  const obsoleteIds = (existingResult.data || []).filter((item) => {
+    if (item.status !== 'planejada') return false
+    if (onboardingWithoutCards && /question cards/i.test(item.titulo || '')) return true
+    return item.chave_mentor && !activeKeys.has(item.chave_mentor) && !item.movida_em
+  }).map((item) => item.id)
+  if (obsoleteIds.length) {
+    const removed = await supabase.from('sessao').delete().in('id', obsoleteIds)
+    if (removed.error) throw removed.error
+  }
+  const refreshed = await supabase.from('sessao').select('id,data,status,movida_em,duracao_estimada,prioridade').gte('data', inicio).lte('data', weekEnd)
+  if (refreshed.error) throw refreshed.error
+  const moved = inicio <= today && today <= weekEnd ? await reallocateOverdue(supabase, refreshed.data || [], today, weekEnd) : 0
+  return { status: 200, body: { atualizadas: upsert.data?.length || 0, removidas: obsoleteIds.length, total_planejado: demands.length, remanejadas: moved, politica_mentor: policy.versao } }
+}
+
 export default async function planHandler(req, res) {
   if (!allowMethods(req, res, ['POST']) || !requireAccess(req, res)) return
   try {
-    const { inicio } = req.body || {}
-    if (!DATE_PATTERN.test(String(inicio || ''))) return res.status(400).json({ error: 'Inicio da semana invalido.' })
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
-    if (!canGenerateMentorWeek({ weekStart: inicio, today })) return res.status(200).json({ criadas: 0, total_planejado: 0, aguardando_domingo: true })
-    const supabase = getSupabaseAdmin()
-    const weekEnd = addDays(inicio, 6)
-    const commitmentEnd = addDays(inicio, 13)
-    const [{ data: catalog, error: catalogError }, { data: records, error: recordsError }, { count: pendingReviews, error: reviewError }, { data: commitments, error: commitmentsError }, { data: existing, error: existingError }, { data: mentorKnowledge, error: mentorKnowledgeError }] = await Promise.all([
-      supabase.from('objetivo').select('id,tipo,materias:materia(id,nome,topicos:topico(id,nome))').eq('ativo', true).order('criado_em'),
-      supabase.from('registro').select('resultado,classificacao,criado_em,questao!inner(topico_id)').order('criado_em', { ascending: false }),
-      supabase.from('revisao_item').select('id', { count: 'exact', head: true }).eq('status', 'pendente'),
-      supabase.from('compromisso').select('id,objetivo_id,materia_id,titulo,tipo,data,peso,duracao_minutos,concluido').eq('concluido', false).lte('data', commitmentEnd).gte('data', inicio),
-      supabase.from('sessao').select('id,chave_mentor,data,status,movida_em,movida_pelo_mentor_em,duracao_estimada,prioridade').gte('data', inicio).lte('data', weekEnd),
-      supabase.from('mentor_conhecimento').select('versao,politica').eq('ativo', true).order('criado_em', { ascending: false }).limit(1).maybeSingle(),
-    ])
-    if (catalogError) throw catalogError
-    if (recordsError) throw recordsError
-    if (reviewError) throw reviewError
-    if (commitmentsError) throw commitmentsError
-    if (existingError) throw existingError
-    if (mentorKnowledgeError) throw mentorKnowledgeError
-
-    const policy = mentorKnowledge ? { ...mentorKnowledge.politica, versao: mentorKnowledge.versao } : {}
-
-    const grouped = new Map()
-    for (const record of records || []) {
-      const topicId = record.questao?.topico_id
-      if (!topicId) continue
-      const items = grouped.get(topicId) || []
-      items.push(record)
-      grouped.set(topicId, items)
-    }
-    const priorities = [...grouped.entries()].map(([id, items]) => ({ id, ...calculateTopicDiagnosis(items, policy) }))
-      .filter((item) => item.status === 'prioridade')
-      .sort((a, b) => b.gravidade - a.gravidade)
-      .slice(0, 3)
-    const demands = buildMentorWeek({ weekStart: inicio, catalog: catalog || [], priorities, pendingReviews: pendingReviews || 0, commitments: commitments || [], policy })
-    if (!demands.length) return res.status(200).json({ criadas: 0, motivo: 'Nenhuma disciplina disponivel.' })
-    const existingByKey = new Map((existing || []).map((item) => [item.chave_mentor, item]))
-    const recalibrated = demands.map((item) => {
-      const previous = existingByKey.get(item.chave_mentor)
-      if (previous && (previous.movida_em || previous.movida_pelo_mentor_em || previous.status !== 'planejada')) return { ...item, data: previous.data }
-      return item
-    })
-    const { data, error } = await supabase.from('sessao').upsert(recalibrated, { onConflict: 'chave_mentor' }).select('id')
-    if (error) throw error
-    const { data: refreshed, error: refreshedError } = await supabase.from('sessao').select('id,data,status,movida_em,duracao_estimada,prioridade').gte('data', inicio).lte('data', weekEnd)
-    if (refreshedError) throw refreshedError
-    const moved = inicio <= today && today <= weekEnd ? await reallocateOverdue(supabase, refreshed || [], today, weekEnd) : 0
-    return res.status(200).json({ atualizadas: data?.length || 0, total_planejado: demands.length, remanejadas: moved, politica_mentor: policy.versao })
+    const result = await prepareMentorWeek({ inicio: req.body?.inicio })
+    return res.status(result.status).json(result.body)
   } catch (error) {
     return fail(res, error, 'Nao foi possivel preparar sua semana.')
   }

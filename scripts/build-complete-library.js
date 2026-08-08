@@ -11,9 +11,15 @@ const apply = args.has('--apply')
 const force = args.has('--force')
 const limitArg = [...args].find((item) => item.startsWith('--limit='))
 const limit = limitArg ? Math.max(1, Number(limitArg.split('=')[1])) : Infinity
+const contextArg = [...args].find((item) => item.startsWith('--context='))?.split('=')[1]
+const targetQuestionsArg = [...args].find((item) => item.startsWith('--target-questions='))
+const targetCardsArg = [...args].find((item) => item.startsWith('--target-cards='))
 const cacheDir = path.resolve('tmp', 'acervo-cache')
 const questionAmount = 15
 const cardAmount = 6
+const targetQuestions = targetQuestionsArg ? Math.max(questionAmount, Number(targetQuestionsArg.split('=')[1])) : questionAmount
+const targetCards = targetCardsArg ? Math.max(cardAmount, Number(targetCardsArg.split('=')[1])) : cardAmount
+const selectedSpecs = librarySpecs.filter((item) => !contextArg || item.type === contextArg)
 const waitMs = 4300
 
 const letters = ['A', 'B', 'C', 'D', 'E']
@@ -147,12 +153,13 @@ Requisitos:
 9. Pesquise prioritariamente fontes oficiais, legislação, manuais institucionais e bibliografia acadêmica confiável. Não invente decisões, artigos, números ou citações.`
 }
 
-function trainingPrompt(spec, topicName, evidence) {
+function trainingPrompt(spec, topicName, evidence, batch = 1, previous = []) {
   const blocks = evidence.map((item) => `[EVIDÊNCIA ${item.id}]\n${item.texto}`).join('\n\n')
   const style = spec.type === 'concurso'
     ? `Crie ${questionAmount} questões inéditas em estilo Cebraspe: 10 ou 11 itens CE e 4 ou 5 itens ME com alternativas A a E. Misture dificuldades 2, 3, 4 e 5, com predominância 3 e 4.`
     : `Crie ${questionAmount} questões acadêmicas inéditas: use CE e ME com cinco alternativas, casos curtos e dificuldade compatível com graduação em Direito.`
   return `${style}
+Este é o lote ${batch}. Não repita nem apenas reformule estes itens anteriores: ${previous.slice(-40).join(' | ') || 'nenhum'}.
 Crie também ${cardAmount} Question Cards iniciais de recuperação ativa, atômicos e sem duplicidade.
 Disciplina: ${spec.subject}. Tópico: ${topicName}.
 
@@ -164,7 +171,7 @@ ${blocks}`
 async function generateLibrary() {
   await mkdir(cacheDir, { recursive: true })
   let processed = 0
-  for (const spec of librarySpecs) {
+  for (const spec of selectedSpecs) {
     for (const [topicName, scope] of spec.topics) {
       if (processed >= limit) return
       processed += 1
@@ -176,13 +183,20 @@ async function generateLibrary() {
         cached = { objective: spec.objective, type: spec.type, subject: spec.subject, basis: spec.basis, topic: topicName, scope, chapter: cleanChapter(result.texto, spec.subject, topicName), sources: result.fontes || [], generatedAt: new Date().toISOString() }
         await saveCache(file, cached)
       }
-      if (!cached.questions?.length || !cached.cards?.length) {
+      while ((cached.questions?.length || 0) < targetQuestions || (cached.cards?.length || 0) < targetCards) {
         const evidence = evidenceBlocks(cached.chapter)
         if (evidence.length < 5) throw new Error(`Poucas evidencias no capitulo ${spec.subject} / ${topicName}`)
         console.log(JSON.stringify({ progresso: `${processed}/${Math.min(limit, librarySpecs.reduce((sum, item) => sum + item.topics.length, 0))}`, etapa: 'questoes_cards', materia: spec.subject, topico: topicName }))
-        const result = await withRetry('questoes_cards', () => generateJson({ prompt: trainingPrompt(spec, topicName, evidence), schema: questionSchema }))
+        const batch = Math.floor(Math.max(cached.questions?.length || 0, cached.cards?.length || 0) / questionAmount) + 1
+        const previous = [...(cached.questions || []).map((item) => item.enunciado), ...(cached.cards || []).map((item) => item.frente)]
+        const result = await withRetry('questoes_cards', () => generateJson({ prompt: trainingPrompt(spec, topicName, evidence, batch, previous), schema: questionSchema }))
         const training = validateTraining(result, evidence, spec.subject, topicName)
-        cached = { ...cached, evidence, questions: training.questions, cards: training.cards, completedAt: new Date().toISOString() }
+        const questionKeys = new Set((cached.questions || []).map((item) => normalize(item.enunciado)))
+        const cardKeys = new Set((cached.cards || []).map((item) => normalize(item.frente)))
+        const questions = [...(cached.questions || []), ...training.questions.filter((item) => !questionKeys.has(normalize(item.enunciado)))]
+        const cards = [...(cached.cards || []), ...training.cards.filter((item) => !cardKeys.has(normalize(item.frente)))]
+        if (questions.length === (cached.questions || []).length && cards.length === (cached.cards || []).length) throw new Error(`Lote totalmente duplicado: ${spec.subject} / ${topicName}`)
+        cached = { ...cached, evidence, questions: questions.slice(0, targetQuestions), cards: cards.slice(0, targetCards), completedAt: new Date().toISOString() }
         await saveCache(file, cached)
       }
     }
@@ -191,7 +205,7 @@ async function generateLibrary() {
 
 async function readDataset() {
   const chapters = []
-  for (const spec of librarySpecs) {
+  for (const spec of selectedSpecs) {
     for (const [topicName] of spec.topics) {
       const file = path.join(cacheDir, `${slug(spec.objective)}__${slug(spec.subject)}__${slug(topicName)}.json`)
       const cached = await loadCache(file)
@@ -278,4 +292,3 @@ const summary = {
 }
 console.log(JSON.stringify(summary, null, 2))
 if (apply) await applyDataset(dataset)
-
