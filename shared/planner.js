@@ -11,6 +11,12 @@ function pick(items, index) {
   return items.length ? items[index % items.length] : null
 }
 
+function pickDistributed(items, index) {
+  const groups = [...items.reduce((map, item) => map.set(item.subjectId, [...(map.get(item.subjectId) || []), item]), new Map()).values()]
+  const group = pick(groups, index)
+  return group ? pick(group, index) : null
+}
+
 function normalized(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 }
@@ -80,9 +86,9 @@ function targetForCommitment(targets, commitment) {
 function facultyTargetForDay(targets, priorities, day, rotationSeed, policy) {
   const rule = policy.agenda_faculdade.find((item) => item.dia === day)
   const faculty = targets.filter((item) => item.context === 'faculdade' && !normalized(item.subject).includes('analise e producao de texto'))
-  if (!rule) return pick(faculty, rotationSeed + day)
+  if (!rule) return pickDistributed(faculty, rotationSeed + day)
   const matching = faculty.filter((item) => rule.aliases.some((alias) => normalized(item.subject).includes(normalized(alias))))
-  if (!matching.length) return pick(faculty, rotationSeed + day)
+  if (!matching.length) return pickDistributed(faculty, rotationSeed + day)
   const priorityIds = new Set(priorities.map((item) => item.id))
   const weakTopics = matching.filter((item) => priorityIds.has(item.topicId))
   return pick(weakTopics.length ? weakTopics : matching, rotationSeed + day)
@@ -127,9 +133,11 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     const facultyCardTarget = pick(byContext.faculdade.filter(allowsQuestionCards), rotationSeed + day)
 
     if (onboarding) {
+      const baseBacenA = pickDistributed(byContext.concurso, rotationSeed + day) || bacenTarget
+      const baseBacenB = pickDistributed(byContext.concurso.filter((item) => item.subjectId !== baseBacenA?.subjectId), rotationSeed + day + 1) || otherBacen
       rows.push(demand({ weekStart, day, slot: 'base-faculdade', target: facultyTarget, title: `Construir base da faculdade: ${facultyTarget?.subject || ''}`, type: 'estudo', duration: 60, priority: 2 }))
-      rows.push(demand({ weekStart, day, slot: 'base-bacen-a', target: bacenTarget, title: `Construir base BACEN: ${bacenTarget.topic || bacenTarget.subject}`, type: 'estudo', duration: 60, priority: 1 }))
-      rows.push(demand({ weekStart, day, slot: 'base-bacen-b', target: otherBacen, title: `Construir base BACEN: ${otherBacen.topic || otherBacen.subject}`, type: 'estudo', duration: 60, priority: 1 }))
+      rows.push(demand({ weekStart, day, slot: 'base-bacen-a', target: baseBacenA, title: `Construir base BACEN: ${baseBacenA.topic || baseBacenA.subject}`, type: 'estudo', duration: 60, priority: 1 }))
+      rows.push(demand({ weekStart, day, slot: 'base-bacen-b', target: baseBacenB, title: `Construir base BACEN: ${baseBacenB.topic || baseBacenB.subject}`, type: 'estudo', duration: 60, priority: 1 }))
       continue
     }
 
