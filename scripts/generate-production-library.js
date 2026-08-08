@@ -6,7 +6,7 @@ const start = Math.max(0, Number(process.argv.find((item) => item.startsWith('--
 const requestedLimit = Number(process.argv.find((item) => item.startsWith('--limit='))?.split('=')[1] || Infinity)
 const researchModel = process.argv.find((item) => item.startsWith('--research-model='))?.split('=')[1] || ''
 const skipGrounding = !process.argv.includes('--grounding')
-const concurrency = Math.min(3, Math.max(1, Number(process.argv.find((item) => item.startsWith('--concurrency='))?.split('=')[1] || 3)))
+const concurrency = Math.min(4, Math.max(1, Number(process.argv.find((item) => item.startsWith('--concurrency='))?.split('=')[1] || 4)))
 
 if (!accessKey) throw new Error('APP_ACCESS_KEY não configurada no .env.local.')
 
