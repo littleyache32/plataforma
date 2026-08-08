@@ -24,9 +24,9 @@ export default async function handler(req, res) {
       if (!id) return res.status(400).json({ error: 'Demanda obrigatoria.' })
       const update = {}
       if (status) {
-        if (!['feita', 'parcial'].includes(status)) return res.status(400).json({ error: 'Status de conclusao invalido.' })
+        if (!['planejada', 'feita', 'parcial'].includes(status)) return res.status(400).json({ error: 'Status de conclusao invalido.' })
         update.status = status
-        update.duracao_realizada = Number.isInteger(duracaoRealizada) ? duracaoRealizada : null
+        update.duracao_realizada = status === 'planejada' ? null : Number.isInteger(duracaoRealizada) ? duracaoRealizada : null
       }
       if (data) {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(String(data))) return res.status(400).json({ error: 'Data da demanda invalida.' })

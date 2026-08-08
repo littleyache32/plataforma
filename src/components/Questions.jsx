@@ -9,7 +9,14 @@ function Source({ value }) {
   return match ? <a className="source-link" href={match[1]} target="_blank" rel="noreferrer">{value.slice(0, match.index).replace(/:\s*$/, '')} ↗</a> : <span className="source-link">{value}</span>
 }
 
-export default function Questions({ objective, mode, reviewQuestionId, onReviewLoaded }) {
+function elapsedLabel(seconds) {
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const rest = seconds % 60
+  return hours ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}` : `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
+}
+
+export default function Questions({ objective, reviewQuestionId, onReviewLoaded }) {
   const subjects = objective?.materias || []
   const [subjectId, setSubjectId] = useState(subjects[0]?.id || '')
   const topics = useMemo(() => subjects.find((item) => item.id === subjectId)?.topicos || [], [subjects, subjectId])
@@ -23,18 +30,28 @@ export default function Questions({ objective, mode, reviewQuestionId, onReviewL
   const [result, setResult] = useState(null)
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
-  const [adminOpen, setAdminOpen] = useState(false)
-  const [quantity, setQuantity] = useState(20)
   const [reportOpen, setReportOpen] = useState(false)
   const [reportReason, setReportReason] = useState('gabarito_incorreto')
   const startedAt = useRef(null)
+  const [sessionStartedAt, setSessionStartedAt] = useState(null)
+  const [sessionNow, setSessionNow] = useState(Date.now())
 
-  useEffect(() => { setSubjectId(subjects[0]?.id || ''); setQuestion(null) }, [objective?.id])
-  useEffect(() => { setTopicId(''); setQuestion(null); setAvailable(0); setPosition(0) }, [subjectId])
+  useEffect(() => { setSubjectId(subjects[0]?.id || ''); setQuestion(null); setSessionStartedAt(null) }, [objective?.id])
+  useEffect(() => { setTopicId(''); setQuestion(null); setAvailable(0); setPosition(0); setSessionStartedAt(null) }, [subjectId])
   useEffect(() => { if (reviewQuestionId) loadQuestion(reviewQuestionId).then(onReviewLoaded) }, [reviewQuestionId])
+  useEffect(() => {
+    if (!sessionStartedAt) return undefined
+    const timer = setInterval(() => setSessionNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [sessionStartedAt])
 
   async function loadQuestion(id = '', advance = false) {
     setLoading(true); setMessage('')
+    if (!sessionStartedAt) {
+      const started = Date.now()
+      setSessionStartedAt(started)
+      setSessionNow(started)
+    }
     try {
       const path = id ? `/api/pratica?questaoId=${id}` : topicId ? `/api/pratica?topicoId=${topicId}` : `/api/pratica?materiaId=${subjectId}`
       const data = await api(path)
@@ -55,18 +72,10 @@ export default function Questions({ objective, mode, reviewQuestionId, onReviewL
     setReportOpen(false); setQuestion(null); setMessage('Problema registrado. A questão saiu do baralho para análise.')
   }
 
-  async function seed() {
-    setLoading(true); setMessage('Pesquisando e vinculando evidências individuais...')
-    try {
-      const data = await api('/api/admin/seed', { method: 'POST', body: JSON.stringify({ topicoId, quantidade: Number(quantity) }) })
-      setMessage(data.cache ? data.mensagem : `${data.geradas} questões salvas com ${data.evidencias} evidências verificáveis.`)
-    } catch (err) { setMessage(err.message) } finally { setLoading(false) }
-  }
-
   const options = question?.tipo === 'CE' ? [['C', 'Certo'], ['E', 'Errado']] : Object.entries(question?.alternativas || {})
+  const sessionSeconds = sessionStartedAt ? Math.max(0, Math.floor((sessionNow - sessionStartedAt) / 1000)) : 0
   return (
-    <section><header className="page-title compact"><div><p className="eyebrow">MOTOR DE PRÁTICA</p><h1>Questões</h1><p>Questões não são descartadas ao abrir. Tentativas e revisões ficam registradas.</p></div>{mode === 'administrador' && <button className="secondary" onClick={() => setAdminOpen(!adminOpen)}>{adminOpen ? 'Fechar administração' : 'Administrar banco'}</button>}</header>
-      {adminOpen && <article className="panel admin-strip"><div><span className="eyebrow">GERAÇÃO INTERNA</span><h2>Povoar tópico</h2></div><select value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>{subjects.map((item) => <option value={item.id} key={item.id}>{item.nome}</option>)}</select><select value={topicId} onChange={(e) => setTopicId(e.target.value)}>{topics.map((item) => <option value={item.id} key={item.id}>{item.nome}</option>)}</select><input type="number" min="2" max="20" value={quantity} onChange={(e) => setQuantity(e.target.value)} /><button className="primary" onClick={seed} disabled={loading || !topicId}>Gerar lote</button></article>}
+    <section><header className="page-title compact"><div><p className="eyebrow">MOTOR DE PRÁTICA</p><h1>Questões</h1><p>Questões não são descartadas ao abrir. Tentativas e revisões ficam registradas.</p></div><div className="card-session-clock"><small>TEMPO DE PRÁTICA</small><b>{elapsedLabel(sessionSeconds)}</b><span>{sessionStartedAt ? 'sessão em andamento' : 'inicia com a primeira questão'}</span></div></header>
       <div className="question-layout"><aside className="panel practice-filter"><h2>Escolha o foco</h2><label>Disciplina</label><select value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>{subjects.map((item) => <option value={item.id} key={item.id}>{item.nome}</option>)}</select><label>Tópico</label><select value={topicId} onChange={(e) => { setTopicId(e.target.value); setQuestion(null); setAvailable(0); setPosition(0) }}><option value="">Todos os tópicos</option>{topics.map((item) => <option value={item.id} key={item.id}>{item.nome}</option>)}</select><button className="primary" onClick={() => loadQuestion('', Boolean(question))} disabled={!subjectId || loading}>{question ? 'Próxima questão' : 'Começar prática'}</button>{available > 0 && <strong className="available-count">{available} questões disponíveis</strong>}<p>O gabarito aparece somente após resposta e classificação.</p></aside>
         <div>{!question ? <div className="panel question-empty"><span>?</span><h2>{message || 'Escolha uma disciplina e, se quiser, um tópico.'}</h2><p>Deixe “Todos os tópicos” selecionado para misturar toda a disciplina.</p></div> : <article className="panel question-card"><div className="question-meta"><span>Questão {position} de {available} · {question.topico?.nome || question.tipo}</span><button onClick={() => setReportOpen(true)}>Reportar problema na questão</button></div><h2>{question.enunciado}</h2><div className="answers">{options.map(([letter, text]) => <div className={`answer-option ${answer === letter ? 'selected' : ''} ${eliminated.includes(letter) ? 'eliminated' : ''}`} key={letter}><button className="answer-choice" onClick={() => !result && setAnswer(letter)} disabled={Boolean(result)}><b>{letter}</b><span>{text}</span></button>{question.tipo === 'ME' && <button className="answer-eliminate" aria-label={`${eliminated.includes(letter) ? 'Recuperar' : 'Eliminar'} alternativa ${letter}`} title={eliminated.includes(letter) ? 'Recuperar alternativa' : 'Eliminar alternativa'} onClick={() => !result && setEliminated((current) => current.includes(letter) ? current.filter((item) => item !== letter) : [...current, letter])} disabled={Boolean(result)}>×</button>}</div>)}</div>
           {!result && <div className="confidence"><h3>Como você chegou à resposta?</h3><div>{classifications.map(([id, label, hint]) => <button key={id} className={classification === id ? 'selected' : ''} onClick={() => setClassification(id)}><b>{label}</b><small>{hint}</small></button>)}</div><button className="primary confirm" disabled={!answer || !classification || loading} onClick={confirm}>Confirmar resposta</button></div>}

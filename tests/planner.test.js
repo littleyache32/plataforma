@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildMentorWeek } from '../shared/planner.js'
+import { buildMentorWeek, canGenerateMentorWeek } from '../shared/planner.js'
 
 const catalog = [
   { id: 'bacen', tipo: 'concurso', materias: [{ id: 'cont', nome: 'Contabilidade', topicos: [{ id: 'cont-1', nome: 'Balanço' }] }] },
@@ -33,5 +33,22 @@ describe('buildMentorWeek', () => {
     const first = buildMentorWeek({ weekStart: '2026-08-10', catalog })
     const second = buildMentorWeek({ weekStart: '2026-08-10', catalog })
     expect(second.map((item) => item.chave_mentor)).toEqual(first.map((item) => item.chave_mentor))
+  })
+
+  it('so libera a proxima semana a partir do domingo', () => {
+    expect(canGenerateMentorWeek({ weekStart: '2026-08-10', today: '2026-08-07' })).toBe(true)
+    expect(canGenerateMentorWeek({ weekStart: '2026-08-17', today: '2026-08-15' })).toBe(false)
+    expect(canGenerateMentorWeek({ weekStart: '2026-08-17', today: '2026-08-16' })).toBe(true)
+    expect(canGenerateMentorWeek({ weekStart: '2026-08-17', today: '2026-08-18' })).toBe(true)
+    expect(canGenerateMentorWeek({ weekStart: '2026-08-03', today: '2026-08-07' })).toBe(false)
+  })
+
+  it('usa aula dada, aula estudada de segunda a quinta e exclui texto dos cards', () => {
+    const withWriting = [...catalog, { id: 'facul-2', tipo: 'faculdade', materias: [{ id: 'texto', nome: 'Análise e Produção de Texto', topicos: [{ id: 'texto-1', nome: 'Redação' }] }] }]
+    const result = buildMentorWeek({ weekStart: '2026-08-10', catalog: withWriting })
+    const facultyStudy = result.filter((item) => item.tipo === 'estudo' && item.data <= '2026-08-13')
+    expect(facultyStudy).toHaveLength(4)
+    expect(facultyStudy.every((item) => item.titulo.startsWith('Aula dada, aula estudada'))).toBe(true)
+    expect(result.filter((item) => item.tipo === 'especial').every((item) => item.materia_id !== 'texto')).toBe(true)
   })
 })

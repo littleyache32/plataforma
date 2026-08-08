@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from './supabase.js'
 import { allowMethods, fail, requireAccess } from './http.js'
 import { calculateTopicDiagnosis } from '../../shared/mentor.js'
-import { buildMentorWeek } from '../../shared/planner.js'
+import { buildMentorWeek, canGenerateMentorWeek } from '../../shared/planner.js'
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
@@ -10,6 +10,8 @@ export default async function planHandler(req, res) {
   try {
     const { inicio } = req.body || {}
     if (!DATE_PATTERN.test(String(inicio || ''))) return res.status(400).json({ error: 'Inicio da semana invalido.' })
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+    if (!canGenerateMentorWeek({ weekStart: inicio, today })) return res.status(200).json({ criadas: 0, total_planejado: 0, aguardando_domingo: true })
     const supabase = getSupabaseAdmin()
     const [{ data: catalog, error: catalogError }, { data: records, error: recordsError }, { count: pendingReviews, error: reviewError }] = await Promise.all([
       supabase.from('objetivo').select('id,tipo,materias:materia(id,nome,topicos:topico(id,nome))').eq('ativo', true).order('criado_em'),
@@ -41,4 +43,3 @@ export default async function planHandler(req, res) {
     return fail(res, error, 'Nao foi possivel preparar sua semana.')
   }
 }
-

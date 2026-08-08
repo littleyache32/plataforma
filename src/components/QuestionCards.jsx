@@ -14,7 +14,7 @@ function clockLabel(seconds) {
 }
 
 export default function QuestionCards({ objective }) {
-  const subjects = objective?.materias || []
+  const subjects = (objective?.materias || []).filter((item) => !(objective?.tipo === 'faculdade' && item.nome === 'Análise e Produção de Texto'))
   const [subjectId, setSubjectId] = useState('')
   const topics = useMemo(() => subjects.find((item) => item.id === subjectId)?.topicos || [], [subjects, subjectId])
   const [topicId, setTopicId] = useState('')
@@ -24,7 +24,7 @@ export default function QuestionCards({ objective }) {
   const [message, setMessage] = useState('')
   const [revealed, setRevealed] = useState(false)
   const [reviewed, setReviewed] = useState(0)
-  const [startedAt] = useState(() => Date.now())
+  const [startedAt, setStartedAt] = useState(null)
   const [now, setNow] = useState(Date.now())
 
   function load() {
@@ -40,13 +40,33 @@ export default function QuestionCards({ objective }) {
     }).catch((error) => setMessage(error.message)).finally(() => setLoading(false))
   }
 
-  useEffect(() => { setSubjectId(''); setTopicId(''); setReviewed(0) }, [objective?.id])
+  useEffect(() => { setSubjectId(''); setTopicId(''); setReviewed(0); setStartedAt(null) }, [objective?.id])
   useEffect(() => { load() }, [objective?.id, subjectId, topicId])
-  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer) }, [])
+  useEffect(() => {
+    if (!startedAt) return undefined
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [startedAt])
 
   const queue = useMemo(() => cards.filter((item) => item.vencido), [cards])
-  const card = queue[0]
-  const remainingSeconds = 30 * 60 - Math.floor((now - startedAt) / 1000)
+  const remainingSeconds = startedAt ? 30 * 60 - Math.floor((now - startedAt) / 1000) : 30 * 60
+  const sessionEnded = Boolean(startedAt) && remainingSeconds <= 0
+  const card = startedAt && !sessionEnded ? queue[0] : null
+
+  function resetSessionFilters(change) {
+    change()
+    setStartedAt(null)
+    setReviewed(0)
+    setRevealed(false)
+  }
+
+  function startSession() {
+    const started = Date.now()
+    setStartedAt(started)
+    setNow(started)
+    setReviewed(0)
+    setRevealed(false)
+  }
 
   async function answer(resultado) {
     if (!card) return
@@ -63,8 +83,8 @@ export default function QuestionCards({ objective }) {
     }
   }
 
-  return <section><header className="page-title compact"><div><p className="eyebrow">REVISÃO ESPAÇADA</p><h1>Question Cards</h1><p>Sessão diária de 30 minutos. A próxima revisão é calculada pela dificuldade que você informa.</p></div><div className="card-session-clock"><small>SESSÃO DE HOJE</small><b>{clockLabel(remainingSeconds)}</b><span>{reviewed} revisados</span></div></header>
-    <article className="panel card-filter"><div><label>Disciplina</label><select value={subjectId} onChange={(event) => { setSubjectId(event.target.value); setTopicId('') }}><option value="">Todas as disciplinas</option>{subjects.map((item) => <option value={item.id} key={item.id}>{item.nome}</option>)}</select></div><div><label>Tópico</label><select value={topicId} onChange={(event) => setTopicId(event.target.value)} disabled={!subjectId}><option value="">Todos os tópicos</option>{topics.map((item) => <option value={item.id} key={item.id}>{item.nome}</option>)}</select></div><div className="card-queue-stats"><span><b>{stats.vencidos}</b> para hoje</span><span><b>{stats.novos}</b> novos</span><span><b>{stats.total}</b> no acervo</span></div></article>
-    {loading && !card ? <div className="panel question-empty"><h2>Organizando sua fila...</h2></div> : !card ? <div className="panel question-empty"><span>✓</span><h2>{message || 'Revisões disponíveis concluídas.'}</h2><p>Os próximos cards aparecerão automaticamente na data calculada.</p></div> : <article className="panel card-study"><div className="card-study-meta"><span>{card.objetivo?.tipo === 'faculdade' ? 'Faculdade' : 'BACEN'} · {card.materia?.nome}</span><small>{card.topico?.nome}</small></div><div className="card-face"><span>{revealed ? 'RESPOSTA E EXPLICAÇÃO' : 'PERGUNTA'}</span><h2>{revealed ? card.verso : card.frente}</h2></div>{revealed ? <><blockquote><small>TRECHO DE ORIGEM</small>{card.trecho_fonte}</blockquote><span className="source-link">{card.fonte}</span><div className="anki-actions">{ratings.map(([id, label, hint]) => <button className={`rating-${id}`} key={id} onClick={() => answer(id)} disabled={loading}><b>{label}</b><small>{hint}</small></button>)}</div></> : <button className="primary card-reveal" onClick={() => setRevealed(true)}>Mostrar resposta</button>}</article>}
+  return <section><header className="page-title compact"><div><p className="eyebrow">REVISÃO ESPAÇADA</p><h1>Question Cards</h1><p>Sessão diária de 30 minutos. O tempo começa somente quando você inicia.</p></div><div className="card-session-clock"><small>SESSÃO DE HOJE</small><b>{clockLabel(remainingSeconds)}</b><span>{reviewed} revisados</span></div></header>
+    <article className="panel card-filter"><div><label>Disciplina</label><select value={subjectId} onChange={(event) => resetSessionFilters(() => { setSubjectId(event.target.value); setTopicId('') })}><option value="">Todas as disciplinas</option>{subjects.map((item) => <option value={item.id} key={item.id}>{item.nome}</option>)}</select></div><div><label>Tópico</label><select value={topicId} onChange={(event) => resetSessionFilters(() => setTopicId(event.target.value))} disabled={!subjectId}><option value="">Todos os tópicos</option>{topics.map((item) => <option value={item.id} key={item.id}>{item.nome}</option>)}</select></div><div className="card-queue-stats"><span><b>{stats.vencidos}</b> para hoje</span><span><b>{stats.novos}</b> novos</span><span><b>{stats.total}</b> no acervo</span></div></article>
+    {loading && !startedAt ? <div className="panel question-empty"><h2>Organizando sua fila...</h2></div> : !startedAt ? <div className="panel question-empty"><span>▣</span><h2>{message || `${stats.vencidos} cards disponíveis para hoje.`}</h2><p>O cronômetro de 30 minutos ainda não começou.</p><button className="primary" onClick={startSession} disabled={!stats.vencidos}>Iniciar Question Cards</button></div> : sessionEnded ? <div className="panel question-empty"><span>✓</span><h2>Sessão de 30 minutos concluída.</h2><p>{reviewed} cards foram revisados.</p></div> : !card ? <div className="panel question-empty"><span>✓</span><h2>{message || 'Revisões disponíveis concluídas.'}</h2><p>Você terminou a fila antes do tempo.</p></div> : <article className="panel card-study"><div className="card-study-meta"><span>{card.objetivo?.tipo === 'faculdade' ? 'Faculdade' : 'BACEN'} · {card.materia?.nome}</span><small>{card.topico?.nome}</small></div><div className="card-face"><span>{revealed ? 'RESPOSTA E EXPLICAÇÃO' : 'PERGUNTA'}</span><h2>{revealed ? card.verso : card.frente}</h2></div>{revealed ? <><blockquote><small>TRECHO DE ORIGEM</small>{card.trecho_fonte}</blockquote><span className="source-link">{card.fonte}</span><div className="anki-actions">{ratings.map(([id, label, hint]) => <button className={`rating-${id}`} key={id} onClick={() => answer(id)} disabled={loading}><b>{label}</b><small>{hint}</small></button>)}</div></> : <button className="primary card-reveal" onClick={() => setRevealed(true)}>Mostrar resposta</button>}</article>}
   </section>
 }

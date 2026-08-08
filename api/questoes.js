@@ -20,7 +20,7 @@ export default async function handler(req, res) {
         const { data, error } = await query.limit(500)
         if (error) throw error
         const now = Date.now()
-        const cards = (data || []).map((item) => ({ ...item, vencido: new Date(item.proxima_revisao).getTime() <= now }))
+        const cards = (data || []).filter((item) => !(item.objetivo?.tipo === 'faculdade' && item.materia?.nome === 'Análise e Produção de Texto')).map((item) => ({ ...item, vencido: new Date(item.proxima_revisao).getTime() <= now }))
         return res.status(200).json({ cards, vencidos: cards.filter((item) => item.vencido).length, novos: cards.filter((item) => !item.ultima_revisao).length, total: cards.length })
       }
       const { id, resultado } = req.body || {}

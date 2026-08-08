@@ -67,9 +67,27 @@ function timeBreakdown(records) {
 }
 
 export default async function handler(req, res) {
-  if (!allowMethods(req, res, ['GET']) || !requireAccess(req, res)) return
+  if (!allowMethods(req, res, ['GET', 'DELETE']) || !requireAccess(req, res)) return
   try {
     const supabase = getSupabaseAdmin()
+    if (req.method === 'DELETE') {
+      const deletions = [
+        supabase.from('simulado').delete().not('id', 'is', null),
+        supabase.from('revisao_item').delete().not('id', 'is', null),
+        supabase.from('registro').delete().not('id', 'is', null),
+        supabase.from('question_card_registro').delete().not('id', 'is', null),
+      ]
+      const results = await Promise.all(deletions)
+      const deletionError = results.find((result) => result.error)?.error
+      if (deletionError) throw deletionError
+      const now = new Date().toISOString()
+      const [{ error: cardsError }, { error: questionsError }] = await Promise.all([
+        supabase.from('question_card').update({ repeticoes: 0, intervalo_dias: 0, fator_facilidade: 2.5, lapsos: 0, proxima_revisao: now, ultima_revisao: null }).not('id', 'is', null),
+        supabase.from('questao').update({ usada: false, quantidade_tentativas: 0, ultima_resolucao: null, proxima_revisao: null, estado: 'nova' }).eq('marcada_errada', false),
+      ])
+      if (cardsError || questionsError) throw cardsError || questionsError
+      return res.status(200).json({ ok: true })
+    }
     let query = supabase.from('registro').select('resultado,classificacao,tempo,criado_em,questao!inner(topico:topico_id(nome,materia:materia_id(nome,objetivo_id)))')
     const topicoId = queryParam(req, 'topicoId')
     const objetivoId = queryParam(req, 'objetivoId')
