@@ -6,6 +6,7 @@
   "outputDirectory": "dist",
   "crons": [{ "path": "/api/cron/mentor", "schedule": "0 9 * * *" }],
   "rewrites": [
+    { "source": "/api/health", "destination": "/api/catalogo?recurso=health" },
     { "source": "/api/plano", "destination": "/api/sessoes?recurso=plano" },
     { "source": "/api/estudo", "destination": "/api/catalogo?recurso=estudo" },
     { "source": "/api/admin/acervo", "destination": "/api/admin/seed?recurso=acervo" }
