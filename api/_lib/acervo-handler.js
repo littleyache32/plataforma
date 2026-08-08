@@ -156,7 +156,7 @@ export default async function archiveHandler(req, res) {
     ])
     if ((questionCount || 0) >= questionTarget && (currentCards || 0) >= cardTarget) return res.status(200).json({ index: requestedIndex, total: topics.length, cache: true, materia: spec.subject, topico: topicName, questoes: questionCount, cards: currentCards })
 
-    await enforceRateLimit(supabase, 'acervo_completo', 240, 1440)
+    await enforceRateLimit(supabase, 'acervo_completo', 500, 1440)
     const researchName = `Pesquisa-base completa - ${spec.subject}`
     let { data: researchMaterial } = await supabase.from('material').select('id,conteudo').eq('materia_id', subject.id).eq('nome', researchName).maybeSingle()
     let researchSources = []
