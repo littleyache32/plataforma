@@ -90,3 +90,20 @@ export function buildScenarios({ coveredTopics, totalTopics, daysRemaining = 180
   ].map(([cenario, factor]) => ({ cenario, cobertura_estimada: Math.min(100, Math.round((coverage + (capacity * factor / Math.max(hoursRemaining, 1)) * (1 - coverage)) * 100)), horas_restantes: hoursRemaining, risco_atraso: Number(Math.max(0, Math.min(1, 1 - capacity * factor / Math.max(hoursRemaining, 1))).toFixed(4)) }))
 }
 
+export function simulationEligibility({ date, adherence = 0, answeredQuestions = 0, overdueDemands = 0 }) {
+  if (date < '2026-09-07') {
+    return { eligible: false, reason: 'construcao_de_base', availableFrom: '2026-09-07' }
+  }
+  const signals = {
+    adherenceEnough: adherence >= 0.75,
+    practiceSampleEnough: answeredQuestions >= 40,
+    backlogControlled: overdueDemands <= 3,
+  }
+  return {
+    eligible: Object.values(signals).every(Boolean),
+    reason: Object.values(signals).every(Boolean) ? 'mentor_pode_programar' : 'criterios_pedagogicos_insuficientes',
+    availableFrom: '2026-09-07',
+    signals,
+  }
+}
+

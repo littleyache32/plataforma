@@ -11,7 +11,7 @@ export default async function handler(req, res) {
       const inicio = queryParam(req, 'inicio')
       const fim = queryParam(req, 'fim')
       const objetivoId = queryParam(req, 'objetivoId')
-      let query = supabase.from('sessao').select('id,titulo,tipo,data,duracao_estimada,duracao_realizada,status,prioridade,movida_em,movida_pelo_mentor_em,origem,objetivo:objetivo_id(id,nome,tipo),materia:materia_id(id,nome),topico:topico_id(id,nome)').order('data').order('prioridade')
+      let query = supabase.from('sessao').select('id,titulo,tipo,data,duracao_estimada,duracao_realizada,status,prioridade,ordem,ordenada_em,movida_em,movida_pelo_mentor_em,origem,objetivo:objetivo_id(id,nome,tipo),materia:materia_id(id,nome),topico:topico_id(id,nome)').order('data').order('ordem').order('prioridade')
       if (inicio) query = query.gte('data', inicio)
       if (fim) query = query.lte('data', fim)
       if (objetivoId) query = query.eq('objetivo_id', objetivoId)
@@ -20,18 +20,28 @@ export default async function handler(req, res) {
       return res.status(200).json({ sessoes: data })
     }
     if (req.method === 'PATCH') {
-      const { id, status, data, duracaoRealizada } = req.body || {}
+      const { id, status, data, duracaoRealizada, orderedIds } = req.body || {}
+      if (Array.isArray(orderedIds)) {
+        const ids = [...new Set(orderedIds.filter(Boolean))]
+        if (!ids.length || ids.length !== orderedIds.length) return res.status(400).json({ error: 'Ordem das demandas invalida.' })
+        const { data: demands, error: readError } = await supabase.from('sessao').select('id,data').in('id', ids)
+        if (readError) throw readError
+        if (demands.length !== ids.length || new Set(demands.map((item) => item.data)).size !== 1) {
+          return res.status(400).json({ error: 'As demandas so podem ser reorganizadas dentro do mesmo dia.' })
+        }
+        const orderedAt = new Date().toISOString()
+        const updates = await Promise.all(ids.map((demandId, ordem) => supabase.from('sessao').update({ ordem, ordenada_em: orderedAt }).eq('id', demandId)))
+        const updateError = updates.find((result) => result.error)?.error
+        if (updateError) throw updateError
+        return res.status(200).json({ ok: true })
+      }
+      if (data) return res.status(400).json({ error: 'As demandas so podem ser reorganizadas dentro do mesmo dia.' })
       if (!id) return res.status(400).json({ error: 'Demanda obrigatoria.' })
       const update = {}
       if (status) {
         if (!['planejada', 'feita', 'parcial'].includes(status)) return res.status(400).json({ error: 'Status de conclusao invalido.' })
         update.status = status
         update.duracao_realizada = status === 'planejada' ? null : Number.isInteger(duracaoRealizada) ? duracaoRealizada : null
-      }
-      if (data) {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(data))) return res.status(400).json({ error: 'Data da demanda invalida.' })
-        update.data = data
-        update.movida_em = new Date().toISOString()
       }
       if (!Object.keys(update).length) return res.status(400).json({ error: 'Informe uma alteracao para a demanda.' })
       const { error } = await supabase.from('sessao').update(update).eq('id', id)

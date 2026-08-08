@@ -97,14 +97,20 @@ describe('buildMentorWeek', () => {
     expect(preparation).toMatchObject({ data: '2026-08-11', tipo: 'revisao', duracao_estimada: 90, materia_id: 'civil' })
   })
 
-  it('remaneja pendencias vencidas sem alterar demandas movidas pelo aluno', () => {
+  it('remaneja toda pendencia vencida, inclusive entre semanas', () => {
     const moves = planOverdueMoves([
       { id: 'alta', data: '2026-08-10', status: 'planejada', prioridade: 1, duracao_estimada: 60 },
       { id: 'manual', data: '2026-08-10', status: 'planejada', prioridade: 1, duracao_estimada: 60, movida_em: '2026-08-10T12:00:00Z' },
       { id: 'feita', data: '2026-08-10', status: 'feita', prioridade: 1, duracao_estimada: 60 },
       { id: 'carga', data: '2026-08-12', status: 'planejada', prioridade: 2, duracao_estimada: 240 },
     ], '2026-08-12', '2026-08-16')
-    expect(moves).toEqual([{ id: 'alta', data: '2026-08-13' }])
+    expect(moves).toEqual([{ id: 'alta', data: '2026-08-13' }, { id: 'manual', data: '2026-08-14' }])
+  })
+
+  it('atribui uma ordem estavel para cada demanda dentro do dia', () => {
+    const result = buildMentorWeek({ weekStart: '2026-08-10', catalog })
+    const monday = result.filter((item) => item.data === '2026-08-10')
+    expect(monday.map((item) => item.ordem)).toEqual([0, 1, 2])
   })
 
   it('prioriza topico fraco na recalibracao diaria', () => {

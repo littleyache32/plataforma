@@ -39,7 +39,7 @@ export function canGenerateMentorWeek({ weekStart, today }) {
 
 export function planOverdueMoves(sessions, today, weekEnd) {
   if (today > weekEnd) return []
-  const movable = sessions.filter((item) => item.status === 'planejada' && item.data < today && !item.movida_em)
+  const movable = sessions.filter((item) => item.status === 'planejada' && item.data < today)
   const candidates = []
   for (let date = today; date <= weekEnd;) {
     candidates.push(date)
@@ -197,5 +197,10 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     }
   }
 
-  return rows.filter(Boolean)
+  const orderByDay = new Map()
+  return rows.filter(Boolean).map((item) => {
+    const ordem = orderByDay.get(item.data) || 0
+    orderByDay.set(item.data, ordem + 1)
+    return { ...item, ordem }
+  })
 }

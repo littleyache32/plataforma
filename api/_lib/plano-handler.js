@@ -10,7 +10,7 @@ export const brazilToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'A
 async function reallocateOverdue(supabase, sessions, today, weekEnd) {
   let moved = 0
   for (const move of planOverdueMoves(sessions, today, weekEnd)) {
-    const { error } = await supabase.from('sessao').update({ data: move.data, movida_pelo_mentor_em: new Date().toISOString() }).eq('id', move.id)
+    const { error } = await supabase.from('sessao').update({ data: move.data, ordem: 1000 + moved, movida_pelo_mentor_em: new Date().toISOString() }).eq('id', move.id)
     if (error) throw error
     moved += 1
   }
@@ -28,12 +28,13 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
     supabase.from('registro').select('resultado,classificacao,criado_em,questao!inner(topico_id)').order('criado_em', { ascending: false }),
     supabase.from('revisao_item').select('id', { count: 'exact', head: true }).eq('status', 'pendente'),
     supabase.from('compromisso').select('id,objetivo_id,materia_id,titulo,tipo,data,peso,duracao_minutos,concluido').eq('concluido', false).lte('data', commitmentEnd).gte('data', inicio),
-    supabase.from('sessao').select('id,chave_mentor,titulo,tipo,data,status,movida_em,movida_pelo_mentor_em,duracao_estimada,prioridade').gte('data', inicio).lte('data', weekEnd),
+    supabase.from('sessao').select('id,chave_mentor,titulo,tipo,data,status,movida_em,movida_pelo_mentor_em,ordenada_em,ordem,duracao_estimada,prioridade').gte('data', inicio).lte('data', weekEnd),
+    supabase.from('sessao').select('id,data,status,movida_em,movida_pelo_mentor_em,ordem,duracao_estimada,prioridade').eq('status', 'planejada').lt('data', inicio).order('data').limit(100),
     supabase.from('mentor_conhecimento').select('versao,politica').eq('ativo', true).order('criado_em', { ascending: false }).limit(1).maybeSingle(),
   ])
   const error = results.find((item) => item.error)?.error
   if (error) throw error
-  const [catalogResult, recordsResult, reviewResult, commitmentsResult, existingResult, knowledgeResult] = results
+  const [catalogResult, recordsResult, reviewResult, commitmentsResult, existingResult, carryoverResult, knowledgeResult] = results
   const policy = knowledgeResult.data ? { ...knowledgeResult.data.politica, versao: knowledgeResult.data.versao } : {}
   const grouped = new Map()
   for (const record of recordsResult.data || []) {
@@ -47,7 +48,12 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
   const existingByKey = new Map((existingResult.data || []).map((item) => [item.chave_mentor, item]))
   const recalibrated = demands.map((item) => {
     const previous = existingByKey.get(item.chave_mentor)
-    return previous && (previous.movida_em || previous.movida_pelo_mentor_em || previous.status !== 'planejada') ? { ...item, data: previous.data } : item
+    if (!previous) return item
+    return {
+      ...item,
+      ...((previous.movida_pelo_mentor_em || previous.status !== 'planejada') ? { data: previous.data } : {}),
+      ...(previous.ordenada_em ? { ordem: previous.ordem } : {}),
+    }
   })
   const upsert = await supabase.from('sessao').upsert(recalibrated, { onConflict: 'chave_mentor' }).select('id')
   if (upsert.error) throw upsert.error
@@ -62,9 +68,10 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
     const removed = await supabase.from('sessao').delete().in('id', obsoleteIds)
     if (removed.error) throw removed.error
   }
-  const refreshed = await supabase.from('sessao').select('id,data,status,movida_em,duracao_estimada,prioridade').gte('data', inicio).lte('data', weekEnd)
+  const refreshed = await supabase.from('sessao').select('id,data,status,movida_em,movida_pelo_mentor_em,ordem,duracao_estimada,prioridade').gte('data', inicio).lte('data', weekEnd)
   if (refreshed.error) throw refreshed.error
-  const moved = inicio <= today && today <= weekEnd ? await reallocateOverdue(supabase, refreshed.data || [], today, weekEnd) : 0
+  const sessionsForReallocation = [...(carryoverResult.data || []), ...(refreshed.data || [])]
+  const moved = inicio <= today && today <= weekEnd ? await reallocateOverdue(supabase, sessionsForReallocation, today, weekEnd) : 0
   return { status: 200, body: { atualizadas: upsert.data?.length || 0, removidas: obsoleteIds.length, total_planejado: demands.length, remanejadas: moved, politica_mentor: policy.versao } }
 }
 
