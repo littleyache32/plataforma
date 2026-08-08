@@ -22,6 +22,13 @@ describe('buildMentorWeek', () => {
     expect(result.some((item) => item.tipo === 'revisao')).toBe(true)
   })
 
+  it('deixa sexta com mais carga do que os dias de faculdade', () => {
+    const result = buildMentorWeek({ weekStart: '2026-08-10', catalog })
+    const total = (day) => result.filter((item) => item.data === day).reduce((sum, item) => sum + item.duracao_estimada, 0)
+    expect(total('2026-08-10')).toBe(180)
+    expect(total('2026-08-14')).toBe(240)
+  })
+
   it('mantem chaves estaveis para impedir duplicidade ao recarregar', () => {
     const first = buildMentorWeek({ weekStart: '2026-08-10', catalog })
     const second = buildMentorWeek({ weekStart: '2026-08-10', catalog })

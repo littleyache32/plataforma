@@ -71,8 +71,10 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     } else {
       rows.push(demand({ weekStart, day, slot: 'estudo', target, title: `Estudar: ${target.topic || target.subject}`, type: 'estudo', duration: studyDuration, priority: day >= 5 ? 3 : 2 }))
     }
+    if (day === 4) {
+      rows.push(demand({ weekStart, day, slot: 'consolidacao', target: complementary || target, title: 'Consolidar os pontos estudados na semana', type: 'revisao', duration: 60, priority: 2 }))
+    }
   }
 
   return rows.filter(Boolean)
 }
-
