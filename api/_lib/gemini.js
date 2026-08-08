@@ -59,7 +59,7 @@ function groundingEvidence(response) {
   return evidence.filter((item, index, all) => all.findIndex((other) => other.texto === item.texto && other.url === item.url) === index)
 }
 
-export async function researchWithGrounding(prompt, { model = process.env.GEMINI_RESEARCH_MODEL || 'gemini-2.5-flash' } = {}) {
+export async function researchWithGrounding(prompt, { model = process.env.GEMINI_RESEARCH_MODEL || 'gemini-3-flash-preview' } = {}) {
   const ai = getGemini()
   const response = await ai.models.generateContent({
     model,
