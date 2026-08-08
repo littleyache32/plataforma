@@ -45,13 +45,28 @@ function evidenceBlocks(chapter) {
   return blocks.slice(0, 35).map((texto, index) => ({ id: index + 1, texto }))
 }
 
-function chapterPrompt(spec, topicName, scope) {
+function subjectPrompt(spec) {
   const audience = spec.type === 'concurso' ? 'candidato ao cargo de Técnico do Banco Central, Área 1, no padrão Cebraspe' : 'estudante do segundo semestre do curso de Direito'
-  return `Produza um capítulo de apostila autossuficiente em português do Brasil.
-Público: ${audience}. Disciplina: ${spec.subject}. Capítulo: ${topicName}.
-Escopo obrigatório: ${scope}. Base curricular: ${spec.basis}
+  const syllabus = spec.topics.map(([topic, scope]) => `# ${topic}\nEscopo: ${scope}`).join('\n\n')
+  return `Produza uma apostila autossuficiente em português do Brasil, dividida exatamente pelos títulos abaixo.
+Público: ${audience}. Disciplina: ${spec.subject}. Base curricular: ${spec.basis}
 
-Explique minuciosamente conceitos, fundamentos, classificações, elementos, relações, exceções, consequências e aplicações. Inclua exemplos apenas explicativos, sem perguntas, exercícios ou gabaritos. Em Direito, confirme a legislação vigente na data da pesquisa e indique alterações relevantes. No BACEN, cubra integralmente o recorte do edital e as armadilhas conceituais comuns. Estruture em Markdown com visão geral, fundamentos, desenvolvimento, classificações ou etapas, exemplos, comparações, erros comuns, síntese e referências. Escreva entre 1.600 e 2.400 palavras. Pesquise prioritariamente fontes oficiais, legislação, manuais institucionais e bibliografia acadêmica confiável. Não invente decisões, artigos, números ou citações.`
+${syllabus}
+
+Explique minuciosamente conceitos, fundamentos, classificações, elementos, relações, exceções, consequências e aplicações. Inclua exemplos apenas explicativos, sem perguntas, exercícios ou gabaritos. Em Direito, confirme a legislação vigente na data da pesquisa e indique alterações relevantes. No BACEN, cubra integralmente o recorte do edital e as armadilhas conceituais comuns. Em cada título, escreva entre 1.600 e 2.400 palavras e use subtítulos para visão geral, fundamentos, desenvolvimento, classificações ou etapas, exemplos, comparações, erros comuns e síntese. Pesquise prioritariamente fontes oficiais, legislação, manuais institucionais e bibliografia acadêmica confiável. Não invente decisões, artigos, números ou citações.`
+}
+
+function topicSection(content, topicName, nextTopicName) {
+  const text = String(content || '')
+  const escaped = topicName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const startMatch = new RegExp(`^#{1,3}\\s+(?:\\d+[.)]\\s*)?${escaped}\\s*$`, 'im').exec(text)
+  if (!startMatch) return ''
+  const start = startMatch.index
+  if (!nextTopicName) return text.slice(start).trim()
+  const nextEscaped = nextTopicName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const after = text.slice(start + startMatch[0].length)
+  const endMatch = new RegExp(`^#{1,3}\\s+(?:\\d+[.)]\\s*)?${nextEscaped}\\s*$`, 'im').exec(after)
+  return endMatch ? text.slice(start, start + startMatch[0].length + endMatch.index).trim() : text.slice(start).trim()
 }
 
 function trainingPrompt(spec, topicName, evidence, cardCount) {
@@ -104,7 +119,7 @@ export default async function archiveHandler(req, res) {
     const requestedIndex = Number(req.body?.index ?? queryParam(req, 'index'))
     const topics = librarySpecs.flatMap((spec) => spec.topics.map(([topic, scope]) => ({ spec, topic, scope })))
     if (!Number.isInteger(requestedIndex) || requestedIndex < 0 || requestedIndex >= topics.length) return res.status(400).json({ error: `Índice inválido. Use de 0 a ${topics.length - 1}.`, total: topics.length })
-    const { spec, topic: topicName, scope } = topics[requestedIndex]
+    const { spec, topic: topicName } = topics[requestedIndex]
     const { data: objective, error: objectiveError } = await supabase.from('objetivo').select('id,nome').eq('nome', spec.objective).single()
     if (objectiveError) throw objectiveError
     const { data: subject, error: subjectError } = await supabase.from('materia').select('id,nome').eq('objetivo_id', objective.id).eq('nome', spec.subject).single()
@@ -124,16 +139,33 @@ export default async function archiveHandler(req, res) {
     if (knowledge && (questionCount || 0) >= 12 && (cardCount === 0 || (currentCards || 0) >= 4)) return res.status(200).json({ index: requestedIndex, total: topics.length, cache: true, materia: spec.subject, topico: topicName, questoes: questionCount, cards: currentCards })
 
     await enforceRateLimit(supabase, 'acervo_completo', 240, 1440)
-    const researched = await researchWithGrounding(chapterPrompt(spec, topicName, scope))
-    const chapter = String(researched.texto || '').trim()
-    if (chapter.length < 4500) throw new Error('A pesquisa gerou um capítulo curto demais para o acervo completo.')
+    const researchName = `Pesquisa-base completa - ${spec.subject}`
+    let { data: researchMaterial } = await supabase.from('material').select('id,conteudo').eq('materia_id', subject.id).eq('nome', researchName).maybeSingle()
+    let researchSources = []
+    if (!researchMaterial) {
+      const researched = await researchWithGrounding(subjectPrompt(spec), { model: process.env.GEMINI_RESEARCH_MODEL || 'gemini-2.5-flash-lite' })
+      const researchText = String(researched.texto || '').trim()
+      if (researchText.length < spec.topics.length * 3500) throw new Error('A pesquisa gerou uma apostila curta demais para a disciplina completa.')
+      researchSources = researched.fontes || []
+      const researchContent = `${researchText}\n\n## Fontes verificadas\n${researchSources.map((item) => `- ${item.titulo}: ${item.url}`).join('\n') || `- ${spec.basis}`}`
+      const result = await supabase.from('material').insert({ objetivo_id: objective.id, materia_id: subject.id, tipo: 'texto', nome: researchName, conteudo: researchContent, status: 'aceito', motivo: 'Pesquisa-base completa, criada uma única vez para economizar a cota gratuita de busca.', forcado: false }).select('id,conteudo').single()
+      if (result.error) throw result.error
+      researchMaterial = result.data
+    }
+    const topicPosition = spec.topics.findIndex(([name]) => name === topicName)
+    const chapter = topicSection(researchMaterial.conteudo, topicName, spec.topics[topicPosition + 1]?.[0])
+    if (chapter.length < 3000) throw new Error('Não foi possível separar um capítulo completo da pesquisa-base.')
     const evidence = evidenceBlocks(chapter)
     if (evidence.length < 5) throw new Error('O capítulo não contém evidências suficientes para gerar o treino.')
     const generated = await generateJson({ prompt: trainingPrompt(spec, topicName, evidence, cardCount), schema })
     const training = validateTraining(generated, evidence, cardCount)
-    const source = sourceLabel(researched.fontes || [], spec)
+    if (!researchSources.length) {
+      const url = String(researchMaterial.conteudo).match(/https?:\/\/\S+/)?.[0]?.replace(/[),.;]+$/, '')
+      if (url) researchSources = [{ titulo: `Fonte verificada de ${spec.subject}`, url }]
+    }
+    const source = sourceLabel(researchSources, spec)
     const materialName = `Apostila completa - ${spec.subject} - ${topicName}`
-    const content = `${chapter}\n\n## Fontes verificadas\n${(researched.fontes || []).map((item) => `- ${item.titulo}: ${item.url}`).join('\n') || `- ${spec.basis}`}`
+    const content = `${chapter}\n\n## Fontes verificadas\n${researchSources.map((item) => `- ${item.titulo}: ${item.url}`).join('\n') || `- ${spec.basis}`}`
     const { data: existingMaterial } = await supabase.from('material').select('id').eq('materia_id', subject.id).eq('nome', materialName).maybeSingle()
     const materialPayload = { objetivo_id: objective.id, materia_id: subject.id, tipo: 'texto', nome: materialName, conteudo: content, status: 'aceito', motivo: 'Capítulo curricular pesquisado, estruturado e vinculado a fontes.', forcado: false }
     const materialResult = existingMaterial ? await supabase.from('material').update(materialPayload).eq('id', existingMaterial.id).select('id').single() : await supabase.from('material').insert(materialPayload).select('id').single()
@@ -154,7 +186,7 @@ export default async function archiveHandler(req, res) {
       const result = await supabase.from('question_card').upsert(cardRows, { onConflict: 'chave', ignoreDuplicates: true })
       if (result.error) throw result.error
     }
-    return res.status(201).json({ index: requestedIndex, total: topics.length, cache: false, materia: spec.subject, topico: topicName, questoes: questionRows.length, cards: cardRows.length, fontes: researched.fontes?.length || 0 })
+    return res.status(201).json({ index: requestedIndex, total: topics.length, cache: false, materia: spec.subject, topico: topicName, questoes: questionRows.length, cards: cardRows.length, fontes: researchSources.length })
   } catch (error) {
     return fail(res, error, 'Não foi possível concluir este capítulo do acervo.')
   }
