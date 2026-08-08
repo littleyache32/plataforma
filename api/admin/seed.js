@@ -2,9 +2,12 @@ import { getSupabaseAdmin } from '../_lib/supabase.js'
 import { generateJson } from '../_lib/gemini.js'
 import { generationPrompt, normalizeQuestion, questionBatchSchema } from '../_lib/questions.js'
 import { allowMethods, enforceRateLimit, fail, requireAccess } from '../_lib/http.js'
+import { queryParam } from '../_lib/http.js'
+import archiveHandler from '../_lib/acervo-handler.js'
 
 export default async function handler(req, res) {
   if (!allowMethods(req, res, ['POST']) || !requireAccess(req, res)) return
+  if (queryParam(req, 'recurso') === 'acervo') return archiveHandler(req, res)
   const supabase = getSupabaseAdmin()
   let jobId
 

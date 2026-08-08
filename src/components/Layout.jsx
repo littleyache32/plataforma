@@ -3,7 +3,7 @@ const studentAreas = [
 ]
 
 const adminAreas = [
-  ['semana', 'Semana', '◫'], ['objetivos', 'Objetivos', '◎'], ['materiais', 'Materiais', '▤'],
+  ['semana', 'Semana', '◫'], ['objetivos', 'Objetivos', '◎'], ['prazos', 'Provas e entregas', '◷'], ['materiais', 'Materiais', '▤'],
   ['questoes', 'Questões', '?'], ['cards', 'Question Cards', '▣'], ['simulados', 'Simulados', '🔒'], ['desempenho', 'Desempenho', '↗'],
 ]
 

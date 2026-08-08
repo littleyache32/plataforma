@@ -9,6 +9,7 @@ import Questions from './components/Questions.jsx'
 import Simulations from './components/Simulations.jsx'
 import Performance from './components/Performance.jsx'
 import QuestionCards from './components/QuestionCards.jsx'
+import Deadlines from './components/Deadlines.jsx'
 
 export default function App() {
   const [status, setStatus] = useState('loading')
@@ -18,6 +19,7 @@ export default function App() {
   const [context, setContext] = useState('concurso')
   const [mode, setMode] = useState('aluno')
   const [reviewQuestionId, setReviewQuestionId] = useState('')
+  const [studyTarget, setStudyTarget] = useState(null)
 
   async function loadCatalog() {
     const data = await api('/api/catalogo')
@@ -41,6 +43,15 @@ export default function App() {
     setArea('questoes')
   }
 
+  function openDemand(item, destination) {
+    const targetObjective = catalog.find((entry) => entry.id === item.objetivo?.id)
+    if (!targetObjective) return
+    setContext(targetObjective.tipo)
+    setObjectiveId(targetObjective.id)
+    setStudyTarget({ objectiveId: targetObjective.id, subjectId: item.materia?.id || '', topicId: item.topico?.id || '' })
+    setArea(destination)
+  }
+
   function changeContext(nextContext) {
     setContext(nextContext)
     const nextObjective = catalog.find((item) => item.tipo === nextContext)
@@ -50,7 +61,7 @@ export default function App() {
 
   function changeMode(nextMode) {
     setMode(nextMode)
-    if (nextMode === 'aluno' && ['objetivos', 'materiais'].includes(area)) setArea('semana')
+    if (nextMode === 'aluno' && ['objetivos', 'materiais', 'prazos'].includes(area)) setArea('semana')
   }
 
   if (status === 'loading') return <main className="loading"><span className="brand-mark">ME</span><p>Organizando sua plataforma...</p></main>
@@ -62,11 +73,12 @@ export default function App() {
 
   return (
     <Layout area={area} onAreaChange={setArea} catalog={contextCatalog} objectiveId={objective?.id || ''} onObjectiveChange={setObjectiveId} context={context} onContextChange={changeContext} mode={mode} onModeChange={changeMode} onLogout={logout}>
-      {area === 'semana' && <Week catalog={catalog} onOpenQuestions={() => setArea('questoes')} onOpenCards={() => setArea('cards')} />}
+      {area === 'semana' && <Week catalog={catalog} onOpenQuestions={(item) => openDemand(item, 'questoes')} onOpenCards={(item) => openDemand(item, 'cards')} />}
       {area === 'objetivos' && mode === 'administrador' && <Objectives {...common} />}
       {area === 'materiais' && mode === 'administrador' && <Materials {...common} />}
-      {area === 'questoes' && <Questions {...common} reviewQuestionId={reviewQuestionId} onReviewLoaded={() => setReviewQuestionId('')} />}
-      {area === 'cards' && <QuestionCards objective={objective} />}
+      {area === 'prazos' && mode === 'administrador' && <Deadlines catalog={catalog} />}
+      {area === 'questoes' && <Questions {...common} target={studyTarget?.objectiveId === objective?.id ? studyTarget : null} onTargetApplied={() => setStudyTarget(null)} reviewQuestionId={reviewQuestionId} onReviewLoaded={() => setReviewQuestionId('')} />}
+      {area === 'cards' && <QuestionCards objective={objective} target={studyTarget?.objectiveId === objective?.id ? studyTarget : null} onTargetApplied={() => setStudyTarget(null)} />}
       {area === 'simulados' && <Simulations objective={objective} />}
       {area === 'desempenho' && <Performance objective={objective} mode={mode} onReview={openReview} />}
     </Layout>

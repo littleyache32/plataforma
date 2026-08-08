@@ -13,7 +13,7 @@ function clockLabel(seconds) {
   return `${String(Math.floor(safe / 60)).padStart(2, '0')}:${String(safe % 60).padStart(2, '0')}`
 }
 
-export default function QuestionCards({ objective }) {
+export default function QuestionCards({ objective, target, onTargetApplied }) {
   const subjects = (objective?.materias || []).filter((item) => !(objective?.tipo === 'faculdade' && item.nome === 'Análise e Produção de Texto'))
   const [subjectId, setSubjectId] = useState('')
   const topics = useMemo(() => subjects.find((item) => item.id === subjectId)?.topicos || [], [subjects, subjectId])
@@ -41,6 +41,13 @@ export default function QuestionCards({ objective }) {
   }
 
   useEffect(() => { setSubjectId(''); setTopicId(''); setReviewed(0); setStartedAt(null) }, [objective?.id])
+  useEffect(() => {
+    if (!target?.subjectId || !subjects.some((item) => item.id === target.subjectId)) return
+    setSubjectId(target.subjectId)
+    setTopicId(target.topicId || '')
+    setReviewed(0); setStartedAt(null); setRevealed(false)
+    onTargetApplied?.()
+  }, [target?.subjectId, target?.topicId, objective?.id])
   useEffect(() => { load() }, [objective?.id, subjectId, topicId])
   useEffect(() => {
     if (!startedAt) return undefined

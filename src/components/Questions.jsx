@@ -16,7 +16,7 @@ function elapsedLabel(seconds) {
   return hours ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}` : `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
 }
 
-export default function Questions({ objective, reviewQuestionId, onReviewLoaded }) {
+export default function Questions({ objective, target, onTargetApplied, reviewQuestionId, onReviewLoaded }) {
   const subjects = objective?.materias || []
   const [subjectId, setSubjectId] = useState(subjects[0]?.id || '')
   const topics = useMemo(() => subjects.find((item) => item.id === subjectId)?.topicos || [], [subjects, subjectId])
@@ -37,6 +37,13 @@ export default function Questions({ objective, reviewQuestionId, onReviewLoaded 
   const [sessionNow, setSessionNow] = useState(Date.now())
 
   useEffect(() => { setSubjectId(subjects[0]?.id || ''); setQuestion(null); setSessionStartedAt(null) }, [objective?.id])
+  useEffect(() => {
+    if (!target?.subjectId || !subjects.some((item) => item.id === target.subjectId)) return
+    setSubjectId(target.subjectId)
+    setTopicId(target.topicId || '')
+    setQuestion(null); setAvailable(0); setPosition(0); setSessionStartedAt(null)
+    onTargetApplied?.()
+  }, [target?.subjectId, target?.topicId, objective?.id])
   useEffect(() => { setTopicId(''); setQuestion(null); setAvailable(0); setPosition(0); setSessionStartedAt(null) }, [subjectId])
   useEffect(() => { if (reviewQuestionId) loadQuestion(reviewQuestionId).then(onReviewLoaded) }, [reviewQuestionId])
   useEffect(() => {

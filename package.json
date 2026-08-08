@@ -13,7 +13,8 @@
     "migrate": "node --env-file=.env.local scripts/migrate.js",
     "import:bacen": "node --env-file=.env.local scripts/import-curated-bacen.js",
     "acervo:gerar": "node --env-file=.env.local scripts/build-complete-library.js --generate",
-    "acervo:importar": "node --env-file=.env.local scripts/build-complete-library.js --apply"
+    "acervo:importar": "node --env-file=.env.local scripts/build-complete-library.js --apply",
+    "acervo:producao": "node --env-file=.env.local scripts/generate-production-library.js"
   },
   "dependencies": {
     "@google/genai": "^1.28.0",

@@ -1,10 +1,30 @@
 import { getSupabaseAdmin } from './_lib/supabase.js'
-import { allowMethods, fail, requireAccess } from './_lib/http.js'
+import { allowMethods, fail, queryParam, requireAccess } from './_lib/http.js'
 
 export default async function handler(req, res) {
   if (!allowMethods(req, res, ['GET', 'POST', 'PATCH']) || !requireAccess(req, res)) return
   const supabase = getSupabaseAdmin()
   try {
+    if (queryParam(req, 'recurso') === 'compromissos') {
+      if (req.method === 'GET') {
+        const { data, error } = await supabase.from('compromisso').select('id,titulo,tipo,data,peso,duracao_minutos,concluido,objetivo:objetivo_id(id,nome,tipo),materia:materia_id(id,nome)').order('data')
+        if (error) throw error
+        return res.status(200).json({ compromissos: data || [] })
+      }
+      if (req.method === 'PATCH') {
+        const { id, concluido } = req.body || {}
+        if (!id || typeof concluido !== 'boolean') return res.status(400).json({ error: 'Compromisso e estado sao obrigatorios.' })
+        const { error } = await supabase.from('compromisso').update({ concluido }).eq('id', id)
+        if (error) throw error
+        return res.status(200).json({ ok: true })
+      }
+      const { objetivoId, materiaId, titulo, tipo, data, peso = 3, duracaoMinutos = 90 } = req.body || {}
+      if (!objetivoId || !titulo || !['prova', 'entrega'].includes(tipo) || !/^\d{4}-\d{2}-\d{2}$/.test(String(data || ''))) return res.status(400).json({ error: 'Preencha objetivo, titulo, tipo e data.' })
+      const duration = tipo === 'prova' ? Math.max(30, Number(duracaoMinutos) || 90) : Math.min(90, Math.max(30, Number(duracaoMinutos) || 60))
+      const { data: item, error } = await supabase.from('compromisso').insert({ objetivo_id: objetivoId, materia_id: materiaId || null, titulo: String(titulo).trim(), tipo, data, peso: Math.min(5, Math.max(1, Number(peso) || 3)), duracao_minutos: duration }).select('id').single()
+      if (error) throw error
+      return res.status(201).json({ compromisso: item })
+    }
     if (req.method === 'GET') {
       const { data, error } = await supabase.from('objetivo').select('id,tipo,nome,banca,situacao,data_alvo,config,ativo').order('criado_em')
       if (error) throw error

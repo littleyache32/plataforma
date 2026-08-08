@@ -11,7 +11,7 @@ export default async function handler(req, res) {
       const inicio = queryParam(req, 'inicio')
       const fim = queryParam(req, 'fim')
       const objetivoId = queryParam(req, 'objetivoId')
-      let query = supabase.from('sessao').select('id,titulo,tipo,data,duracao_estimada,duracao_realizada,status,prioridade,movida_em,origem,objetivo:objetivo_id(id,nome,tipo),materia:materia_id(id,nome),topico:topico_id(id,nome)').order('data').order('prioridade')
+      let query = supabase.from('sessao').select('id,titulo,tipo,data,duracao_estimada,duracao_realizada,status,prioridade,movida_em,movida_pelo_mentor_em,origem,objetivo:objetivo_id(id,nome,tipo),materia:materia_id(id,nome),topico:topico_id(id,nome)').order('data').order('prioridade')
       if (inicio) query = query.gte('data', inicio)
       if (fim) query = query.lte('data', fim)
       if (objetivoId) query = query.eq('objetivo_id', objetivoId)

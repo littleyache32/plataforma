@@ -51,4 +51,16 @@ describe('buildMentorWeek', () => {
     expect(facultyStudy.every((item) => item.titulo.startsWith('Aula dada, aula estudada'))).toBe(true)
     expect(result.filter((item) => item.tipo === 'especial').every((item) => item.materia_id !== 'texto')).toBe(true)
   })
+
+  it('transforma provas e entregas em prioridade com preparacao antecipada', () => {
+    const result = buildMentorWeek({
+      weekStart: '2026-08-10',
+      catalog,
+      commitments: [{ id: 'prova-1', objetivo_id: 'facul', materia_id: 'civil', titulo: 'Prova de Direito Civil', tipo: 'prova', data: '2026-08-13', peso: 5, duracao_minutos: 120, concluido: false }],
+    })
+    const exam = result.find((item) => item.chave_mentor.endsWith('compromisso:prova-1'))
+    const preparation = result.find((item) => item.chave_mentor.endsWith('preparo:prova-1'))
+    expect(exam).toMatchObject({ data: '2026-08-13', tipo: 'prova', duracao_estimada: 120, prioridade: 1 })
+    expect(preparation).toMatchObject({ data: '2026-08-11', tipo: 'revisao', duracao_estimada: 90, materia_id: 'civil' })
+  })
 })

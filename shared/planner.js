@@ -47,11 +47,20 @@ function demand({ weekStart, day, slot, target, title, type, duration, priority 
   }
 }
 
+function dayIndex(weekStart, date) {
+  return Math.round((new Date(`${date}T12:00:00Z`) - new Date(`${weekStart}T12:00:00Z`)) / DAY_MS)
+}
+
+function targetForCommitment(targets, commitment) {
+  const sameSubject = targets.filter((item) => item.objectiveId === commitment.objetivo_id && (!commitment.materia_id || item.subjectId === commitment.materia_id))
+  return sameSubject[0] || targets.find((item) => item.objectiveId === commitment.objetivo_id) || null
+}
+
 /**
  * Cria uma semana por demandas. O bloco de 30 minutos e uma unidade de calculo,
  * mas cada atividade aparece como um unico cartao de 30, 60 ou 90 minutos.
  */
-export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingReviews = 0 }) {
+export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingReviews = 0, commitments = [] }) {
   const targets = catalog.flatMap((objective) => (objective.materias || []).flatMap((subject) => {
     const topics = subject.topicos?.length ? subject.topicos : [{ id: null, nome: '' }]
     return topics.map((topic) => ({
@@ -65,6 +74,7 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
   }))
   if (!targets.length) return []
 
+  const urgentSubjectIds = new Set(commitments.filter((item) => !item.concluido).map((item) => item.materia_id).filter(Boolean))
   const priorityIds = new Set(priorities.map((item) => item.id))
   const prioritized = targets.filter((item) => priorityIds.has(item.topicId))
   const byContext = {
@@ -78,8 +88,9 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
 
   for (let day = 0; day < 7; day += 1) {
     const context = contexts[day]
+    const urgentPool = targets.filter((item) => item.context === context && urgentSubjectIds.has(item.subjectId))
     const pool = prioritized.filter((item) => item.context === context)
-    const target = pick(pool.length ? pool : byContext[context], rotationSeed + day) || pick(targets, rotationSeed + day)
+    const target = pick(urgentPool.length ? urgentPool : pool.length ? pool : byContext[context], rotationSeed + day) || pick(targets, rotationSeed + day)
     const complementary = pick(byContext[context === 'concurso' ? 'faculdade' : 'concurso'], rotationSeed + day)
     const cardTarget = pick(cardTargets.filter((item) => item.context !== context), rotationSeed + day) || pick(cardTargets, rotationSeed + day)
     const facultyPool = prioritized.filter((item) => item.context === 'faculdade')
@@ -101,6 +112,42 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     }
     if (day === 4) {
       rows.push(demand({ weekStart, day, slot: 'consolidacao', target: facultyTarget, title: 'Revisar as aulas estudadas na semana', type: 'revisao', duration: 60, priority: 2 }))
+    }
+  }
+
+
+  for (const commitment of commitments.filter((item) => !item.concluido)) {
+    const target = targetForCommitment(targets, commitment)
+    if (!target) continue
+    const eventDay = dayIndex(weekStart, commitment.data)
+    if (eventDay >= 0 && eventDay <= 6) {
+      const item = demand({
+        weekStart,
+        day: eventDay,
+        slot: `compromisso:${commitment.id}`,
+        target,
+        title: commitment.titulo,
+        type: commitment.tipo === 'prova' ? 'prova' : 'trabalho',
+        duration: commitment.tipo === 'prova' ? commitment.duracao_minutos : Math.min(90, commitment.duracao_minutos),
+        priority: commitment.peso >= 4 ? 1 : commitment.peso >= 2 ? 2 : 3,
+      })
+      if (item) item.chave_mentor = `${weekStart}:compromisso:${commitment.id}`
+      rows.push(item)
+    }
+    const prepDay = Math.min(6, Math.max(0, eventDay - (commitment.peso >= 4 ? 2 : 1)))
+    if (eventDay >= 1 && eventDay <= 13) {
+      const prep = demand({
+        weekStart,
+        day: prepDay,
+        slot: `preparo:${commitment.id}`,
+        target,
+        title: `Preparar: ${commitment.titulo}`,
+        type: 'revisao',
+        duration: commitment.peso >= 4 ? 90 : 60,
+        priority: commitment.peso >= 4 ? 1 : 2,
+      })
+      if (prep) prep.chave_mentor = `${weekStart}:preparo:${commitment.id}`
+      rows.push(prep)
     }
   }
 
