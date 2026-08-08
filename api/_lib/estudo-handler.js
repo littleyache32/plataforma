@@ -1,7 +1,7 @@
-import { getSupabaseAdmin } from './_lib/supabase.js'
-import { allowMethods, fail, queryParam, requireAccess } from './_lib/http.js'
+import { getSupabaseAdmin } from './supabase.js'
+import { allowMethods, fail, queryParam, requireAccess } from './http.js'
 
-export default async function handler(req, res) {
+export default async function studyHandler(req, res) {
   if (!allowMethods(req, res, ['GET']) || !requireAccess(req, res)) return
   try {
     const supabase = getSupabaseAdmin()

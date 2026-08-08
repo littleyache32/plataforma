@@ -1,7 +1,9 @@
 import { getSupabaseAdmin } from './_lib/supabase.js'
-import { allowMethods, fail, requireAccess } from './_lib/http.js'
+import { allowMethods, fail, queryParam, requireAccess } from './_lib/http.js'
+import studyHandler from './_lib/estudo-handler.js'
 
 export default async function handler(req, res) {
+  if (queryParam(req, 'recurso') === 'estudo') return studyHandler(req, res)
   if (!allowMethods(req, res, ['GET']) || !requireAccess(req, res)) return
   try {
     const { data, error } = await getSupabaseAdmin().from('objetivo')

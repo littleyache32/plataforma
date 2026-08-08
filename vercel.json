@@ -4,6 +4,10 @@
   "devCommand": "vite --port $PORT",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/api/plano", "destination": "/api/sessoes?recurso=plano" },
+    { "source": "/api/estudo", "destination": "/api/catalogo?recurso=estudo" }
+  ],
   "functions": {
     "api/**/*.js": {
       "maxDuration": 300

@@ -1,16 +1,15 @@
-import { getSupabaseAdmin } from './_lib/supabase.js'
-import { allowMethods, fail, requireAccess } from './_lib/http.js'
-import { calculateTopicDiagnosis } from '../shared/mentor.js'
-import { buildMentorWeek } from '../shared/planner.js'
+import { getSupabaseAdmin } from './supabase.js'
+import { allowMethods, fail, requireAccess } from './http.js'
+import { calculateTopicDiagnosis } from '../../shared/mentor.js'
+import { buildMentorWeek } from '../../shared/planner.js'
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
-export default async function handler(req, res) {
+export default async function planHandler(req, res) {
   if (!allowMethods(req, res, ['POST']) || !requireAccess(req, res)) return
   try {
     const { inicio } = req.body || {}
     if (!DATE_PATTERN.test(String(inicio || ''))) return res.status(400).json({ error: 'Inicio da semana invalido.' })
-
     const supabase = getSupabaseAdmin()
     const [{ data: catalog, error: catalogError }, { data: records, error: recordsError }, { count: pendingReviews, error: reviewError }] = await Promise.all([
       supabase.from('objetivo').select('id,tipo,materias:materia(id,nome,topicos:topico(id,nome))').eq('ativo', true).order('criado_em'),
@@ -33,10 +32,8 @@ export default async function handler(req, res) {
       .filter((item) => item.status === 'prioridade')
       .sort((a, b) => b.gravidade - a.gravidade)
       .slice(0, 3)
-
     const demands = buildMentorWeek({ weekStart: inicio, catalog: catalog || [], priorities, pendingReviews: pendingReviews || 0 })
     if (!demands.length) return res.status(200).json({ criadas: 0, motivo: 'Nenhuma disciplina disponivel.' })
-
     const { data, error } = await supabase.from('sessao').upsert(demands, { onConflict: 'chave_mentor', ignoreDuplicates: true }).select('id')
     if (error) throw error
     return res.status(200).json({ criadas: data?.length || 0, total_planejado: demands.length })
