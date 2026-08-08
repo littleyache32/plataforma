@@ -1,9 +1,12 @@
+import { librarySpecs } from './acervo-specs.js'
+
 const baseUrl = process.env.PLATFORM_URL || 'https://plataforma-three-virid.vercel.app'
 const accessKey = process.env.APP_ACCESS_KEY
 const start = Math.max(0, Number(process.argv.find((item) => item.startsWith('--start='))?.split('=')[1] || 0))
 const requestedLimit = Number(process.argv.find((item) => item.startsWith('--limit='))?.split('=')[1] || Infinity)
 const researchModel = process.argv.find((item) => item.startsWith('--research-model='))?.split('=')[1] || ''
 const skipGrounding = !process.argv.includes('--grounding')
+const concurrency = Math.min(3, Math.max(1, Number(process.argv.find((item) => item.startsWith('--concurrency='))?.split('=')[1] || 3)))
 
 if (!accessKey) throw new Error('APP_ACCESS_KEY não configurada no .env.local.')
 
@@ -32,16 +35,21 @@ async function generate(index) {
   throw lastError
 }
 
-let index = start
+const total = librarySpecs.reduce((sum, item) => sum + item.topics.length, 0)
+const end = Math.min(total, start + requestedLimit)
+let nextIndex = start
 let completed = 0
-let total = Infinity
-while (index < total && completed < requestedLimit) {
-  const data = await generate(index)
-  total = data.total
-  completed += 1
-  process.stdout.write(`${JSON.stringify({ progresso: `${index + 1}/${total}`, cache: data.cache, materia: data.materia, topico: data.topico, questoes: data.questoes, cards: data.cards, fontes: data.fontes })}\n`)
-  index += 1
-  if (index < total && completed < requestedLimit) await sleep(15_000)
+
+async function worker() {
+  while (nextIndex < end) {
+    const index = nextIndex
+    nextIndex += 1
+    const data = await generate(index)
+    completed += 1
+    process.stdout.write(`${JSON.stringify({ progresso: `${completed}/${end - start}`, indice: index + 1, total, cache: data.cache, materia: data.materia, topico: data.topico, questoes: data.questoes, cards: data.cards, fontes: data.fontes })}\n`)
+    if (nextIndex < end) await sleep(15_000)
+  }
 }
 
-process.stdout.write(`${JSON.stringify({ concluido: true, processados: completed, proximo_indice: index, total })}\n`)
+await Promise.all(Array.from({ length: Math.min(concurrency, end - start) }, () => worker()))
+process.stdout.write(`${JSON.stringify({ concluido: true, processados: completed, intervalo: [start, end], total })}\n`)
