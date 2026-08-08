@@ -44,10 +44,13 @@ export default function QuestionCards({ objective, target, onTargetApplied }) {
   useEffect(() => {
     if (!target?.subjectId || !subjects.some((item) => item.id === target.subjectId)) return
     setSubjectId(target.subjectId)
+  }, [target?.subjectId, objective?.id])
+  useEffect(() => {
+    if (target?.subjectId !== subjectId) return
     setTopicId(target.topicId || '')
     setReviewed(0); setStartedAt(null); setRevealed(false)
     onTargetApplied?.()
-  }, [target?.subjectId, target?.topicId, objective?.id])
+  }, [subjectId, target?.subjectId, target?.topicId])
   useEffect(() => { load() }, [objective?.id, subjectId, topicId])
   useEffect(() => {
     if (!startedAt) return undefined

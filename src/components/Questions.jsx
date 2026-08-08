@@ -40,11 +40,12 @@ export default function Questions({ objective, target, onTargetApplied, reviewQu
   useEffect(() => {
     if (!target?.subjectId || !subjects.some((item) => item.id === target.subjectId)) return
     setSubjectId(target.subjectId)
-    setTopicId(target.topicId || '')
-    setQuestion(null); setAvailable(0); setPosition(0); setSessionStartedAt(null)
-    onTargetApplied?.()
-  }, [target?.subjectId, target?.topicId, objective?.id])
-  useEffect(() => { setTopicId(''); setQuestion(null); setAvailable(0); setPosition(0); setSessionStartedAt(null) }, [subjectId])
+  }, [target?.subjectId, objective?.id])
+  useEffect(() => {
+    const linkedTopic = target?.subjectId === subjectId ? target.topicId || '' : ''
+    setTopicId(linkedTopic); setQuestion(null); setAvailable(0); setPosition(0); setSessionStartedAt(null)
+    if (target?.subjectId === subjectId) onTargetApplied?.()
+  }, [subjectId, target?.subjectId, target?.topicId])
   useEffect(() => { if (reviewQuestionId) loadQuestion(reviewQuestionId).then(onReviewLoaded) }, [reviewQuestionId])
   useEffect(() => {
     if (!sessionStartedAt) return undefined
