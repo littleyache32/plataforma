@@ -48,16 +48,16 @@ describe('buildMentorWeek', () => {
     const result = buildMentorWeek({ weekStart: '2026-08-10', catalog: withWriting })
     const facultyStudy = result.filter((item) => item.tipo === 'estudo' && item.objetivo_id !== 'bacen' && item.data <= '2026-08-13')
     expect(facultyStudy).toHaveLength(4)
-    expect(facultyStudy.every((item) => item.titulo.startsWith('Construir base da faculdade'))).toBe(true)
+    expect(facultyStudy.every((item) => item.titulo.startsWith('Aula dada, aula estudada'))).toBe(true)
     expect(result.some((item) => item.materia_id === 'texto')).toBe(false)
   })
 
-  it('distribui diariamente uma hora de faculdade e duas horas de BACEN', () => {
+  it('distribui faculdade de segunda a quinta e reserva o restante para BACEN', () => {
     const result = buildMentorWeek({ weekStart: '2026-08-10', catalog })
     for (let day = 10; day <= 16; day += 1) {
       const items = result.filter((item) => item.data === `2026-08-${day}`)
-      expect(items.filter((item) => item.objetivo_id === 'facul').map((item) => item.duracao_estimada)).toEqual([60])
-      expect(items.filter((item) => item.objetivo_id === 'bacen').map((item) => item.duracao_estimada)).toEqual([60, 60])
+      expect(items.filter((item) => item.objetivo_id === 'facul').map((item) => item.duracao_estimada)).toEqual(day <= 13 ? [60] : [])
+      expect(items.filter((item) => item.objetivo_id === 'bacen').map((item) => item.duracao_estimada)).toEqual(day <= 13 ? [60, 60] : [60, 60, 60])
     }
   })
 

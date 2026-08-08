@@ -35,4 +35,5 @@ const summary = coverage.reduce((result, item) => ({
   cards: result.cards + item.cards,
   cards_alvo: result.cards_alvo + cardTarget,
 }), { topicos: 0, questoes: 0, questoes_alvo: 0, cards: 0, cards_alvo: 0 })
-console.log(JSON.stringify({ resumo: summary, bacen: { expansao_liberada: true, fase: 'pre_edital', estrategia: 'Preparação ampla com o referencial disponível; o próximo edital acionará análise de diferenças e replanejamento.' }, maiores_lacunas: coverage.sort((a, b) => (b.questoes_faltantes + b.cards_faltantes) - (a.questoes_faltantes + a.cards_faltantes)).slice(0, 20) }, null, 2))
+const orderedGaps = coverage.filter((item) => item.questoes_faltantes || item.cards_faltantes).sort((a, b) => (b.questoes_faltantes + b.cards_faltantes) - (a.questoes_faltantes + a.cards_faltantes))
+console.log(JSON.stringify({ resumo: summary, topicos_com_lacuna: orderedGaps.length, bacen: { expansao_liberada: true, fase: 'pre_edital', estrategia: 'Preparação ampla com o referencial disponível; o próximo edital acionará análise de diferenças e replanejamento.' }, lacunas: process.argv.includes('--all') ? orderedGaps : orderedGaps.slice(0, 20) }, null, 2))

@@ -1,4 +1,5 @@
 import { PDFParse } from 'pdf-parse'
+import { randomUUID } from 'node:crypto'
 import { getSupabaseAdmin } from '../_lib/supabase.js'
 import { generateJson } from '../_lib/gemini.js'
 import { allowMethods, enforceRateLimit, fail, requireAccess } from '../_lib/http.js'
@@ -25,17 +26,26 @@ const materialSchema = {
   },
 }
 
-async function extractContent({ tipo, conteudo, arquivoBase64 }) {
+const PDF_LIMIT = 20 * 1024 * 1024
+
+async function extractContent({ tipo, conteudo, arquivoBase64, storagePath }, supabase) {
   if (tipo === 'texto') return String(conteudo || '').trim()
-  if (tipo !== 'pdf' || !arquivoBase64) throw new Error('PDF em base64 obrigatorio.')
-  const buffer = Buffer.from(arquivoBase64, 'base64')
-  if (buffer.length > 8 * 1024 * 1024) throw new Error('PDF maior que 8 MB.')
+  if (tipo !== 'pdf' || (!arquivoBase64 && !storagePath)) throw new Error('PDF obrigatorio.')
+  let buffer
+  if (storagePath) {
+    if (!/^uploads\/[a-f0-9-]+\.pdf$/.test(String(storagePath))) throw new Error('Caminho do PDF invalido.')
+    const { data, error } = await supabase.storage.from('materiais').download(storagePath)
+    if (error) throw error
+    buffer = Buffer.from(await data.arrayBuffer())
+  } else buffer = Buffer.from(arquivoBase64, 'base64')
+  if (buffer.length > PDF_LIMIT) throw new Error('PDF maior que 20 MB.')
   const parser = new PDFParse({ data: buffer })
   try {
     const result = await parser.getText()
     return String(result.text || '').trim()
   } finally {
     await parser.destroy()
+    if (storagePath) await supabase.storage.from('materiais').remove([storagePath])
   }
 }
 
@@ -44,6 +54,16 @@ export default async function handler(req, res) {
   const supabase = getSupabaseAdmin()
 
   try {
+    if (req.method === 'POST' && req.body?.acao === 'preparar_pdf') {
+      const size = Number(req.body?.tamanho || 0)
+      if (!Number.isFinite(size) || size <= 0 || size > PDF_LIMIT) return res.status(400).json({ error: 'O PDF deve ter no maximo 20 MB.' })
+      const path = `uploads/${randomUUID()}.pdf`
+      const { data, error } = await supabase.storage.from('materiais').createSignedUploadUrl(path)
+      if (error) throw error
+      const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY
+      if (!publishableKey) throw new Error('Chave publica do Supabase nao configurada.')
+      return res.status(200).json({ path, token: data.token, supabaseUrl: process.env.SUPABASE_URL, publishableKey })
+    }
     if (req.method === 'GET') {
       const { data, error } = await supabase
         .from('material')
@@ -76,7 +96,7 @@ export default async function handler(req, res) {
 
     const { materiaId, objetivoId, tipo, nome } = req.body || {}
     if (!materiaId || !objetivoId || !['texto', 'pdf'].includes(tipo)) return res.status(400).json({ error: 'Objetivo, materia e tipo validos sao obrigatorios.' })
-    const content = await extractContent(req.body || {})
+    const content = await extractContent(req.body || {}, supabase)
     if (content.length < 120) return res.status(400).json({ error: 'Material curto demais para avaliacao.' })
     if (content.length > 120000) return res.status(413).json({ error: 'Material excede 120 mil caracteres.' })
 

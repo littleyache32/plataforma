@@ -135,7 +135,9 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     if (onboarding) {
       const baseBacenA = pickDistributed(byContext.concurso, rotationSeed + day) || bacenTarget
       const baseBacenB = pickDistributed(byContext.concurso.filter((item) => item.subjectId !== baseBacenA?.subjectId), rotationSeed + day + 1) || otherBacen
-      rows.push(demand({ weekStart, day, slot: 'base-faculdade', target: facultyTarget, title: `Construir base da faculdade: ${facultyTarget?.subject || ''}`, type: 'estudo', duration: 60, priority: 2 }))
+      const baseBacenC = pickDistributed(byContext.concurso.filter((item) => ![baseBacenA?.subjectId, baseBacenB?.subjectId].includes(item.subjectId)), rotationSeed + day + 2) || bacenTarget
+      if (day <= 3) rows.push(demand({ weekStart, day, slot: 'base-faculdade', target: facultyTarget, title: `Aula dada, aula estudada: ${facultyTarget?.subject || ''}`, type: 'estudo', duration: 60, priority: 2 }))
+      else rows.push(demand({ weekStart, day, slot: 'base-bacen-c', target: baseBacenC, title: `Construir base BACEN: ${baseBacenC.topic || baseBacenC.subject}`, type: 'estudo', duration: 60, priority: 1 }))
       rows.push(demand({ weekStart, day, slot: 'base-bacen-a', target: baseBacenA, title: `Construir base BACEN: ${baseBacenA.topic || baseBacenA.subject}`, type: 'estudo', duration: 60, priority: 1 }))
       rows.push(demand({ weekStart, day, slot: 'base-bacen-b', target: baseBacenB, title: `Construir base BACEN: ${baseBacenB.topic || baseBacenB.subject}`, type: 'estudo', duration: 60, priority: 1 }))
       continue

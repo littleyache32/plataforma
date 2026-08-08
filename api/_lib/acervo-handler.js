@@ -78,19 +78,25 @@ function topicSection(content, topicName, nextTopicName) {
   return endMatch ? text.slice(start, start + startMatch[0].length + endMatch.index).trim() : text.slice(start).trim()
 }
 
-function trainingPrompt(spec, topicName, evidence, cardCount) {
+function trainingPrompt(spec, topicName, evidence, questionCount, cardCount, previousQuestions = [], previousCards = []) {
   const blocks = evidence.map((item) => `[EVIDÊNCIA ${item.id}]\n${item.texto}`).join('\n\n')
   const style = spec.type === 'concurso'
-    ? 'Crie 15 questões inéditas no padrão Cebraspe: 10 itens CE e 5 itens ME com alternativas A a E.'
-    : 'Crie 15 questões acadêmicas inéditas, misturando CE e ME com cinco alternativas e casos curtos quando cabível.'
+    ? `Crie ${questionCount} questões inéditas no padrão Cebraspe, misturando itens CE e ME com alternativas A a E.`
+    : `Crie ${questionCount} questões acadêmicas inéditas, misturando CE e ME com cinco alternativas e casos curtos quando cabível.`
   return `${style} Misture dificuldades 2, 3, 4 e 5. Crie também ${cardCount} Question Cards atômicos de recuperação ativa.
 Disciplina: ${spec.subject}. Tópico: ${topicName}.
 Use somente as evidências numeradas. Cada questão e card deve apontar um único evidencia_id. Em CE, alternativas é null e gabarito C ou E. Em ME, existem A, B, C, D e E e exatamente uma correta. Toda explicação justifica a resposta. Não duplique conceitos nem copie provas anteriores.
 
+Não repita nem apenas reformule estas questões já existentes:
+${previousQuestions.slice(-30).join(' | ') || 'nenhuma'}
+
+Não repita estes Question Cards já existentes:
+${previousCards.slice(-30).join(' | ') || 'nenhum'}
+
 ${blocks}`
 }
 
-function validateTraining(data, evidence, cardCount) {
+function validateTraining(data, evidence, questionCount, cardCount) {
   const evidenceById = new Map(evidence.map((item) => [item.id, item]))
   const seen = new Set()
   const questions = []
@@ -112,9 +118,10 @@ function validateTraining(data, evidence, cardCount) {
     if (!linked || !front || !back || cardSeen.has(key)) return []
     cardSeen.add(key); return [{ frente: front, verso: back, evidencia_id: linked.id }]
   })
-  if (questions.length < 12 || questions.filter((item) => item.tipo === 'CE').length < 7 || questions.filter((item) => item.tipo === 'ME').length < 3) throw new Error('O lote não atingiu a quantidade ou o formato mínimos.')
-  if (cardCount && cards.length < 4) throw new Error('O lote não atingiu a quantidade mínima de Question Cards.')
-  return { questions: questions.slice(0, 15), cards: cards.slice(0, cardCount) }
+  if (questions.length < questionCount) throw new Error('O lote não atingiu a quantidade mínima de questões.')
+  if (questionCount >= 2 && !['CE', 'ME'].every((type) => questions.some((item) => item.tipo === type))) throw new Error('O lote não contém os dois formatos de questão.')
+  if (cards.length < cardCount) throw new Error('O lote não atingiu a quantidade mínima de Question Cards.')
+  return { questions: questions.slice(0, questionCount), cards: cards.slice(0, cardCount) }
 }
 
 function sourceLabel(sources, spec) {
@@ -139,22 +146,24 @@ export default async function archiveHandler(req, res) {
       if (result.error) throw result.error
       topic = result.data
     }
-    const cardCount = spec.type === 'faculdade' && normalized(spec.subject).includes('analise e producao de texto') ? 0 : 6
+    const excludedSubject = spec.type === 'faculdade' && normalized(spec.subject).includes('analise e producao de texto')
+    const questionTarget = excludedSubject ? 0 : 20
+    const cardTarget = excludedSubject ? 0 : 20
     const [{ count: questionCount }, { count: currentCards }, { data: knowledge }] = await Promise.all([
       supabase.from('questao').select('id', { count: 'exact', head: true }).eq('topico_id', topic.id).neq('estado', 'arquivada'),
       supabase.from('question_card').select('id', { count: 'exact', head: true }).eq('topico_id', topic.id),
       supabase.from('conhecimento').select('id,trecho,material_id').eq('topico_id', topic.id).eq('origem', `acervo-completo:${slug(topicName)}`).maybeSingle(),
     ])
-    if (knowledge && (questionCount || 0) >= 12 && (cardCount === 0 || (currentCards || 0) >= 4)) return res.status(200).json({ index: requestedIndex, total: topics.length, cache: true, materia: spec.subject, topico: topicName, questoes: questionCount, cards: currentCards })
+    if ((questionCount || 0) >= questionTarget && (currentCards || 0) >= cardTarget) return res.status(200).json({ index: requestedIndex, total: topics.length, cache: true, materia: spec.subject, topico: topicName, questoes: questionCount, cards: currentCards })
 
     await enforceRateLimit(supabase, 'acervo_completo', 240, 1440)
     const researchName = `Pesquisa-base completa - ${spec.subject}`
     let { data: researchMaterial } = await supabase.from('material').select('id,conteudo').eq('materia_id', subject.id).eq('nome', researchName).maybeSingle()
     let researchSources = []
-    let chapter = ''
-    if (req.body?.skipGrounding === true) {
+    let chapter = String(knowledge?.trecho || '').trim()
+    if (!chapter && req.body?.skipGrounding === true) {
       chapter = String(await generateText(standaloneTopicPrompt(spec, topicName, scope), { model: process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite' })).trim()
-    } else if (!researchMaterial) {
+    } else if (!chapter && !researchMaterial) {
       const researchModel = String(req.body?.researchModel || process.env.GEMINI_RESEARCH_MODEL || 'gemini-3-flash-preview')
       let researched
       let grounded = true
@@ -183,8 +192,15 @@ export default async function archiveHandler(req, res) {
     if (chapter.length < 3000) throw new Error('Não foi possível produzir um capítulo completo para este tópico.')
     const evidence = evidenceBlocks(chapter)
     if (evidence.length < 5) throw new Error('O capítulo não contém evidências suficientes para gerar o treino.')
-    const generated = await generateJson({ prompt: trainingPrompt(spec, topicName, evidence, cardCount), schema })
-    const training = validateTraining(generated, evidence, cardCount)
+    const missingQuestions = Math.max(0, questionTarget - (questionCount || 0))
+    const missingCards = Math.max(0, cardTarget - (currentCards || 0))
+    const [existingQuestions, existingCards] = await Promise.all([
+      supabase.from('questao').select('enunciado').eq('topico_id', topic.id),
+      supabase.from('question_card').select('frente').eq('topico_id', topic.id),
+    ])
+    if (existingQuestions.error || existingCards.error) throw existingQuestions.error || existingCards.error
+    const generated = await generateJson({ prompt: trainingPrompt(spec, topicName, evidence, missingQuestions, missingCards, (existingQuestions.data || []).map((item) => item.enunciado), (existingCards.data || []).map((item) => item.frente)), schema })
+    const training = validateTraining(generated, evidence, missingQuestions, missingCards)
     if (!researchSources.length) {
       const url = String(researchMaterial?.conteudo || '').match(/https?:\/\/\S+/)?.[0]?.replace(/[),.;]+$/, '')
       if (url) researchSources = [{ titulo: `Fonte verificada de ${spec.subject}`, url }]
@@ -199,15 +215,14 @@ export default async function archiveHandler(req, res) {
     const knowledgePayload = { materia_id: subject.id, topico_id: topic.id, trecho: chapter, origem: `acervo-completo:${slug(topicName)}`, material_id: materialResult.data.id }
     const knowledgeResult = knowledge ? await supabase.from('conhecimento').update(knowledgePayload).eq('id', knowledge.id) : await supabase.from('conhecimento').insert(knowledgePayload)
     if (knowledgeResult.error) throw knowledgeResult.error
-    const existingQuestions = await supabase.from('questao').select('enunciado').eq('topico_id', topic.id)
-    if (existingQuestions.error) throw existingQuestions.error
     const questionKeys = new Set((existingQuestions.data || []).map((item) => normalized(item.enunciado)))
-    const questionRows = training.questions.filter((item) => !questionKeys.has(normalized(item.enunciado))).map((item) => ({ topico_id: topic.id, tipo: item.tipo, enunciado: item.enunciado, alternativas: item.alternativas, gabarito: item.gabarito, explicacao: item.explicacao, fonte: source, trecho_fonte: evidence.find((block) => block.id === item.evidencia_id).texto, origem: 'ia', dificuldade: item.dificuldade }))
+    const questionRows = training.questions.filter((item) => !questionKeys.has(normalized(item.enunciado))).slice(0, missingQuestions).map((item) => ({ topico_id: topic.id, tipo: item.tipo, enunciado: item.enunciado, alternativas: item.alternativas, gabarito: item.gabarito, explicacao: item.explicacao, fonte: source, trecho_fonte: evidence.find((block) => block.id === item.evidencia_id).texto, origem: 'ia', dificuldade: item.dificuldade }))
     if (questionRows.length) {
       const result = await supabase.from('questao').insert(questionRows)
       if (result.error) throw result.error
     }
-    const cardRows = training.cards.map((item) => ({ objetivo_id: objective.id, materia_id: subject.id, topico_id: topic.id, chave: hash(`${objective.id}|${topic.id}|${normalized(item.frente)}`), frente: item.frente, verso: item.verso, fonte: source, trecho_fonte: evidence.find((block) => block.id === item.evidencia_id).texto, proxima_revisao: new Date().toISOString() }))
+    const cardKeys = new Set((existingCards.data || []).map((item) => normalized(item.frente)))
+    const cardRows = training.cards.filter((item) => !cardKeys.has(normalized(item.frente))).slice(0, missingCards).map((item) => ({ objetivo_id: objective.id, materia_id: subject.id, topico_id: topic.id, chave: hash(`${objective.id}|${topic.id}|${normalized(item.frente)}`), frente: item.frente, verso: item.verso, fonte: source, trecho_fonte: evidence.find((block) => block.id === item.evidencia_id).texto, proxima_revisao: new Date().toISOString() }))
     if (cardRows.length) {
       const result = await supabase.from('question_card').upsert(cardRows, { onConflict: 'chave', ignoreDuplicates: true })
       if (result.error) throw result.error
