@@ -143,7 +143,7 @@ export default async function archiveHandler(req, res) {
     let { data: researchMaterial } = await supabase.from('material').select('id,conteudo').eq('materia_id', subject.id).eq('nome', researchName).maybeSingle()
     let researchSources = []
     if (!researchMaterial) {
-      const researched = await researchWithGrounding(subjectPrompt(spec), { model: process.env.GEMINI_RESEARCH_MODEL || 'gemini-3.5-flash-lite' })
+      const researched = await researchWithGrounding(subjectPrompt(spec), { model: process.env.GEMINI_RESEARCH_MODEL || 'gemini-2.5-flash' })
       const researchText = String(researched.texto || '').trim()
       if (researchText.length < spec.topics.length * 3500) throw new Error('A pesquisa gerou uma apostila curta demais para a disciplina completa.')
       researchSources = researched.fontes || []
