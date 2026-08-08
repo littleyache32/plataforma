@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { getSupabaseAdmin } from './supabase.js'
-import { generateJson, researchWithGrounding } from './gemini.js'
+import { generateJson, generateText, researchWithGrounding } from './gemini.js'
 import { enforceRateLimit, fail, queryParam } from './http.js'
 import { librarySpecs } from '../../scripts/acervo-specs.js'
 
@@ -144,12 +144,20 @@ export default async function archiveHandler(req, res) {
     let researchSources = []
     if (!researchMaterial) {
       const researchModel = String(req.body?.researchModel || process.env.GEMINI_RESEARCH_MODEL || 'gemini-3-flash-preview')
-      const researched = await researchWithGrounding(subjectPrompt(spec), { model: researchModel })
+      let researched
+      let grounded = true
+      try {
+        researched = await researchWithGrounding(subjectPrompt(spec), { model: researchModel })
+      } catch (error) {
+        if (!/429|quota|RESOURCE_EXHAUSTED|no longer available|404/i.test(String(error?.message || error))) throw error
+        grounded = false
+        researched = { texto: await generateText(`${subjectPrompt(spec)}\n\nA busca integrada está indisponível na cota gratuita. Use estritamente a base curricular indicada e conhecimentos normativos consolidados. Quando houver risco de desatualização, declare a necessidade de conferir a redação vigente em fonte oficial.`, { model: process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite' }), fontes: [] }
+      }
       const researchText = String(researched.texto || '').trim()
       if (researchText.length < spec.topics.length * 3500) throw new Error('A pesquisa gerou uma apostila curta demais para a disciplina completa.')
       researchSources = researched.fontes || []
       const researchContent = `${researchText}\n\n## Fontes verificadas\n${researchSources.map((item) => `- ${item.titulo}: ${item.url}`).join('\n') || `- ${spec.basis}`}`
-      const result = await supabase.from('material').insert({ objetivo_id: objective.id, materia_id: subject.id, tipo: 'texto', nome: researchName, conteudo: researchContent, status: 'aceito', motivo: 'Pesquisa-base completa, criada uma única vez para economizar a cota gratuita de busca.', forcado: false }).select('id,conteudo').single()
+      const result = await supabase.from('material').insert({ objetivo_id: objective.id, materia_id: subject.id, tipo: 'texto', nome: researchName, conteudo: researchContent, status: 'aceito', motivo: grounded ? 'Pesquisa-base completa, criada uma única vez para economizar a cota gratuita de busca.' : 'Base curricular completa gerada sem busca integrada porque a cota gratuita de grounding estava indisponível; requer atualização futura de fontes.', forcado: false }).select('id,conteudo').single()
       if (result.error) throw result.error
       researchMaterial = result.data
     }

@@ -69,6 +69,12 @@ export async function researchWithGrounding(prompt, { model = process.env.GEMINI
   return { texto: response.text || '', fontes: groundingSources(response), evidencias: groundingEvidence(response) }
 }
 
+export async function generateText(prompt, { model = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite' } = {}) {
+  const ai = getGemini()
+  const response = await ai.models.generateContent({ model, contents: prompt })
+  return response.text || ''
+}
+
 export async function generateGroundedJson({ prompt, schema }) {
   const ai = getGemini()
   const model = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite'
