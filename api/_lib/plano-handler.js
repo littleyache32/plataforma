@@ -30,18 +30,22 @@ export default async function planHandler(req, res) {
     const supabase = getSupabaseAdmin()
     const weekEnd = addDays(inicio, 6)
     const commitmentEnd = addDays(inicio, 13)
-    const [{ data: catalog, error: catalogError }, { data: records, error: recordsError }, { count: pendingReviews, error: reviewError }, { data: commitments, error: commitmentsError }, { data: existing, error: existingError }] = await Promise.all([
+    const [{ data: catalog, error: catalogError }, { data: records, error: recordsError }, { count: pendingReviews, error: reviewError }, { data: commitments, error: commitmentsError }, { data: existing, error: existingError }, { data: mentorKnowledge, error: mentorKnowledgeError }] = await Promise.all([
       supabase.from('objetivo').select('id,tipo,materias:materia(id,nome,topicos:topico(id,nome))').eq('ativo', true).order('criado_em'),
       supabase.from('registro').select('resultado,classificacao,criado_em,questao!inner(topico_id)').order('criado_em', { ascending: false }),
       supabase.from('revisao_item').select('id', { count: 'exact', head: true }).eq('status', 'pendente'),
       supabase.from('compromisso').select('id,objetivo_id,materia_id,titulo,tipo,data,peso,duracao_minutos,concluido').eq('concluido', false).lte('data', commitmentEnd).gte('data', inicio),
       supabase.from('sessao').select('id,chave_mentor,data,status,movida_em,movida_pelo_mentor_em,duracao_estimada,prioridade').gte('data', inicio).lte('data', weekEnd),
+      supabase.from('mentor_conhecimento').select('versao,politica').eq('ativo', true).order('criado_em', { ascending: false }).limit(1).maybeSingle(),
     ])
     if (catalogError) throw catalogError
     if (recordsError) throw recordsError
     if (reviewError) throw reviewError
     if (commitmentsError) throw commitmentsError
     if (existingError) throw existingError
+    if (mentorKnowledgeError) throw mentorKnowledgeError
+
+    const policy = mentorKnowledge ? { ...mentorKnowledge.politica, versao: mentorKnowledge.versao } : {}
 
     const grouped = new Map()
     for (const record of records || []) {
@@ -51,11 +55,11 @@ export default async function planHandler(req, res) {
       items.push(record)
       grouped.set(topicId, items)
     }
-    const priorities = [...grouped.entries()].map(([id, items]) => ({ id, ...calculateTopicDiagnosis(items) }))
+    const priorities = [...grouped.entries()].map(([id, items]) => ({ id, ...calculateTopicDiagnosis(items, policy) }))
       .filter((item) => item.status === 'prioridade')
       .sort((a, b) => b.gravidade - a.gravidade)
       .slice(0, 3)
-    const demands = buildMentorWeek({ weekStart: inicio, catalog: catalog || [], priorities, pendingReviews: pendingReviews || 0, commitments: commitments || [] })
+    const demands = buildMentorWeek({ weekStart: inicio, catalog: catalog || [], priorities, pendingReviews: pendingReviews || 0, commitments: commitments || [], policy })
     if (!demands.length) return res.status(200).json({ criadas: 0, motivo: 'Nenhuma disciplina disponivel.' })
     const existingByKey = new Map((existing || []).map((item) => [item.chave_mentor, item]))
     const recalibrated = demands.map((item) => {
@@ -68,7 +72,7 @@ export default async function planHandler(req, res) {
     const { data: refreshed, error: refreshedError } = await supabase.from('sessao').select('id,data,status,movida_em,duracao_estimada,prioridade').gte('data', inicio).lte('data', weekEnd)
     if (refreshedError) throw refreshedError
     const moved = inicio <= today && today <= weekEnd ? await reallocateOverdue(supabase, refreshed || [], today, weekEnd) : 0
-    return res.status(200).json({ atualizadas: data?.length || 0, total_planejado: demands.length, remanejadas: moved })
+    return res.status(200).json({ atualizadas: data?.length || 0, total_planejado: demands.length, remanejadas: moved, politica_mentor: policy.versao })
   } catch (error) {
     return fail(res, error, 'Nao foi possivel preparar sua semana.')
   }

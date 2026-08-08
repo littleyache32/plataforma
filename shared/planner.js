@@ -1,3 +1,5 @@
+import { resolveMentorPolicy } from './mentor-policy.js'
+
 const DAY_MS = 86_400_000
 export const MENTORSHIP_START = '2026-08-10'
 
@@ -75,11 +77,23 @@ function targetForCommitment(targets, commitment) {
   return sameSubject[0] || targets.find((item) => item.objectiveId === commitment.objetivo_id) || null
 }
 
+function facultyTargetForDay(targets, priorities, day, rotationSeed, policy) {
+  const rule = policy.agenda_faculdade.find((item) => item.dia === day)
+  const faculty = targets.filter((item) => item.context === 'faculdade')
+  if (!rule) return pick(faculty, rotationSeed + day)
+  const matching = faculty.filter((item) => rule.aliases.some((alias) => normalized(item.subject).includes(normalized(alias))))
+  if (!matching.length) return pick(faculty, rotationSeed + day)
+  const priorityIds = new Set(priorities.map((item) => item.id))
+  const weakTopics = matching.filter((item) => priorityIds.has(item.topicId))
+  return pick(weakTopics.length ? weakTopics : matching, rotationSeed + day)
+}
+
 /**
  * Cria uma semana por demandas. O bloco de 30 minutos e uma unidade de calculo,
  * mas cada atividade aparece como um unico cartao de 30, 60 ou 90 minutos.
  */
-export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingReviews = 0, commitments = [] }) {
+export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingReviews = 0, commitments = [], policy: customPolicy = {} }) {
+  const policy = resolveMentorPolicy(customPolicy)
   const targets = catalog.flatMap((objective) => (objective.materias || []).flatMap((subject) => {
     const topics = subject.topicos?.length ? subject.topicos : [{ id: null, nome: '' }]
     return topics.map((topic) => ({
@@ -112,8 +126,7 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     const target = pick(urgentPool.length ? urgentPool : pool.length ? pool : byContext[context], rotationSeed + day) || pick(targets, rotationSeed + day)
     const complementary = pick(byContext[context === 'concurso' ? 'faculdade' : 'concurso'], rotationSeed + day)
     const cardTarget = pick(cardTargets.filter((item) => item.context !== context), rotationSeed + day) || pick(cardTargets, rotationSeed + day)
-    const facultyPool = prioritized.filter((item) => item.context === 'faculdade')
-    const facultyTarget = pick(facultyPool.length ? facultyPool : byContext.faculdade, rotationSeed + day) || target
+    const facultyTarget = facultyTargetForDay(targets, priorities, day, rotationSeed, policy) || target
     const bacenPool = prioritized.filter((item) => item.context === 'concurso')
     const bacenTarget = pick(bacenPool.length ? bacenPool : byContext.concurso, rotationSeed + day) || target
     const questionDuration = day >= 5 ? 30 : 60
@@ -123,7 +136,8 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     rows.push(demand({ weekStart, day, slot: 'questoes', target, title: `Resolver questões: ${target.subject}`, type: 'exercicio', duration: questionDuration, priority: 1 }))
 
     if (day <= 3) {
-      rows.push(demand({ weekStart, day, slot: 'estudo', target: facultyTarget, title: `Aula dada, aula estudada: ${facultyTarget.subject}`, type: 'estudo', duration: 90, priority: 2 }))
+      const facultyDuration = policy.agenda_faculdade.find((item) => item.dia === day)?.duracao || 60
+      rows.push(demand({ weekStart, day, slot: 'estudo', target: facultyTarget, title: `Aula dada, aula estudada: ${facultyTarget.subject}`, type: 'estudo', duration: facultyDuration, priority: 2 }))
     } else if (day === 6) {
       rows.push(demand({ weekStart, day, slot: 'correcao', target, title: pendingReviews > 0 ? 'Corrigir erros e falsas certezas da semana' : 'Revisar e corrigir a semana', type: 'revisao', duration: 60, priority: 1 }))
     } else {

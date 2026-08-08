@@ -25,7 +25,7 @@ describe('buildMentorWeek', () => {
   it('deixa sexta com mais carga do que os dias de faculdade', () => {
     const result = buildMentorWeek({ weekStart: '2026-08-10', catalog })
     const total = (day) => result.filter((item) => item.data === day).reduce((sum, item) => sum + item.duracao_estimada, 0)
-    expect(total('2026-08-10')).toBe(180)
+    expect(total('2026-08-10')).toBe(150)
     expect(total('2026-08-14')).toBe(240)
   })
 
@@ -50,6 +50,24 @@ describe('buildMentorWeek', () => {
     expect(facultyStudy).toHaveLength(4)
     expect(facultyStudy.every((item) => item.titulo.startsWith('Aula dada, aula estudada'))).toBe(true)
     expect(result.filter((item) => item.tipo === 'especial').every((item) => item.materia_id !== 'texto')).toBe(true)
+  })
+
+  it('respeita as quatro disciplinas fixas da faculdade com uma hora por dia', () => {
+    const facultySubjects = [
+      ['pessoas', 'Direito das Pessoas e dos Negócios Jurídicos'],
+      ['crime', 'Teoria do Crime'],
+      ['justica', 'Teorias da Justiça'],
+      ['constituicao', 'Teoria da Constituição e Direitos Fundamentais'],
+    ].map(([id, nome]) => ({ id, nome, topicos: [{ id: `${id}-1`, nome: 'Conteúdo' }] }))
+    const expanded = [catalog[0], { id: 'facul', tipo: 'faculdade', materias: facultySubjects }]
+    const result = buildMentorWeek({ weekStart: '2026-08-10', catalog: expanded })
+    const study = result.filter((item) => item.tipo === 'estudo' && item.data <= '2026-08-13')
+    expect(study.map((item) => [item.data, item.materia_id, item.duracao_estimada])).toEqual([
+      ['2026-08-10', 'pessoas', 60],
+      ['2026-08-11', 'crime', 60],
+      ['2026-08-12', 'justica', 60],
+      ['2026-08-13', 'constituicao', 60],
+    ])
   })
 
   it('transforma provas e entregas em prioridade com preparacao antecipada', () => {

@@ -29,6 +29,8 @@ describe('calculateTopicDiagnosis', () => {
     const result = calculateTopicDiagnosis(records)
     expect(result.status).toBe('prioridade')
     expect(result.falsa_certeza).toBeGreaterThan(30)
+    expect(result.probabilidade_dominio).toBeLessThan(50)
+    expect(result.versao_politica).toBe('2026.08.1')
   })
 
   it('reduz prioridade quando as respostas recentes mostram melhora real', () => {
