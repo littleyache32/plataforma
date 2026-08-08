@@ -7,19 +7,19 @@ const catalog = [
 ]
 
 describe('buildMentorWeek', () => {
-  it('suspende cards nas duas primeiras semanas e mantém exercícios diários', () => {
+  it('usa somente estudo nas duas primeiras semanas', () => {
     const result = buildMentorWeek({ weekStart: '2026-08-10', catalog, pendingReviews: 3 })
-    expect(result.filter((item) => item.tipo === 'exercicio')).toHaveLength(7)
-    expect(result.filter((item) => item.tipo === 'especial')).toHaveLength(0)
+    expect(result).toHaveLength(21)
+    expect(result.every((item) => item.tipo === 'estudo')).toBe(true)
     expect(Math.max(...result.map((item) => item.duracao_estimada))).toBe(60)
   })
 
-  it('mantem tres horas no sabado e domingo na fase inicial e inclui correcao', () => {
+  it('mantem tres horas no sabado e domingo sem revisão ou exercícios', () => {
     const result = buildMentorWeek({ weekStart: '2026-08-10', catalog, pendingReviews: 1 })
     const weekend = result.filter((item) => item.data >= '2026-08-15')
     const totals = weekend.reduce((map, item) => map.set(item.data, (map.get(item.data) || 0) + item.duracao_estimada), new Map())
     expect([...totals.values()]).toEqual([180, 180])
-    expect(result.some((item) => item.tipo === 'revisao')).toBe(true)
+    expect(result.some((item) => item.tipo !== 'estudo')).toBe(false)
   })
 
   it('mantem exatamente tres horas por dia na fase inicial', () => {
@@ -43,13 +43,22 @@ describe('buildMentorWeek', () => {
     expect(canGenerateMentorWeek({ weekStart: '2026-08-03', today: '2026-08-07' })).toBe(false)
   })
 
-  it('usa aula dada, aula estudada de segunda a quinta e exclui texto dos cards', () => {
+  it('constroi base da faculdade e exclui producao de texto', () => {
     const withWriting = [...catalog, { id: 'facul-2', tipo: 'faculdade', materias: [{ id: 'texto', nome: 'Análise e Produção de Texto', topicos: [{ id: 'texto-1', nome: 'Redação' }] }] }]
     const result = buildMentorWeek({ weekStart: '2026-08-10', catalog: withWriting })
     const facultyStudy = result.filter((item) => item.tipo === 'estudo' && item.objetivo_id !== 'bacen' && item.data <= '2026-08-13')
     expect(facultyStudy).toHaveLength(4)
-    expect(facultyStudy.every((item) => item.titulo.startsWith('Aula dada, aula estudada'))).toBe(true)
+    expect(facultyStudy.every((item) => item.titulo.startsWith('Construir base da faculdade'))).toBe(true)
     expect(result.some((item) => item.materia_id === 'texto')).toBe(false)
+  })
+
+  it('distribui diariamente uma hora de faculdade e duas horas de BACEN', () => {
+    const result = buildMentorWeek({ weekStart: '2026-08-10', catalog })
+    for (let day = 10; day <= 16; day += 1) {
+      const items = result.filter((item) => item.data === `2026-08-${day}`)
+      expect(items.filter((item) => item.objetivo_id === 'facul').map((item) => item.duracao_estimada)).toEqual([60])
+      expect(items.filter((item) => item.objetivo_id === 'bacen').map((item) => item.duracao_estimada)).toEqual([60, 60])
+    }
   })
 
   it('ativa cards BACEN diariamente e cards da faculdade em dois dias depois da adaptação', () => {

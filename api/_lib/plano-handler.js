@@ -55,7 +55,7 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
   const onboardingWithoutCards = inicio >= '2026-08-10' && inicio < '2026-08-24'
   const obsoleteIds = (existingResult.data || []).filter((item) => {
     if (item.status !== 'planejada') return false
-    if (onboardingWithoutCards && /question cards/i.test(item.titulo || '')) return true
+    if (onboardingWithoutCards && item.chave_mentor && !activeKeys.has(item.chave_mentor)) return true
     return item.chave_mentor && !activeKeys.has(item.chave_mentor) && !item.movida_em
   }).map((item) => item.id)
   if (obsoleteIds.length) {

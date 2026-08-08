@@ -58,8 +58,8 @@ alter table mentor_experimento enable row level security;
 
 create table if not exists acervo_meta (
   topico_id uuid primary key references topico(id) on delete cascade,
-  questoes_alvo integer not null default 100 check (questoes_alvo > 0),
-  cards_alvo integer not null default 50 check (cards_alvo > 0),
+  questoes_alvo integer not null default 20 check (questoes_alvo > 0),
+  cards_alvo integer not null default 20 check (cards_alvo > 0),
   expansao_bloqueada boolean not null default false,
   motivo_bloqueio text,
   atualizado_em timestamptz not null default now()

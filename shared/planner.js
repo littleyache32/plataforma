@@ -126,27 +126,30 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     const facultyTarget = facultyTargetForDay(targets, priorities, day, rotationSeed, policy) || pick(byContext.faculdade, rotationSeed + day)
     const facultyCardTarget = pick(byContext.faculdade.filter(allowsQuestionCards), rotationSeed + day)
 
-    if (!onboarding) rows.push(demand({ weekStart, day, slot: 'cards-bacen', target: bacenTarget, title: 'Revisar Question Cards BACEN', type: 'especial', duration: 30, priority: 1 }))
+    if (onboarding) {
+      rows.push(demand({ weekStart, day, slot: 'base-faculdade', target: facultyTarget, title: `Construir base da faculdade: ${facultyTarget?.subject || ''}`, type: 'estudo', duration: 60, priority: 2 }))
+      rows.push(demand({ weekStart, day, slot: 'base-bacen-a', target: bacenTarget, title: `Construir base BACEN: ${bacenTarget.topic || bacenTarget.subject}`, type: 'estudo', duration: 60, priority: 1 }))
+      rows.push(demand({ weekStart, day, slot: 'base-bacen-b', target: otherBacen, title: `Construir base BACEN: ${otherBacen.topic || otherBacen.subject}`, type: 'estudo', duration: 60, priority: 1 }))
+      continue
+    }
+
+    rows.push(demand({ weekStart, day, slot: 'cards-bacen', target: bacenTarget, title: 'Revisar Question Cards BACEN', type: 'especial', duration: 30, priority: 1 }))
     rows.push(demand({ weekStart, day, slot: 'questoes-bacen', target: otherBacen, title: `Resolver questões: ${otherBacen.subject}`, type: 'exercicio', duration: day === 4 ? 60 : 30, priority: 1 }))
 
     if (day <= 3) {
       const facultyDuration = policy.agenda_faculdade.find((item) => item.dia === day)?.duracao || 60
       if (facultyTarget) rows.push(demand({ weekStart, day, slot: 'estudo', target: facultyTarget, title: `Aula dada, aula estudada: ${facultyTarget.subject}`, type: 'estudo', duration: facultyDuration, priority: 2 }))
       rows.push(demand({ weekStart, day, slot: 'estudo-bacen', target: bacenTarget, title: `Estudar BACEN: ${bacenTarget.topic || bacenTarget.subject}`, type: 'estudo', duration: 60, priority: 1 }))
-      if (onboarding) rows.push(demand({ weekStart, day, slot: 'revisao-inicial', target: bacenTarget, title: 'Consolidar o estudo do BACEN', type: 'revisao', duration: 30, priority: 1 }))
     } else if (day === 4) {
-      if (!onboarding) rows.push(demand({ weekStart, day, slot: 'cards-faculdade', target: facultyCardTarget, title: 'Revisar Question Cards da faculdade', type: 'especial', duration: 30, priority: 2 }))
+      rows.push(demand({ weekStart, day, slot: 'cards-faculdade', target: facultyCardTarget, title: 'Revisar Question Cards da faculdade', type: 'especial', duration: 30, priority: 2 }))
       rows.push(demand({ weekStart, day, slot: 'estudo-bacen', target: bacenTarget, title: `Estudar BACEN: ${bacenTarget.topic || bacenTarget.subject}`, type: 'estudo', duration: 60, priority: 1 }))
-      if (onboarding) rows.push(demand({ weekStart, day, slot: 'revisao-inicial', target: bacenTarget, title: 'Revisar pontos centrais do BACEN', type: 'revisao', duration: 60, priority: 1 }))
     } else if (day === 5) {
-      if (!onboarding) rows.push(demand({ weekStart, day, slot: 'cards-faculdade', target: facultyCardTarget, title: 'Revisar Question Cards da faculdade', type: 'especial', duration: 30, priority: 2 }))
+      rows.push(demand({ weekStart, day, slot: 'cards-faculdade', target: facultyCardTarget, title: 'Revisar Question Cards da faculdade', type: 'especial', duration: 30, priority: 2 }))
       rows.push(demand({ weekStart, day, slot: 'estudo-bacen', target: bacenTarget, title: `Estudar BACEN: ${bacenTarget.topic || bacenTarget.subject}`, type: 'estudo', duration: 60, priority: 1 }))
       rows.push(demand({ weekStart, day, slot: 'revisao-bacen', target: bacenTarget, title: 'Revisar erros do BACEN', type: 'revisao', duration: 30, priority: 1 }))
-      if (onboarding) rows.push(demand({ weekStart, day, slot: 'aprofundamento-inicial', target: otherBacen, title: `Aprofundar BACEN: ${otherBacen.topic || otherBacen.subject}`, type: 'estudo', duration: 60, priority: 1 }))
     } else {
       rows.push(demand({ weekStart, day, slot: 'estudo-bacen', target: bacenTarget, title: `Estudar BACEN: ${bacenTarget.topic || bacenTarget.subject}`, type: 'estudo', duration: 60, priority: 1 }))
       rows.push(demand({ weekStart, day, slot: 'correcao', target: bacenTarget, title: pendingReviews > 0 ? 'Corrigir erros e falsas certezas da semana' : 'Revisar e corrigir a semana', type: 'revisao', duration: 60, priority: 1 }))
-      if (onboarding) rows.push(demand({ weekStart, day, slot: 'fechamento-inicial', target: otherBacen, title: 'Fechar lacunas da semana', type: 'revisao', duration: 30, priority: 1 }))
     }
   }
 
