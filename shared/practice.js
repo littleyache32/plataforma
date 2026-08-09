@@ -25,3 +25,7 @@ export function selectPracticeQuestion(questions, now = Date.now()) {
   })[0] || null
 }
 
+export function shouldShowExplanation({ resultado, classificacao }) {
+  return resultado === 'erro' || classificacao === 'duvida' || classificacao === 'sem_conhecimento'
+}
+

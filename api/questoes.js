@@ -13,7 +13,7 @@ export default async function handler(req, res) {
         const objetivoId = queryParam(req, 'objetivoId')
         const materiaId = queryParam(req, 'materiaId')
         const topicoId = queryParam(req, 'topicoId')
-        let query = supabase.from('question_card').select('id,frente,verso,fonte,trecho_fonte,ocorrencias,repeticoes,intervalo_dias,fator_facilidade,lapsos,proxima_revisao,ultima_revisao,criado_em,materia:materia_id(id,nome),topico:topico_id(id,nome),objetivo:objetivo_id(nome,tipo)').order('proxima_revisao').order('criado_em')
+        let query = supabase.from('question_card').select('id,frente,verso,fonte,trecho_fonte,ocorrencias,repeticoes,intervalo_dias,fator_facilidade,lapsos,proxima_revisao,ultima_revisao,criado_em,materia:materia_id(id,nome),topico:topico_id(id,nome),objetivo:objetivo_id(nome,tipo)').eq('ativa', true).order('proxima_revisao').order('criado_em')
         if (objetivoId) query = query.eq('objetivo_id', objetivoId)
         if (materiaId) query = query.eq('materia_id', materiaId)
         if (topicoId) query = query.eq('topico_id', topicoId)
@@ -25,7 +25,7 @@ export default async function handler(req, res) {
       }
       const { id, resultado } = req.body || {}
       if (!id || !['novamente', 'dificil', 'bom', 'facil'].includes(resultado)) return res.status(400).json({ error: 'Card e avaliacao validos sao obrigatorios.' })
-      const { data: card, error: cardError } = await supabase.from('question_card').select('id,repeticoes,intervalo_dias,fator_facilidade,lapsos').eq('id', id).single()
+      const { data: card, error: cardError } = await supabase.from('question_card').select('id,repeticoes,intervalo_dias,fator_facilidade,lapsos').eq('id', id).eq('ativa', true).single()
       if (cardError) throw cardError
       const transition = cardTransition({ resultado, repeticoes: card.repeticoes, intervaloDias: card.intervalo_dias, fatorFacilidade: card.fator_facilidade, lapsos: card.lapsos })
       const now = new Date().toISOString()

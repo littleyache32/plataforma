@@ -17,6 +17,7 @@
     "acervo:expandir:bacen": "node --env-file=.env.local scripts/build-complete-library.js --generate --context=concurso --target-questions=20 --target-cards=20",
     "acervo:importar": "node --env-file=.env.local scripts/build-complete-library.js --apply",
     "acervo:producao": "node --env-file=.env.local scripts/generate-production-library.js",
+    "acervo:reconstruir": "node --env-file=.env.local scripts/rebuild-production-library.js",
     "audit:producao": "node --env-file=.env.local scripts/audit-production.js",
     "audit:cobertura": "node --env-file=.env.local scripts/audit-coverage.js"
   },

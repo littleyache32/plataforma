@@ -6,6 +6,7 @@ export function normalizeQuestion(raw, { topicoId, origem, evidencias }) {
 
   const gabarito = String(raw.gabarito || '').toUpperCase()
   let alternativas = null
+  let comentariosAlternativas = null
   if (tipo === 'CE') {
     if (!['C', 'E'].includes(gabarito)) throw new Error('Gabarito CE invalido.')
   } else {
@@ -13,6 +14,9 @@ export function normalizeQuestion(raw, { topicoId, origem, evidencias }) {
     const incoming = raw.alternativas || {}
     alternativas = Object.fromEntries(letters.map((letter) => [letter, String(incoming[letter] || '').trim()]))
     if (letters.some((letter) => !alternativas[letter])) throw new Error('Questao ME sem cinco alternativas.')
+    const incomingComments = raw.comentarios_alternativas || {}
+    comentariosAlternativas = Object.fromEntries(letters.map((letter) => [letter, String(incomingComments[letter] || '').trim()]))
+    if (letters.some((letter) => !comentariosAlternativas[letter])) throw new Error('Questao ME sem comentario para cada alternativa.')
   }
 
   const evidenceId = Number(raw.evidencia_id)
@@ -24,6 +28,7 @@ export function normalizeQuestion(raw, { topicoId, origem, evidencias }) {
     tipo,
     enunciado: String(raw.enunciado || '').trim(),
     alternativas,
+    comentarios_alternativas: comentariosAlternativas,
     gabarito,
     explicacao: String(raw.explicacao || '').trim(),
     fonte: evidence.url ? `${evidence.titulo}: ${evidence.url}` : evidence.titulo,
@@ -46,11 +51,17 @@ export const questionBatchSchema = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['tipo', 'enunciado', 'alternativas', 'gabarito', 'explicacao', 'evidencia_id'],
+        required: ['tipo', 'enunciado', 'alternativas', 'comentarios_alternativas', 'gabarito', 'explicacao', 'evidencia_id'],
         properties: {
           tipo: { type: 'string', enum: ['CE', 'ME'] },
           enunciado: { type: 'string' },
           alternativas: {
+            anyOf: [
+              { type: 'null' },
+              { type: 'object', required: letters, additionalProperties: false, properties: Object.fromEntries(letters.map((letter) => [letter, { type: 'string' }])) },
+            ],
+          },
+          comentarios_alternativas: {
             anyOf: [
               { type: 'null' },
               { type: 'object', required: letters, additionalProperties: false, properties: Object.fromEntries(letters.map((letter) => [letter, { type: 'string' }])) },
@@ -85,7 +96,7 @@ Materia: ${materia}
 Topico: ${topico}
 ${format}
 
-Use somente os blocos abaixo. Cada questao deve informar evidencia_id de um unico bloco que sustente diretamente enunciado, gabarito e explicacao. Nao misture fontes na mesma questao. Em CE, alternativas deve ser null e gabarito C ou E. Em ME, produza A, B, C, D e E com uma unica correta. Se houver pelo menos duas questoes para uma banca Cebraspe, inclua CE e ME.
+Use somente os blocos abaixo. Cada questao deve informar evidencia_id de um unico bloco que sustente diretamente enunciado, gabarito e explicacao. Nao misture fontes na mesma questao. Em CE, alternativas e comentarios_alternativas devem ser null e gabarito C ou E. Em ME, produza A, B, C, D e E com uma unica correta e um comentario individual que explique por que cada alternativa esta correta ou errada. Se houver pelo menos duas questoes para uma banca Cebraspe, inclua CE e ME.
 
 ${blocks}`
 }

@@ -4,10 +4,12 @@ import { generationPrompt, normalizeQuestion, questionBatchSchema } from '../_li
 import { allowMethods, enforceRateLimit, fail, requireAccess } from '../_lib/http.js'
 import { queryParam } from '../_lib/http.js'
 import archiveHandler from '../_lib/acervo-handler.js'
+import rebuildHandler from '../_lib/rebuild-handler.js'
 
 export default async function handler(req, res) {
   if (!allowMethods(req, res, ['POST']) || !requireAccess(req, res)) return
   if (queryParam(req, 'recurso') === 'acervo') return archiveHandler(req, res)
+  if (queryParam(req, 'recurso') === 'reconstruir') return rebuildHandler(req, res)
   const supabase = getSupabaseAdmin()
   let jobId
 
@@ -18,7 +20,7 @@ export default async function handler(req, res) {
 
     const [{ data: topic, error: topicError }, { count, error: countError }] = await Promise.all([
       supabase.from('topico').select('id,nome,materia:materia_id(id,nome,objetivo:objetivo_id(id,nome,tipo,banca))').eq('id', topicoId).single(),
-      supabase.from('questao').select('id', { count: 'exact', head: true }).eq('topico_id', topicoId).neq('estado', 'arquivada').eq('marcada_errada', false),
+      supabase.from('questao').select('id', { count: 'exact', head: true }).eq('topico_id', topicoId).eq('ativa', true).neq('estado', 'arquivada').eq('marcada_errada', false),
     ])
     if (topicError) throw topicError
     if (countError) throw countError

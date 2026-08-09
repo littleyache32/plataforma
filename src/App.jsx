@@ -6,6 +6,7 @@ import Week from './components/Week.jsx'
 import Objectives from './components/Objectives.jsx'
 import Materials from './components/Materials.jsx'
 import Questions from './components/Questions.jsx'
+import DiscursiveQuestions from './components/DiscursiveQuestions.jsx'
 import Simulations from './components/Simulations.jsx'
 import Performance from './components/Performance.jsx'
 import QuestionCards from './components/QuestionCards.jsx'
@@ -79,6 +80,7 @@ export default function App() {
       {area === 'materiais' && mode === 'administrador' && <Materials {...common} />}
       {area === 'prazos' && mode === 'administrador' && <Deadlines catalog={catalog} />}
       {area === 'questoes' && <Questions {...common} target={studyTarget?.objectiveId === objective?.id ? studyTarget : null} onTargetApplied={() => setStudyTarget(null)} reviewQuestionId={reviewQuestionId} onReviewLoaded={() => setReviewQuestionId('')} />}
+      {area === 'discursivas' && <DiscursiveQuestions />}
       {area === 'cards' && <QuestionCards objective={objective} target={studyTarget?.objectiveId === objective?.id ? studyTarget : null} onTargetApplied={() => setStudyTarget(null)} />}
       {area === 'simulados' && <Simulations objective={objective} />}
       {area === 'desempenho' && <Performance objective={objective} mode={mode} onReview={openReview} />}

@@ -1,6 +1,6 @@
 import { getSupabaseAdmin } from './_lib/supabase.js'
 import { allowMethods, fail, queryParam, requireAccess } from './_lib/http.js'
-import { practiceTransition, selectPracticeQuestion } from '../shared/practice.js'
+import { practiceTransition, selectPracticeQuestion, shouldShowExplanation } from '../shared/practice.js'
 import { cardKey, cardTransition } from '../shared/cards.js'
 
 const classifications = ['certeza', 'duvida', 'eliminacao', 'sem_conhecimento']
@@ -18,6 +18,7 @@ export default async function handler(req, res) {
       let query = supabase.from('questao')
         .select('id,tipo,enunciado,alternativas,origem,estado,quantidade_tentativas,ultima_resolucao,proxima_revisao,topico:topico_id(id,nome,materia_id)', { count: 'exact' })
         .eq('marcada_errada', false)
+        .eq('ativa', true)
         .neq('estado', 'arquivada')
       if (questaoId) query = query.eq('id', questaoId).limit(1)
       else if (topicoId) query = query.eq('topico_id', topicoId).limit(1000)
@@ -40,8 +41,8 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Resposta, classificacao e tempo validos sao obrigatorios.' })
     }
     const { data: question, error } = await supabase.from('questao')
-      .select('id,tipo,gabarito,enunciado,explicacao,fonte,trecho_fonte,quantidade_tentativas,topico:topico_id(id,materia:materia_id(id,objetivo_id))')
-      .eq('id', questaoId).eq('marcada_errada', false).single()
+      .select('id,tipo,gabarito,enunciado,explicacao,comentarios_alternativas,fonte,trecho_fonte,quantidade_tentativas,topico:topico_id(id,materia:materia_id(id,objetivo_id))')
+      .eq('id', questaoId).eq('marcada_errada', false).eq('ativa', true).single()
     if (error) throw error
 
     const answer = String(resposta || '').toUpperCase()
@@ -102,12 +103,15 @@ export default async function handler(req, res) {
       }
     }
 
+    const mostrarExplicacao = shouldShowExplanation({ resultado, classificacao })
     return res.status(201).json({
       resultado,
       gabarito: question.gabarito,
-      explicacao: question.explicacao,
-      fonte: question.fonte,
-      trecho_fonte: question.trecho_fonte,
+      mostrar_explicacao: mostrarExplicacao,
+      explicacao: mostrarExplicacao ? question.explicacao : null,
+      comentarios_alternativas: mostrarExplicacao ? question.comentarios_alternativas : null,
+      fonte: mostrarExplicacao ? question.fonte : null,
+      trecho_fonte: mostrarExplicacao ? question.trecho_fonte : null,
       revisao_imediata: transition.motivo === 'falsa_certeza',
       proxima_revisao: transition.proximaRevisao,
     })

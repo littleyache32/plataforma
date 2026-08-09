@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { practiceTransition, selectPracticeQuestion } from '../shared/practice.js'
+import { practiceTransition, selectPracticeQuestion, shouldShowExplanation } from '../shared/practice.js'
 
 describe('ciclo de pratica', () => {
   it('manda falsa certeza para revisao imediata com prioridade maxima', () => {
@@ -17,5 +17,18 @@ describe('ciclo de pratica', () => {
       { id: 'devida', quantidade_tentativas: 2, proxima_revisao: new Date(0).toISOString(), ultima_resolucao: new Date(0).toISOString() },
     ], 1000)
     expect(selected.id).toBe('devida')
+  })
+})
+
+describe('exibicao do gabarito comentado', () => {
+  it('mostra explicacao em erro, duvida e sem conhecimento', () => {
+    expect(shouldShowExplanation({ resultado: 'erro', classificacao: 'certeza' })).toBe(true)
+    expect(shouldShowExplanation({ resultado: 'acerto', classificacao: 'duvida' })).toBe(true)
+    expect(shouldShowExplanation({ resultado: 'acerto', classificacao: 'sem_conhecimento' })).toBe(true)
+  })
+
+  it('oculta explicacao em acerto com certeza ou eliminacao', () => {
+    expect(shouldShowExplanation({ resultado: 'acerto', classificacao: 'certeza' })).toBe(false)
+    expect(shouldShowExplanation({ resultado: 'acerto', classificacao: 'eliminacao' })).toBe(false)
   })
 })
