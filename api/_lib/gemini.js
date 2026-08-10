@@ -3,6 +3,9 @@ import { GoogleGenAI } from '@google/genai'
 let client
 
 function getGemini() {
+  if (process.env.GEMINI_ENABLED !== 'true') {
+    throw new Error('Gemini temporariamente desativado. Uma nova autorizacao explicita e obrigatoria para habilita-lo.')
+  }
   if (!process.env.GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY nao configurada no servidor.')
   }

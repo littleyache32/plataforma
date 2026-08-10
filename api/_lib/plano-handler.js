@@ -2,6 +2,7 @@ import { getSupabaseAdmin } from './supabase.js'
 import { allowMethods, fail, requireAccess } from './http.js'
 import { calculateTopicDiagnosis } from '../../shared/mentor.js'
 import { buildMentorWeek, canGenerateMentorWeek, planOverdueMoves } from '../../shared/planner.js'
+import { loadModuleKnowledge } from './module-knowledge.js'
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const addDays = (date, days) => { const value = new Date(`${date}T12:00:00Z`); value.setUTCDate(value.getUTCDate() + days); return value.toISOString().slice(0, 10) }
@@ -45,13 +46,14 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
     supabase.from('compromisso').select('id,objetivo_id,materia_id,titulo,tipo,data,peso,duracao_minutos,concluido').eq('concluido', false).lte('data', commitmentEnd).gte('data', inicio),
     supabase.from('sessao').select('id,chave_mentor,titulo,tipo,data,status,movida_em,movida_pelo_mentor_em,ordenada_em,ordem,duracao_estimada,prioridade').gte('data', inicio).lte('data', weekEnd),
     supabase.from('sessao').select('id,data,status,movida_em,movida_pelo_mentor_em,ordem,duracao_estimada,prioridade').eq('status', 'planejada').lt('data', inicio).order('data').limit(100),
-    supabase.from('mentor_conhecimento').select('versao,politica').eq('ativo', true).order('criado_em', { ascending: false }).limit(1).maybeSingle(),
+    loadModuleKnowledge(supabase, 'mentor').then((data) => ({ data })).catch(() => supabase.from('mentor_conhecimento').select('versao,politica').eq('ativo', true).order('criado_em', { ascending: false }).limit(1).maybeSingle()),
     supabase.from('questao').select('id,topico_id,proxima_revisao').eq('ativa', true).eq('marcada_errada', false).not('proxima_revisao', 'is', null).lte('proxima_revisao', `${weekEnd}T23:59:59-03:00`),
   ])
   const error = results.find((item) => item.error)?.error
   if (error) throw error
   const [catalogResult, recordsResult, reviewResult, commitmentsResult, existingResult, carryoverResult, knowledgeResult, spacedQuestionResult] = results
-  const policy = knowledgeResult.data ? { ...knowledgeResult.data.politica, versao: knowledgeResult.data.versao } : {}
+  const modularPolicy = knowledgeResult.data?.conteudo?.politica
+  const policy = knowledgeResult.data ? { ...(modularPolicy || knowledgeResult.data.politica || {}), versao: knowledgeResult.data.versao } : {}
   const grouped = new Map()
   for (const record of recordsResult.data || []) {
     const id = record.questao?.topico_id

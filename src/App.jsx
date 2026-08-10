@@ -1,17 +1,18 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { api } from './api.js'
 import AccessGate from './components/AccessGate.jsx'
 import Layout from './components/Layout.jsx'
 import Week from './components/Week.jsx'
-import Objectives from './components/Objectives.jsx'
-import Materials from './components/Materials.jsx'
-import Questions from './components/Questions.jsx'
-import DiscursiveQuestions from './components/DiscursiveQuestions.jsx'
-import Simulations from './components/Simulations.jsx'
-import Performance from './components/Performance.jsx'
-import QuestionCards from './components/QuestionCards.jsx'
-import Deadlines from './components/Deadlines.jsx'
 import MentorWidget from './components/MentorWidget.jsx'
+
+const Objectives = lazy(() => import('./components/Objectives.jsx'))
+const Materials = lazy(() => import('./components/Materials.jsx'))
+const Questions = lazy(() => import('./components/Questions.jsx'))
+const DiscursiveQuestions = lazy(() => import('./components/DiscursiveQuestions.jsx'))
+const Simulations = lazy(() => import('./components/Simulations.jsx'))
+const Performance = lazy(() => import('./components/Performance.jsx'))
+const QuestionCards = lazy(() => import('./components/QuestionCards.jsx'))
+const Deadlines = lazy(() => import('./components/Deadlines.jsx'))
 
 export default function App() {
   const [status, setStatus] = useState('loading')
@@ -54,6 +55,17 @@ export default function App() {
     setArea(destination)
   }
 
+  function openMentorTarget(item, destination) {
+    if (!item) return
+    const targetObjective = catalog.find((entry) => entry.id === item.objetivo_id)
+    if (targetObjective) {
+      setContext(targetObjective.tipo)
+      setObjectiveId(targetObjective.id)
+    }
+    setStudyTarget({ objectiveId: item.objetivo_id || objective?.id, subjectId: item.materia_id || '', topicId: item.id || '', reviewOnly: destination === 'questoes' })
+    setArea(destination)
+  }
+
   function changeContext(nextContext) {
     setContext(nextContext)
     const nextObjective = catalog.find((item) => item.tipo === nextContext)
@@ -76,6 +88,7 @@ export default function App() {
   return (
     <Layout area={area} onAreaChange={setArea} catalog={contextCatalog} objectiveId={objective?.id || ''} onObjectiveChange={setObjectiveId} context={context} onContextChange={changeContext} mode={mode} onModeChange={changeMode} onLogout={logout}>
       {area === 'semana' && <Week catalog={catalog} onOpenQuestions={(item) => openDemand(item, 'questoes')} onOpenCards={(item) => openDemand(item, 'cards')} />}
+      <Suspense fallback={<div className="module-loading">Carregando módulo...</div>}>
       {area === 'objetivos' && mode === 'administrador' && <Objectives {...common} />}
       {area === 'materiais' && mode === 'administrador' && <Materials {...common} />}
       {area === 'prazos' && mode === 'administrador' && <Deadlines catalog={catalog} />}
@@ -84,7 +97,8 @@ export default function App() {
       {area === 'cards' && <QuestionCards objective={objective} target={studyTarget?.objectiveId === objective?.id ? studyTarget : null} onTargetApplied={() => setStudyTarget(null)} />}
       {area === 'simulados' && <Simulations objective={objective} />}
       {area === 'desempenho' && <Performance objective={objective} mode={mode} onReview={openReview} />}
-      {mode === 'aluno' && <MentorWidget objectiveId={objective?.id || ''} />}
+      </Suspense>
+      {mode === 'aluno' && <MentorWidget objectiveId={objective?.id || ''} onOpenWeek={() => setArea('semana')} onOpenQuestions={(item) => openMentorTarget(item, 'questoes')} onOpenCards={(item) => openMentorTarget(item, 'cards')} />}
     </Layout>
   )
 }

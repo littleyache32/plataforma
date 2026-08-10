@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateTopicDiagnosis, scoreboard } from '../shared/mentor.js'
+import { calculateTopicDiagnosis, mentorPhase, scoreboard } from '../shared/mentor.js'
 
 function record(resultado, classificacao, index = 0) {
   return { resultado, classificacao, criado_em: new Date(Date.now() - index * 60000).toISOString() }
@@ -40,6 +40,17 @@ describe('calculateTopicDiagnosis', () => {
       ...Array.from({ length: 10 }, (_, i) => record('erro', 'duvida', i + 10)),
     ]
     expect(calculateTopicDiagnosis(records).status).toBe('melhorando')
+  })
+})
+
+describe('mentorPhase', () => {
+  it('mantem as duas primeiras semanas exclusivamente para construcao da base', () => {
+    expect(mentorPhase('2026-08-10').id).toBe('construcao_base')
+    expect(mentorPhase('2026-08-23').descricao).toContain('sem questões')
+  })
+
+  it('libera a preparacao adaptativa a partir de setembro', () => {
+    expect(mentorPhase('2026-09-07').id).toBe('adaptativa')
   })
 })
 

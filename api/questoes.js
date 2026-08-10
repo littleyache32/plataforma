@@ -13,15 +13,20 @@ export default async function handler(req, res) {
         const objetivoId = queryParam(req, 'objetivoId')
         const materiaId = queryParam(req, 'materiaId')
         const topicoId = queryParam(req, 'topicoId')
-        let query = supabase.from('question_card').select('id,frente,verso,fonte,trecho_fonte,ocorrencias,repeticoes,intervalo_dias,fator_facilidade,lapsos,proxima_revisao,ultima_revisao,criado_em,materia:materia_id(id,nome),topico:topico_id(id,nome),objetivo:objetivo_id(nome,tipo)').eq('ativa', true).order('proxima_revisao').order('criado_em')
+        const fields = 'id,frente,verso,fonte,trecho_fonte,ocorrencias,repeticoes,intervalo_dias,fator_facilidade,lapsos,proxima_revisao,ultima_revisao,criado_em,materia:materia_id(id,nome),topico:topico_id(id,nome),objetivo:objetivo_id(nome,tipo)'
+        let query = supabase.from('question_card').select(fields).eq('ativa', true).lte('proxima_revisao', new Date().toISOString()).order('proxima_revisao').order('criado_em')
         if (objetivoId) query = query.eq('objetivo_id', objetivoId)
         if (materiaId) query = query.eq('materia_id', materiaId)
         if (topicoId) query = query.eq('topico_id', topicoId)
-        const { data, error } = await query.limit(500)
-        if (error) throw error
+        let countQuery = supabase.from('question_card').select('id', { count: 'exact', head: true }).eq('ativa', true)
+        if (objetivoId) countQuery = countQuery.eq('objetivo_id', objetivoId)
+        if (materiaId) countQuery = countQuery.eq('materia_id', materiaId)
+        if (topicoId) countQuery = countQuery.eq('topico_id', topicoId)
+        const [{ data, error }, { count: totalCount, error: countError }] = await Promise.all([query.limit(60), countQuery])
+        if (error || countError) throw error || countError
         const now = Date.now()
         const cards = (data || []).filter((item) => !(item.objetivo?.tipo === 'faculdade' && item.materia?.nome === 'Análise e Produção de Texto')).map((item) => ({ ...item, vencido: new Date(item.proxima_revisao).getTime() <= now }))
-        return res.status(200).json({ cards, vencidos: cards.filter((item) => item.vencido).length, novos: cards.filter((item) => !item.ultima_revisao).length, total: cards.length })
+        return res.status(200).json({ cards, vencidos: cards.filter((item) => item.vencido).length, novos: cards.filter((item) => !item.ultima_revisao).length, total: totalCount || 0 })
       }
       const { id, resultado } = req.body || {}
       if (!id || !['novamente', 'dificil', 'bom', 'facil'].includes(resultado)) return res.status(400).json({ error: 'Card e avaliacao validos sao obrigatorios.' })

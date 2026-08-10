@@ -52,8 +52,12 @@ export default function Week({ catalog, onOpenQuestions, onOpenCards }) {
     async function prepareAndLoad() {
       setPlanning(true)
       try {
-        const plan = await api('/api/plano', { method: 'POST', body: JSON.stringify({ inicio: range.start }) })
-        const data = await api(`/api/sessoes?inicio=${range.start}&fim=${range.end}`)
+        let data = await api(`/api/sessoes?inicio=${range.start}&fim=${range.end}`)
+        let plan = {}
+        if (!data.sessoes?.length) {
+          plan = await api('/api/plano', { method: 'POST', body: JSON.stringify({ inicio: range.start }) })
+          data = await api(`/api/sessoes?inicio=${range.start}&fim=${range.end}`)
+        }
         if (active) {
           setSessions(data.sessoes)
           setMessage('')

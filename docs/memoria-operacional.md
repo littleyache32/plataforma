@@ -69,6 +69,7 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 8. Houve risco de declarar acervo completo antes de verificar banco, fonte e profundidade. Regra: usar contagens e auditoria real antes de declarar conclusão.
 9. Conteúdo gerado a partir de material raso compromete questões e cards. Regra: a evidência precisa sustentar diretamente cada item.
 10. Repetições de autorização interromperam o fluxo. Regra: usar permissões já concedidas e agrupar operações seguras, reconhecendo que confirmações obrigatórias do sistema não podem ser ignoradas.
+11. O Gemini foi chamado mesmo após o usuário definir que ele não seria usado por enquanto e que avisaria quando autorizasse. Regra: nenhuma função, script ou fluxo pode chamar Gemini sem uma autorização nova, explícita e específica do usuário.
 
 ## Acertos que viram padrão
 
@@ -88,3 +89,7 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - 2026-08-09, bloqueio: Gemini 3.1 Flash Lite e Gemini 3 Flash retornaram cota esgotada; Gemini 2.5 Flash Lite foi descontinuado para novas contas. Não gerar conteúdo inferior para mascarar o bloqueio.
 - 2026-08-10, decisão: foi solicitado um lote adicional exato de 300 questões e 600 Question Cards. O executor incremental foi criado para completar lacunas sem remover válidas e sem aceitar inserção parcial.
 - 2026-08-10, bloqueio confirmado: a primeira execução do lote parou no índice zero com `429 RESOURCE_EXHAUSTED`, adicionando zero questões e zero cards. Retomar somente com cota gratuita disponível ou chave de projeto com cota.
+- 2026-08-10, correção: o bloqueio correto não é apenas a cota. O Gemini não estava autorizado nesta fase. Até nova manifestação explícita do usuário, toda produção, auditoria e importação deve ocorrer sem Gemini.
+- 2026-08-10, arquitetura: os conhecimentos foram separados em Questões, Question Cards e Mentor. Questões objetivas e discursivas compartilham o mesmo conhecimento; Simulados permanece sem conhecimento ativo.
+- 2026-08-10, arquitetura: o mentor principal coordena especialistas internos de planejamento semanal, revisão espaçada, diagnóstico de desempenho e auditoria do acervo. O especialista de simulados fica inativo até liberação.
+- 2026-08-10, desempenho: o mentor não consulta mais o banco enquanto o painel está fechado, sua resposta compacta caiu de aproximadamente 50 KB para 2,2 KB e o pacote inicial do front caiu de cerca de 463 KB para 217 KB.
