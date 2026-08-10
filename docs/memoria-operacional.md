@@ -28,6 +28,9 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - As legendas permitidas na Semana são Estudo, Revisão, Exercício e Especial. Não criar a legenda Todas.
 - Não usar emojis como ícones. Usar SVGs consistentes.
 - A navegação móvel e de tablet usa barra lateral expansível e recolhível, sem navegação fixa no rodapé.
+- A linguagem visual é clara e inspirada em desenho manual: fundo de papel muito discreto, contornos levemente irregulares, bastante espaço em branco e cores reservadas para contexto, estado e ação. Textos longos permanecem em fonte neutra para preservar legibilidade.
+- A área de Questões apresenta disciplinas e tópicos em um catálogo hierárquico expansível. A disciplina continua inicialmente vazia e a expansão não inicia a prática automaticamente.
+- O Mentor pode usar composição visual de conversa e balões, mas não deve simular campo de chat, anexos, reações ou funções que ainda não existam.
 - Simulados e questões discursivas permanecem bloqueados até nova autorização.
 
 ### Semana e mentor
@@ -101,3 +104,4 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - 2026-08-10, regra resultante: expansão offline deve planejar o lote completo, validar cada item e gravar tudo em uma única transação. Se qualquer tópico não puder atingir a meta com fonte, evidência e unicidade, não realizar inserção parcial.
 - 2026-08-10, entrega: foi criado um exportador da plataforma pessoal vazia para instalações independentes. O pacote exclui segredos, Git, Vercel, dependências, builds e dados do proprietário original; substitui rótulos e políticas pessoais por equivalentes genéricos e termina as migrações com banco sem objetivos, matérias, questões, cards, sessões ou estatísticas.
 - 2026-08-10, regra resultante: toda cópia destinada a outra pessoa deve usar Supabase, Vercel, GitHub, senha e chaves próprios. Antes da entrega, gerar novamente a partir da lista controlada, executar a sanitização, testar como projeto separado e reabrir o ZIP para verificar os arquivos distribuídos.
+- 2026-08-10, decisão visual: a plataforma adotou uma interface sketch minimalista baseada nas referências enviadas, com navegação clara, textura sutil de papel, cartões desenhados e animações curtas. O catálogo de Questões passou a exibir disciplinas e tópicos de forma expansível, e o Mentor recebeu apresentação em balões sem ganhar funcionalidades não solicitadas.

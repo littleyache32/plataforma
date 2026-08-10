@@ -41,21 +41,19 @@ export default function MentorWidget({ objectiveId, onOpenWeek, onOpenQuestions,
   const basePhase = mentor?.fase?.id === 'construcao_base'
 
   return <aside className={`mentor-widget ${open ? 'open' : ''}`}>
-    {open && <section className="mentor-popover" aria-live="polite">
-      <header><img src={avatar} alt="Avatar do mentor"/><div><b>Seu mentor de estudos</b><small>{mentor?.fase?.titulo || 'Direcionamento diário'}</small></div></header>
-      {loading ? <div className="mentor-loading"><span></span><p>Organizando seu direcionamento...</p></div> : <>
-        <div className="mentor-guidance"><span>PRÓXIMA DEMANDA</span><strong>{nextDemand?.titulo || 'Abra sua semana para ver o plano'}</strong>{nextDemand && <small>{nextDemand.materia?.nome} · {nextDemand.duracao_estimada} min</small>}</div>
-        <div className="mentor-guidance"><span>FASE ATUAL</span><strong>{mentor?.fase?.titulo || 'Construção da base'}</strong><small>{mentor?.fase?.descricao || 'O mentor organiza a carga conforme sua fase de preparação.'}</small></div>
-        {priority && !basePhase && <div className="mentor-guidance"><span>PRIORIDADE</span><strong>{priority.nome}</strong><small>{priority.motivo}</small></div>}
-        {probable && <div className="mentor-scenario"><span>Cenário provável</span><b>{probable.cobertura_estimada}%</b><small>de cobertura estimada até a data-alvo</small></div>}
-        <div className="mentor-actions">
-          <button className="primary" onClick={onOpenWeek}>Abrir minha semana</button>
-          {!basePhase && priority?.questoes_para_revisar > 0 && <button className="secondary" onClick={() => onOpenQuestions(priority)}>Revisar questões</button>}
-          {!basePhase && priority?.cards_vencidos > 0 && <button className="secondary" onClick={() => onOpenCards(priority)}>Revisar Question Cards</button>}
-        </div>
-      </>}
-      <footer>O direcionamento usa sua rotina, desempenho, recência e revisões. O Gemini permanece desativado.</footer>
+    {open && <section className="mentor-popover sketch-chat" aria-live="polite">
+      <header className="sketch-chat-head"><div className="sketch-avatar"><img src={avatar} alt="Avatar do mentor"/><i aria-hidden="true"/></div><div><b>Mentor de estudos</b><small><span className="online-dot"/> online · {mentor?.fase?.titulo || 'direcionamento diário'}</small></div></header>
+      <div className="sketch-chat-flow">
+        {loading ? <div className="typing-message"><img src={avatar} alt=""/><span><i/><i/><i/></span></div> : <>
+          <div className="chat-message received"><img src={avatar} alt=""/><div className="chat-bubble"><small>PRÓXIMA DEMANDA</small><strong>{nextDemand?.titulo || 'Abra sua semana para ver o plano'}</strong>{nextDemand && <span>{nextDemand.materia?.nome} · {nextDemand.duracao_estimada} min</span>}</div></div>
+          <div className="chat-message received follow-up"><div className="chat-avatar-space"/><div className="chat-bubble"><small>FASE ATUAL</small><strong>{mentor?.fase?.titulo || 'Construção da base'}</strong><span>{mentor?.fase?.descricao || 'O mentor organiza a carga conforme sua fase de preparação.'}</span></div></div>
+          {priority && !basePhase && <div className="chat-message received follow-up"><div className="chat-avatar-space"/><div className="chat-bubble priority-bubble"><small>PRIORIDADE</small><strong>{priority.nome}</strong><span>{priority.motivo}</span></div></div>}
+          {probable && <div className="chat-message sent"><div className="chat-bubble scenario-bubble"><small>CENÁRIO PROVÁVEL</small><strong>{probable.cobertura_estimada}% de cobertura</strong><span>estimativa até a data-alvo</span></div></div>}
+        </>}
+      </div>
+      {!loading && <div className="mentor-actions sketch-replies"><button className="primary" onClick={onOpenWeek}>Abrir minha semana</button>{!basePhase && priority?.questoes_para_revisar > 0 && <button className="secondary" onClick={() => onOpenQuestions(priority)}>Revisar questões</button>}{!basePhase && priority?.cards_vencidos > 0 && <button className="secondary" onClick={() => onOpenCards(priority)}>Revisar Question Cards</button>}</div>}
+      <footer><span>Direcionamento baseado em rotina, desempenho e recência.</span><i aria-label="Gemini desativado">IA desativada</i></footer>
     </section>}
-    <button className="mentor-trigger" onClick={() => setOpen((value) => !value)} aria-label={open ? 'Fechar mentor' : 'Abrir mentor'} aria-expanded={open}><img src={avatar} alt=""/></button>
+    <button className="mentor-trigger" onClick={() => setOpen((value) => !value)} aria-label={open ? 'Fechar mentor' : 'Abrir mentor'} aria-expanded={open}><img src={avatar} alt=""/><span aria-hidden="true"/></button>
   </aside>
 }

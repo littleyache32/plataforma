@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '../api.js'
 
 const classifications = [['certeza', 'Certeza', 'Eu domino'], ['duvida', 'Dúvida', 'Entre opções'], ['eliminacao', 'Eliminação', 'Cheguei por lógica'], ['sem_conhecimento', 'Sem conhecimento', 'Não sabia']]
@@ -19,7 +19,7 @@ function elapsedLabel(seconds) {
 export default function Questions({ objective, target, onTargetApplied, reviewQuestionId, onReviewLoaded }) {
   const subjects = (objective?.materias || []).filter((item) => !(objective?.tipo === 'faculdade' && ['análise e produção de texto', 'analise e producao de texto'].includes(item.nome.toLocaleLowerCase('pt-BR'))))
   const [subjectId, setSubjectId] = useState('')
-  const topics = useMemo(() => subjects.find((item) => item.id === subjectId)?.topicos || [], [subjects, subjectId])
+  const [expandedSubjectId, setExpandedSubjectId] = useState('')
   const [topicId, setTopicId] = useState('')
   const [reviewOnly, setReviewOnly] = useState(false)
   const [question, setQuestion] = useState(null)
@@ -37,10 +37,11 @@ export default function Questions({ objective, target, onTargetApplied, reviewQu
   const [sessionStartedAt, setSessionStartedAt] = useState(null)
   const [sessionNow, setSessionNow] = useState(Date.now())
 
-  useEffect(() => { setSubjectId(''); setTopicId(''); setReviewOnly(false); setQuestion(null); setAvailable(0); setPosition(0); setSessionStartedAt(null) }, [objective?.id])
+  useEffect(() => { setSubjectId(''); setExpandedSubjectId(''); setTopicId(''); setReviewOnly(false); setQuestion(null); setAvailable(0); setPosition(0); setSessionStartedAt(null) }, [objective?.id])
   useEffect(() => {
     if (!target?.subjectId || !subjects.some((item) => item.id === target.subjectId)) return
     setSubjectId(target.subjectId)
+    setExpandedSubjectId(target.subjectId)
   }, [target?.subjectId, objective?.id])
   useEffect(() => {
     if (target?.subjectId !== subjectId) return
@@ -82,11 +83,22 @@ export default function Questions({ objective, target, onTargetApplied, reviewQu
     setReportOpen(false); setQuestion(null); setMessage('Problema registrado. A questão saiu do baralho para análise.')
   }
 
+  function chooseSubject(id) {
+    const opening = expandedSubjectId !== id
+    setExpandedSubjectId(opening ? id : '')
+    if (!opening) return
+    setSubjectId(id); setTopicId(''); setReviewOnly(false); setQuestion(null); setAvailable(0); setPosition(0); setSessionStartedAt(null)
+  }
+
+  function chooseTopic(nextSubjectId, nextTopicId) {
+    setSubjectId(nextSubjectId); setExpandedSubjectId(nextSubjectId); setTopicId(nextTopicId); setReviewOnly(false); setQuestion(null); setAvailable(0); setPosition(0); setSessionStartedAt(null)
+  }
+
   const options = question?.tipo === 'CE' ? [['C', 'Certo'], ['E', 'Errado']] : Object.entries(question?.alternativas || {})
   const sessionSeconds = sessionStartedAt ? Math.max(0, Math.floor((sessionNow - sessionStartedAt) / 1000)) : 0
   return (
     <section><header className="page-title compact"><div><p className="eyebrow">MOTOR DE PRÁTICA</p><h1>Questões</h1><p>Questões não são descartadas ao abrir. Tentativas e revisões ficam registradas.</p></div><div className="card-session-clock"><small>TEMPO DE PRÁTICA</small><b>{elapsedLabel(sessionSeconds)}</b><span>{sessionStartedAt ? 'sessão em andamento' : 'inicia com a primeira questão'}</span></div></header>
-      <div className="question-layout"><aside className="panel practice-filter"><h2>{reviewOnly ? 'Revisão programada' : 'Escolha o foco'}</h2>{reviewOnly && <p className="alert warning">O mentor mostrará somente as questões que venceram nesta revisão.</p>}<label>Disciplina</label><select value={subjectId} onChange={(e) => { setSubjectId(e.target.value); setTopicId(''); setReviewOnly(false); setQuestion(null); setAvailable(0); setPosition(0); setSessionStartedAt(null) }}><option value="">Selecione uma disciplina</option>{subjects.map((item) => <option value={item.id} key={item.id}>{item.nome}</option>)}</select><label>Tópico</label><select value={topicId} onChange={(e) => { setTopicId(e.target.value); setQuestion(null); setAvailable(0); setPosition(0) }} disabled={!subjectId}><option value="">Todos os tópicos</option>{topics.map((item) => <option value={item.id} key={item.id}>{item.nome}</option>)}</select><button className="primary" onClick={() => loadQuestion('', Boolean(question))} disabled={!subjectId || loading}>{question ? 'Próxima questão' : reviewOnly ? 'Iniciar revisão' : 'Começar prática'}</button>{available > 0 && <strong className="available-count">{available} questões disponíveis</strong>}<p>O gabarito aparece somente após resposta e classificação.</p></aside>
+      <div className="question-layout"><aside className="panel practice-filter"><div className="catalog-heading"><div><span className="eyebrow">CONTEÚDO</span><h2>{reviewOnly ? 'Revisão programada' : 'Disciplinas e tópicos'}</h2></div><span className="catalog-total">{subjects.length}</span></div>{reviewOnly && <p className="alert warning">O mentor mostrará somente as questões que venceram nesta revisão.</p>}<div className="subject-catalog">{subjects.map((subject) => { const expanded = expandedSubjectId === subject.id; const selected = subjectId === subject.id; return <div className={`catalog-subject ${expanded ? 'expanded' : ''} ${selected ? 'selected' : ''}`} key={subject.id}><button className="catalog-subject-button" onClick={() => chooseSubject(subject.id)} aria-expanded={expanded}><span className="catalog-chevron">›</span><span><b>{subject.nome}</b><small>{subject.topicos?.length || 0} tópicos</small></span></button>{expanded && <div className="catalog-topics"><button className={!topicId && selected ? 'active' : ''} onClick={() => chooseTopic(subject.id, '')}><span>Todos os tópicos</span><small>misturar disciplina</small></button>{(subject.topicos || []).map((topic, index) => <button className={topicId === topic.id ? 'active' : ''} onClick={() => chooseTopic(subject.id, topic.id)} key={topic.id}><span>{topic.nome}</span><small>{String(index + 1).padStart(2, '0')}</small></button>)}</div>}</div> })}</div><button className="primary sketch-action" onClick={() => loadQuestion('', Boolean(question))} disabled={!subjectId || loading}>{question ? 'Próxima questão' : reviewOnly ? 'Iniciar revisão' : 'Começar prática'}</button>{available > 0 && <strong className="available-count">{available} questões disponíveis</strong>}<p>O gabarito aparece somente após resposta e classificação.</p></aside>
         <div>{!question ? <div className="panel question-empty"><span>?</span><h2>{message || 'Escolha uma disciplina e, se quiser, um tópico.'}</h2><p>Deixe “Todos os tópicos” selecionado para misturar toda a disciplina.</p></div> : <article className="panel question-card"><div className="question-meta"><span>Questão {position} de {available} · {question.topico?.nome || question.tipo}</span><button onClick={() => setReportOpen(true)}>Reportar problema na questão</button></div><h2>{question.enunciado}</h2><div className="answers">{options.map(([letter, text]) => <div className={`answer-option ${answer === letter ? 'selected' : ''} ${eliminated.includes(letter) ? 'eliminated' : ''}`} key={letter}><button className="answer-choice" onClick={() => !result && setAnswer(letter)} disabled={Boolean(result)}><b>{letter}</b><span>{text}</span></button>{question.tipo === 'ME' && <button className="answer-eliminate" aria-label={`${eliminated.includes(letter) ? 'Recuperar' : 'Eliminar'} alternativa ${letter}`} title={eliminated.includes(letter) ? 'Recuperar alternativa' : 'Eliminar alternativa'} onClick={() => !result && setEliminated((current) => current.includes(letter) ? current.filter((item) => item !== letter) : [...current, letter])} disabled={Boolean(result)}>×</button>}</div>)}</div>
           {!result && <div className="confidence"><h3>Como você chegou à resposta?</h3><div>{classifications.map(([id, label, hint]) => <button key={id} className={classification === id ? 'selected' : ''} onClick={() => setClassification(id)}><b>{label}</b><small>{hint}</small></button>)}</div><button className="primary confirm" disabled={!answer || !classification || loading} onClick={confirm}>Confirmar resposta</button></div>}
           {result && <div className={`feedback ${result.resultado}`}><div className="feedback-head"><span>{result.resultado === 'acerto' ? '✓' : '×'}</span><div><small>GABARITO {result.gabarito}</small><h3>{result.resultado === 'acerto' ? 'Resposta correta' : 'Resposta incorreta'}</h3></div></div>{result.revisao_imediata && <div className="alert warning">Falsa certeza: item colocado no topo da fila de revisão.</div>}{result.mostrar_explicacao ? <><p>{result.explicacao}</p>{result.comentarios_alternativas && <div className="alternative-comments"><h4>Comentário das alternativas</h4>{Object.entries(result.comentarios_alternativas).map(([letter, comment]) => <div key={letter} className={letter === result.gabarito ? 'correct' : ''}><b>{letter}</b><p>{comment}</p></div>)}</div>}<blockquote><small>EVIDÊNCIA VINCULADA</small>{result.trecho_fonte}</blockquote><Source value={result.fonte} /></> : <p className="feedback-compact">Acerto confirmado. A explicação foi ocultada conforme sua classificação.</p>}<small className="next-review-label">Próxima revisão: {new Date(result.proxima_revisao).toLocaleDateString('pt-BR')}.</small><button className="primary next" onClick={() => loadQuestion('', true)}>Continuar</button></div>}
