@@ -232,8 +232,10 @@ export default async function rebuildHandler(req, res) {
       supabase.from('question_card').select('id,frente,tipo_card').eq('topico_id', topic.id).eq('ativa', true),
     ])
     if (existingQuestionsError || existingCardsError) throw existingQuestionsError || existingCardsError
-    const questionCount = Math.max(0, 30 - (existingQuestions || []).length)
-    const cardCount = Math.max(0, 50 - (existingCards || []).length)
+    const questionCap = Math.min(30, Math.max(0, Number(req.body?.questionCap ?? 30) || 0))
+    const cardCap = Math.min(50, Math.max(0, Number(req.body?.cardCap ?? 50) || 0))
+    const questionCount = Math.min(questionCap, Math.max(0, 30 - (existingQuestions || []).length))
+    const cardCount = Math.min(cardCap, Math.max(0, 50 - (existingCards || []).length))
     if (!force && knowledge?.versao === REVISION && questionCount === 0 && cardCount === 0) return res.status(200).json({ cache: true, index: requestedIndex, total: tasks.length, materia: spec.subject, topico: topicName, questoes: existingQuestions.length, cards: existingCards.length, versao: REVISION })
 
     await enforceRateLimit(supabase, 'reconstrucao_acervo', 450, 1440)
