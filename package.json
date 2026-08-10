@@ -19,6 +19,8 @@
     "acervo:producao": "node --env-file=.env.local scripts/generate-production-library.js",
     "acervo:reconstruir": "node --env-file=.env.local scripts/rebuild-production-library.js",
     "acervo:expandir:300-600": "node --env-file=.env.local scripts/expand-requested-batch.js --questions=300 --cards=600",
+    "acervo:expandir:offline": "node --env-file=.env.local scripts/expand-offline-library.js",
+    "acervo:expandir:offline:aplicar": "node --env-file=.env.local scripts/expand-offline-library.js --apply",
     "audit:producao": "node --env-file=.env.local scripts/audit-production.js",
     "audit:cobertura": "node --env-file=.env.local scripts/audit-coverage.js",
     "audit:questoes": "node --env-file=.env.local scripts/audit-and-adapt-library.js",

@@ -1,6 +1,6 @@
 # Memória operacional da plataforma
 
-Última atualização: 9 de agosto de 2026.
+Última atualização: 10 de agosto de 2026.
 
 ## Finalidade
 
@@ -96,3 +96,6 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - 2026-08-10, auditoria: 2.426 questões e 2.260 Question Cards ativos passaram nas verificações estruturais, mas nenhum dos 113 tópicos aplicáveis atingiu simultaneamente as metas de 30 questões e 50 cards. Faltam 1.082 questões e 3.390 cards.
 - 2026-08-10, auditoria: a distribuição atual é 25,8% fácil, 39,4% média e 34,8% difícil, distante da meta 60/30/10. Corrigir por adição incremental de itens fáceis e médios, sem apagar difíceis válidos e sem Gemini até autorização.
 - 2026-08-10, infraestrutura: a conexão GitHub da Vercel foi recriada com o mesmo repositório `littleyache32/plataforma` e a branch de produção `main` para restaurar o deploy automático.
+- 2026-08-10, acerto: a expansão local, sem Gemini, criou e importou atomicamente 1.082 questões e 3.390 Question Cards a partir dos trechos aceitos das apostilas. Todos os 113 tópicos aplicáveis passaram a ter pelo menos 30 questões e exatamente 50 cards.
+- 2026-08-10, auditoria: o banco passou a ter 3.508 questões e 5.650 Question Cards ativos. A auditoria estrutural aprovou todos os itens, sem arquivamentos. A distribuição ficou em 48,7% fáceis, 27,3% médias e 24,1% difíceis; a diferença para 60/30/10 permanece porque questões difíceis válidas foram preservadas.
+- 2026-08-10, regra resultante: expansão offline deve planejar o lote completo, validar cada item e gravar tudo em uma única transação. Se qualquer tópico não puder atingir a meta com fonte, evidência e unicidade, não realizar inserção parcial.
