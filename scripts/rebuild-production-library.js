@@ -5,6 +5,8 @@ const accessKey = process.env.APP_ACCESS_KEY
 const start = Math.max(0, Number(process.argv.find((item) => item.startsWith('--start='))?.split('=')[1] || 0))
 const requestedLimit = Number(process.argv.find((item) => item.startsWith('--limit='))?.split('=')[1] || Infinity)
 const concurrency = Math.min(3, Math.max(1, Number(process.argv.find((item) => item.startsWith('--concurrency='))?.split('=')[1] || 2)))
+const model = process.argv.find((item) => item.startsWith('--model='))?.split('=')[1] || 'gemini-3.1-flash-lite'
+const maxAttempts = Math.min(6, Math.max(1, Number(process.argv.find((item) => item.startsWith('--attempts='))?.split('=')[1] || 6)))
 const force = process.argv.includes('--force')
 const facultySubjects = new Set(['Direito das Pessoas e dos Negócios Jurídicos', 'Teoria da Constituição e Direitos Fundamentais', 'Teoria do Crime', 'Teorias da Justiça'])
 
@@ -22,12 +24,12 @@ if (!cookie) throw new Error('A plataforma não devolveu a sessão segura.')
 
 async function rebuild(index) {
   let lastError
-  for (let attempt = 1; attempt <= 6; attempt += 1) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       const response = await fetch(`${baseUrl}/api/admin/reconstruir`, {
         method: 'POST',
         headers: { cookie, 'content-type': 'application/json' },
-        body: JSON.stringify({ index, force, researchModel: 'gemini-3.1-flash-lite', generationModel: 'gemini-3.1-flash-lite' }),
+        body: JSON.stringify({ index, force, researchModel: model, generationModel: model }),
       })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(`${response.status}: ${data.error || 'falha sem mensagem'}`)
