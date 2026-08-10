@@ -50,7 +50,7 @@ export default function App() {
     if (!targetObjective) return
     setContext(targetObjective.tipo)
     setObjectiveId(targetObjective.id)
-    setStudyTarget({ objectiveId: targetObjective.id, subjectId: item.materia?.id || '', topicId: item.topico?.id || '' })
+    setStudyTarget({ objectiveId: targetObjective.id, subjectId: item.materia?.id || '', topicId: item.topico?.id || '', reviewOnly: item.tipo === 'revisao' && item.titulo?.startsWith('Revisão espaçada:') })
     setArea(destination)
   }
 

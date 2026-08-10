@@ -12,8 +12,8 @@ export default async function handler(req, res) {
       supabase.from('topico').select('id,nome,materia:materia_id(nome,objetivo:objetivo_id(id,nome))'),
       supabase.from('registro').select('resultado,classificacao,tempo,criado_em,questao!inner(id,topico_id,enunciado,topico:topico_id(materia:materia_id(objetivo_id)))').order('criado_em', { ascending: false }),
       supabase.from('revisao_item').select('id,motivo,prioridade,agendada_para,questao:questao_id(id,enunciado,topico_id,topico:topico_id(materia:materia_id(objetivo_id)))').eq('status', 'pendente').order('prioridade').order('agendada_para').limit(20),
-      supabase.from('questao').select('topico_id,usada,ultima_resolucao,marcada_errada'),
-      supabase.from('question_card').select('topico_id,proxima_revisao,ativo').eq('ativo', true),
+      supabase.from('questao').select('topico_id,usada,ultima_resolucao,proxima_revisao,marcada_errada,ativa').eq('ativa', true),
+      supabase.from('question_card').select('topico_id,proxima_revisao,ativa').eq('ativa', true),
       supabase.from('mentor_conhecimento').select('versao,politica').eq('ativo', true).order('criado_em', { ascending: false }).limit(1).maybeSingle(),
       objetivoId ? supabase.from('objetivo').select('id,data_alvo').eq('id', objetivoId).maybeSingle() : Promise.resolve({ data: null }),
     ])
@@ -38,6 +38,7 @@ export default async function handler(req, res) {
         diagnosis,
         totalQuestions: topicQuestions.length,
         unusedQuestions: topicQuestions.filter((question) => !question.usada).length,
+        dueQuestions: topicQuestions.filter((question) => question.proxima_revisao && question.proxima_revisao <= now).length,
         dueCards: topicCards.filter((card) => card.proxima_revisao <= now).length,
         lastSeenAt: topicRecords[0]?.criado_em,
         averageSeconds: times.length ? Math.round(times.reduce((sum, value) => sum + value, 0) / times.length) : 0,
@@ -45,10 +46,10 @@ export default async function handler(req, res) {
       }) }
     })
     const prioridades = diagnoses
-      .filter((item) => item.status === 'prioridade' || item.cards_vencidos || item.risco_esquecimento >= 60)
+      .filter((item) => item.status === 'prioridade' || item.cards_vencidos || item.questoes_para_revisar || item.risco_esquecimento >= 60)
       .sort((a, b) => b.prioridade_calculada - a.prioridade_calculada)
       .slice(0, 3)
-      .map((item) => ({ ...item, motivo: item.falsa_certeza >= 10 ? 'Falsa certeza exige correção imediata.' : item.cards_vencidos ? 'Há revisões espaçadas vencidas.' : 'Risco de esquecimento ou domínio insuficiente.' }))
+      .map((item) => ({ ...item, motivo: item.falsa_certeza >= 10 ? 'Falsa certeza exige correção imediata.' : item.questoes_para_revisar ? 'Há questões programadas para revisão espaçada.' : item.cards_vencidos ? 'Há Question Cards vencidos.' : 'Risco de esquecimento ou domínio insuficiente.' }))
     const revisaoImediata = filteredReviews.map((item) => ({
       id: item.id,
       questao_id: item.questao.id,

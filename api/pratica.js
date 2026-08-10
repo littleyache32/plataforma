@@ -13,6 +13,7 @@ export default async function handler(req, res) {
       const topicoId = queryParam(req, 'topicoId')
       const materiaId = queryParam(req, 'materiaId')
       const questaoId = queryParam(req, 'questaoId')
+      const somenteRevisao = queryParam(req, 'revisao') === '1'
       if (!topicoId && !materiaId && !questaoId) return res.status(400).json({ error: 'Materia, topico ou questao obrigatorio.' })
 
       let query = supabase.from('questao')
@@ -20,6 +21,7 @@ export default async function handler(req, res) {
         .eq('marcada_errada', false)
         .eq('ativa', true)
         .neq('estado', 'arquivada')
+      if (somenteRevisao && !questaoId) query = query.not('proxima_revisao', 'is', null).lte('proxima_revisao', new Date().toISOString())
       if (questaoId) query = query.eq('id', questaoId).limit(1)
       else if (topicoId) query = query.eq('topico_id', topicoId).limit(1000)
       else {
@@ -32,7 +34,7 @@ export default async function handler(req, res) {
       const { data: questions, count, error } = await query
       if (error) throw error
       const question = questaoId ? questions?.[0] : selectPracticeQuestion(questions || [])
-      if (!question) return res.status(404).json({ error: 'Nao ha questoes disponiveis. Gere um lote em Administracao.' })
+      if (!question) return res.status(404).json({ error: somenteRevisao ? 'As revisões programadas deste foco foram concluídas.' : 'Nao ha questoes disponiveis. Gere um lote em Administracao.' })
       return res.status(200).json({ questao: question, disponiveis: count || questions?.length || 0 })
     }
 
@@ -41,7 +43,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Resposta, classificacao e tempo validos sao obrigatorios.' })
     }
     const { data: question, error } = await supabase.from('questao')
-      .select('id,tipo,gabarito,enunciado,explicacao,comentarios_alternativas,fonte,trecho_fonte,quantidade_tentativas,topico:topico_id(id,materia:materia_id(id,objetivo_id))')
+      .select('id,tipo,gabarito,enunciado,explicacao,comentarios_alternativas,fonte,trecho_fonte,quantidade_tentativas,intervalo_dias,fator_facilidade,lapsos,acertos_seguidos,topico:topico_id(id,materia:materia_id(id,objetivo_id))')
       .eq('id', questaoId).eq('marcada_errada', false).eq('ativa', true).single()
     if (error) throw error
 
@@ -49,7 +51,7 @@ export default async function handler(req, res) {
     const validAnswers = question.tipo === 'CE' ? ['C', 'E'] : ['A', 'B', 'C', 'D', 'E']
     if (!validAnswers.includes(answer)) return res.status(400).json({ error: 'Resposta invalida para o tipo da questao.' })
     const resultado = answer === question.gabarito ? 'acerto' : 'erro'
-    const transition = practiceTransition({ resultado, classificacao, tentativas: question.quantidade_tentativas })
+    const transition = practiceTransition({ resultado, classificacao, tentativas: question.quantidade_tentativas, intervaloDias: question.intervalo_dias, fatorFacilidade: question.fator_facilidade, lapsos: question.lapsos, acertosSeguidos: question.acertos_seguidos })
     const now = new Date().toISOString()
 
     const { error: insertError } = await supabase.from('registro').insert({ questao_id: question.id, resultado, classificacao, tempo })
@@ -60,6 +62,10 @@ export default async function handler(req, res) {
       quantidade_tentativas: question.quantidade_tentativas + 1,
       proxima_revisao: transition.proximaRevisao,
       estado: transition.estado,
+      intervalo_dias: transition.intervaloDias,
+      fator_facilidade: transition.fatorFacilidade,
+      lapsos: transition.lapsos,
+      acertos_seguidos: transition.acertosSeguidos,
     }).eq('id', question.id)
     if (updateError) throw updateError
 

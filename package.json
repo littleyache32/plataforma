@@ -13,13 +13,15 @@
     "migrate": "node --env-file=.env.local scripts/migrate.js",
     "import:bacen": "node --env-file=.env.local scripts/import-curated-bacen.js",
     "acervo:gerar": "node --env-file=.env.local scripts/build-complete-library.js --generate",
-    "acervo:expandir:faculdade": "node --env-file=.env.local scripts/build-complete-library.js --generate --context=faculdade --target-questions=20 --target-cards=20",
-    "acervo:expandir:bacen": "node --env-file=.env.local scripts/build-complete-library.js --generate --context=concurso --target-questions=20 --target-cards=20",
+    "acervo:expandir:faculdade": "node --env-file=.env.local scripts/build-complete-library.js --generate --context=faculdade --target-questions=30 --target-cards=50",
+    "acervo:expandir:bacen": "node --env-file=.env.local scripts/build-complete-library.js --generate --context=concurso --target-questions=30 --target-cards=50",
     "acervo:importar": "node --env-file=.env.local scripts/build-complete-library.js --apply",
     "acervo:producao": "node --env-file=.env.local scripts/generate-production-library.js",
     "acervo:reconstruir": "node --env-file=.env.local scripts/rebuild-production-library.js",
     "audit:producao": "node --env-file=.env.local scripts/audit-production.js",
-    "audit:cobertura": "node --env-file=.env.local scripts/audit-coverage.js"
+    "audit:cobertura": "node --env-file=.env.local scripts/audit-coverage.js",
+    "audit:questoes": "node --env-file=.env.local scripts/audit-and-adapt-library.js",
+    "audit:cards": "node --env-file=.env.local scripts/audit-and-adapt-cards.js"
   },
   "dependencies": {
     "@google/genai": "^1.28.0",

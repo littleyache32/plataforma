@@ -67,6 +67,11 @@ describe('buildMentorWeek', () => {
     expect(result.filter((item) => item.tipo === 'especial' && item.objetivo_id === 'facul')).toHaveLength(2)
   })
 
+  it('transforma questões com revisão prevista em demanda do mentor', () => {
+    const result = buildMentorWeek({ weekStart: '2026-08-24', catalog, scheduledQuestionReviews: [{ dueDate: '2026-08-26', topicId: 'cont-1', count: 7 }] })
+    expect(result).toContainEqual(expect.objectContaining({ data: '2026-08-26', topico_id: 'cont-1', tipo: 'revisao', duracao_estimada: 30, titulo: expect.stringContaining('7 questões') }))
+  })
+
   it('respeita as quatro disciplinas fixas da faculdade com uma hora por dia', () => {
     const facultySubjects = [
       ['pessoas', 'Direito das Pessoas e dos Negócios Jurídicos'],

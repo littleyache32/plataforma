@@ -6,14 +6,14 @@ export default function DiscursiveQuestions() {
       <div>
         <p className="eyebrow">TREINO ESCRITO</p>
         <h1>Questões discursivas</h1>
-        <p>Área preparada para respostas escritas com padrão de resposta e correção comentada.</p>
+        <p>Esta modalidade não está disponível nesta etapa.</p>
       </div>
     </header>
     <div className="panel module-hold discursive-hold">
-      <span><Icon name="discursivas" /></span>
-      <h2>Estrutura pronta</h2>
-      <p>O banco de questões discursivas será criado em uma etapa posterior. Cada item terá proposta, limite de resposta, padrão esperado, critérios de correção e comentário final.</p>
-      <small>Nenhuma questão discursiva foi gerada nesta etapa.</small>
+      <span><Icon name="bloqueado" /></span>
+      <h2>Área temporariamente bloqueada</h2>
+      <p>As questões discursivas permanecerão fechadas enquanto o banco de questões objetivas e as revisões espaçadas forem consolidados.</p>
+      <small>Nenhuma questão discursiva será criada ou exibida agora.</small>
     </div>
   </section>
 }

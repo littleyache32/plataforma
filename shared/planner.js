@@ -98,7 +98,7 @@ function facultyTargetForDay(targets, priorities, day, rotationSeed, policy) {
  * Cria uma semana por demandas. O bloco de 30 minutos e uma unidade de calculo,
  * mas cada atividade aparece como um unico cartao de 30, 60 ou 90 minutos.
  */
-export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingReviews = 0, commitments = [], policy: customPolicy = {} }) {
+export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingReviews = 0, scheduledQuestionReviews = [], commitments = [], policy: customPolicy = {} }) {
   const policy = resolveMentorPolicy(customPolicy)
   const targets = catalog.flatMap((objective) => (objective.materias || []).flatMap((subject) => {
     const topics = subject.topicos?.length ? subject.topicos : [{ id: null, nome: '' }]
@@ -145,6 +145,14 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
 
     rows.push(demand({ weekStart, day, slot: 'cards-bacen', target: bacenTarget, title: 'Revisar Question Cards BACEN', type: 'especial', duration: 30, priority: 1 }))
     rows.push(demand({ weekStart, day, slot: 'questoes-bacen', target: otherBacen, title: `Resolver questões: ${otherBacen.subject}`, type: 'exercicio', duration: day === 4 ? 60 : 30, priority: 1 }))
+
+    const reviewForDay = scheduledQuestionReviews
+      .filter((item) => Math.max(0, Math.min(6, dayIndex(weekStart, item.dueDate))) === day)
+      .sort((a, b) => (b.count || 0) - (a.count || 0))[0]
+    if (reviewForDay) {
+      const reviewTarget = targets.find((item) => item.topicId === reviewForDay.topicId)
+      rows.push(demand({ weekStart, day, slot: `revisao-questoes:${reviewForDay.topicId}`, target: reviewTarget, title: `Revisão espaçada: ${reviewForDay.count} questões de ${reviewTarget?.topic || reviewTarget?.subject || 'conteúdo'}`, type: 'revisao', duration: 30, priority: 1 }))
+    }
 
     if (day <= 3) {
       const facultyDuration = policy.agenda_faculdade.find((item) => item.dia === day)?.duracao || 60

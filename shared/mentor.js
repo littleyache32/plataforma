@@ -68,14 +68,14 @@ export function scoreboard(records) {
   }
 }
 
-export function topicSignals({ diagnosis, totalQuestions = 0, unusedQuestions = 0, dueCards = 0, lastSeenAt = null, averageSeconds = 0, overdue = 0 }) {
+export function topicSignals({ diagnosis, totalQuestions = 0, unusedQuestions = 0, dueCards = 0, dueQuestions = 0, lastSeenAt = null, averageSeconds = 0, overdue = 0 }) {
   const daysSince = lastSeenAt ? Math.max(0, (Date.now() - new Date(lastSeenAt).getTime()) / 86_400_000) : 30
   const forgettingRisk = Math.min(1, 1 - (0.5 ** (daysSince / 21)))
   const coverage = totalQuestions ? 1 - (unusedQuestions / totalQuestions) : 0
   const uncertainty = (diagnosis.incerteza_estimativa ?? 50) / 100
   const mastery = (diagnosis.probabilidade_dominio ?? diagnosis.dominio ?? 0) / 100
-  const priority = (1 - mastery) * 1.2 + forgettingRisk * 0.8 + ((diagnosis.falsa_certeza || 0) / 100) * 2.5 + uncertainty * 0.4 + Math.min(1, overdue / 3) * 0.5
-  return { ...diagnosis, risco_esquecimento: Math.round(forgettingRisk * 100), cobertura: Math.round(coverage * 100), questoes_ineditas: unusedQuestions, cards_vencidos: dueCards, tempo_medio: averageSeconds, atraso: overdue, prioridade_calculada: Number(priority.toFixed(4)) }
+  const priority = (1 - mastery) * 1.2 + forgettingRisk * 0.8 + ((diagnosis.falsa_certeza || 0) / 100) * 2.5 + uncertainty * 0.4 + Math.min(1, overdue / 3) * 0.5 + Math.min(1, dueQuestions / 5) * 0.7
+  return { ...diagnosis, risco_esquecimento: Math.round(forgettingRisk * 100), cobertura: Math.round(coverage * 100), questoes_ineditas: unusedQuestions, questoes_para_revisar: dueQuestions, cards_vencidos: dueCards, tempo_medio: averageSeconds, atraso: overdue, prioridade_calculada: Number(priority.toFixed(4)) }
 }
 
 export function buildScenarios({ coveredTopics, totalTopics, daysRemaining = 180, weeklyMinutes = 1260 }) {
