@@ -193,7 +193,7 @@ function difficultyPlan(existing, missing) {
     medias: existing.filter((item) => item.dificuldade === 3).length,
     dificeis: existing.filter((item) => item.dificuldade >= 4).length,
   }
-  const targets = { faceis: 8, medias: 14, dificeis: 8 }
+  const targets = { faceis: 18, medias: 9, dificeis: 3 }
   const plan = { faceis: 0, medias: 0, dificeis: 0 }
   for (let index = 0; index < missing; index += 1) {
     const band = Object.keys(plan).sort((a, b) => (targets[b] - counts[b] - plan[b]) - (targets[a] - counts[a] - plan[a]))[0]
