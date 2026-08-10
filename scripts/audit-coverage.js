@@ -42,5 +42,25 @@ const summary = coverage.reduce((result, item) => ({
   cards_alvo: result.cards_alvo + cardTarget,
   cards_faltantes: result.cards_faltantes + item.cards_faltantes,
 }), { topicos: 0, questoes: 0, questoes_alvo: 0, questoes_faltantes: 0, cards: 0, cards_alvo: 0, cards_faltantes: 0 })
+summary.por_contexto = Object.fromEntries(['concurso', 'faculdade'].map((context) => {
+  const items = coverage.filter((item) => item.contexto === context)
+  const questions = items.reduce((sum, item) => sum + item.questoes, 0)
+  const cardsCount = items.reduce((sum, item) => sum + item.cards, 0)
+  return [context, {
+    topicos: items.length,
+    topicos_com_meta_questoes: items.filter((item) => item.questoes_faltantes === 0).length,
+    topicos_com_meta_cards: items.filter((item) => item.cards_faltantes === 0).length,
+    questoes: questions,
+    questoes_faltantes: items.reduce((sum, item) => sum + item.questoes_faltantes, 0),
+    media_questoes_por_topico: items.length ? Number((questions / items.length).toFixed(1)) : 0,
+    cards: cardsCount,
+    cards_faltantes: items.reduce((sum, item) => sum + item.cards_faltantes, 0),
+    media_cards_por_topico: items.length ? Number((cardsCount / items.length).toFixed(1)) : 0,
+  }]
+}))
+const difficultyTotals = coverage.reduce((result, item) => ({ faceis: result.faceis + item.dificuldade.faceis, medias: result.medias + item.dificuldade.medias, dificeis: result.dificeis + item.dificuldade.dificeis }), { faceis: 0, medias: 0, dificeis: 0 })
+const difficultyTotal = difficultyTotals.faceis + difficultyTotals.medias + difficultyTotals.dificeis
+summary.distribuicao_dificuldade = Object.fromEntries(Object.entries(difficultyTotals).map(([level, total]) => [level, { total, percentual: difficultyTotal ? Number(((total / difficultyTotal) * 100).toFixed(1)) : 0 }]))
+summary.meta_dificuldade = { faceis: 60, medias: 30, dificeis: 10 }
 const orderedGaps = coverage.filter((item) => item.questoes_faltantes || item.cards_faltantes).sort((a, b) => (b.questoes_faltantes + b.cards_faltantes) - (a.questoes_faltantes + a.cards_faltantes))
 console.log(JSON.stringify({ resumo: summary, topicos_com_lacuna: orderedGaps.length, bacen: { expansao_liberada: true, fase: 'pre_edital', estrategia: 'Preparação ampla com o referencial disponível; o próximo edital acionará análise de diferenças e replanejamento.' }, lacunas: process.argv.includes('--all') ? orderedGaps : orderedGaps.slice(0, 20) }, null, 2))
