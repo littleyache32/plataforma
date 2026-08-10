@@ -86,3 +86,5 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - 2026-08-09, acerto: 2.260 de 2.261 Question Cards foram preservados; avisos estilísticos não foram tratados como motivo automático de exclusão.
 - 2026-08-09, decisão: novas questões devem aproximar cada tópico de 60% fáceis, 30% médias e 10% difíceis.
 - 2026-08-09, bloqueio: Gemini 3.1 Flash Lite e Gemini 3 Flash retornaram cota esgotada; Gemini 2.5 Flash Lite foi descontinuado para novas contas. Não gerar conteúdo inferior para mascarar o bloqueio.
+- 2026-08-10, decisão: foi solicitado um lote adicional exato de 300 questões e 600 Question Cards. O executor incremental foi criado para completar lacunas sem remover válidas e sem aceitar inserção parcial.
+- 2026-08-10, bloqueio confirmado: a primeira execução do lote parou no índice zero com `429 RESOURCE_EXHAUSTED`, adicionando zero questões e zero cards. Retomar somente com cota gratuita disponível ou chave de projeto com cota.
