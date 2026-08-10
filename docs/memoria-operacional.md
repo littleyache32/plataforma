@@ -95,3 +95,4 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - 2026-08-10, desempenho: o mentor não consulta mais o banco enquanto o painel está fechado, sua resposta compacta caiu de aproximadamente 50 KB para 2,2 KB e o pacote inicial do front caiu de cerca de 463 KB para 217 KB.
 - 2026-08-10, auditoria: 2.426 questões e 2.260 Question Cards ativos passaram nas verificações estruturais, mas nenhum dos 113 tópicos aplicáveis atingiu simultaneamente as metas de 30 questões e 50 cards. Faltam 1.082 questões e 3.390 cards.
 - 2026-08-10, auditoria: a distribuição atual é 25,8% fácil, 39,4% média e 34,8% difícil, distante da meta 60/30/10. Corrigir por adição incremental de itens fáceis e médios, sem apagar difíceis válidos e sem Gemini até autorização.
+- 2026-08-10, infraestrutura: a conexão GitHub da Vercel foi recriada com o mesmo repositório `littleyache32/plataforma` e a branch de produção `main` para restaurar o deploy automático.
