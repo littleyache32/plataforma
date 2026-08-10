@@ -23,6 +23,7 @@ export default function Questions({ objective, target, onTargetApplied, reviewQu
   const [topicId, setTopicId] = useState('')
   const [reviewOnly, setReviewOnly] = useState(false)
   const [question, setQuestion] = useState(null)
+  const [counts, setCounts] = useState({ topicos: {}, totais: { questoes: 0, cards: 0 } })
   const [available, setAvailable] = useState(0)
   const [position, setPosition] = useState(0)
   const [answer, setAnswer] = useState('')
@@ -39,13 +40,20 @@ export default function Questions({ objective, target, onTargetApplied, reviewQu
 
   useEffect(() => { setSubjectId(''); setExpandedSubjectId(''); setTopicId(''); setReviewOnly(false); setQuestion(null); setAvailable(0); setPosition(0); setSessionStartedAt(null) }, [objective?.id])
   useEffect(() => {
+    if (!objective?.id) return setCounts({ topicos: {}, totais: { questoes: 0, cards: 0 } })
+    api(`/api/catalogo?recurso=contagens&objetivoId=${objective.id}`).then(setCounts).catch((error) => setMessage(error.message))
+  }, [objective?.id])
+  useEffect(() => {
     if (!target?.subjectId || !subjects.some((item) => item.id === target.subjectId)) return
     setSubjectId(target.subjectId)
     setExpandedSubjectId(target.subjectId)
   }, [target?.subjectId, objective?.id])
   useEffect(() => {
     if (target?.subjectId !== subjectId) return
-    setTopicId(target.topicId || ''); setReviewOnly(Boolean(target.reviewOnly)); setQuestion(null); setAvailable(0); setPosition(0); setSessionStartedAt(null)
+    const nextTopicId = target.topicId || ''
+    const nextReviewOnly = Boolean(target.reviewOnly)
+    setTopicId(nextTopicId); setReviewOnly(nextReviewOnly); setQuestion(null); setAvailable(0); setPosition(0); setSessionStartedAt(null)
+    loadQuestion('', false, { subjectId, topicId: nextTopicId, reviewOnly: nextReviewOnly })
     onTargetApplied?.()
   }, [subjectId, target?.subjectId, target?.topicId, target?.reviewOnly])
   useEffect(() => { if (reviewQuestionId) loadQuestion(reviewQuestionId).then(onReviewLoaded) }, [reviewQuestionId])
@@ -55,16 +63,14 @@ export default function Questions({ objective, target, onTargetApplied, reviewQu
     return () => clearInterval(timer)
   }, [sessionStartedAt])
 
-  async function loadQuestion(id = '', advance = false) {
+  async function loadQuestion(id = '', advance = false, focus = {}) {
     setLoading(true); setMessage('')
-    if (!sessionStartedAt) {
-      const started = Date.now()
-      setSessionStartedAt(started)
-      setSessionNow(started)
-    }
     try {
-      const reviewParam = reviewOnly ? '&revisao=1' : ''
-      const path = id ? `/api/pratica?questaoId=${id}` : topicId ? `/api/pratica?topicoId=${topicId}${reviewParam}` : `/api/pratica?materiaId=${subjectId}${reviewParam}`
+      const selectedSubjectId = focus.subjectId ?? subjectId
+      const selectedTopicId = focus.topicId ?? topicId
+      const selectedReviewOnly = focus.reviewOnly ?? reviewOnly
+      const reviewParam = selectedReviewOnly ? '&revisao=1' : ''
+      const path = id ? `/api/pratica?questaoId=${id}` : selectedTopicId ? `/api/pratica?topicoId=${selectedTopicId}${reviewParam}` : `/api/pratica?materiaId=${selectedSubjectId}${reviewParam}`
       const data = await api(path)
       setQuestion(data.questao); setAvailable(data.disponiveis || 1); setPosition((current) => id ? 1 : advance ? Math.min(current + 1, data.disponiveis || current + 1) : 1); setAnswer(''); setEliminated([]); setClassification(''); setResult(null); startedAt.current = Date.now()
     } catch (err) { setQuestion(null); setMessage(err.message) } finally { setLoading(false) }
@@ -88,17 +94,29 @@ export default function Questions({ objective, target, onTargetApplied, reviewQu
     setExpandedSubjectId(opening ? id : '')
     if (!opening) return
     setSubjectId(id); setTopicId(''); setReviewOnly(false); setQuestion(null); setAvailable(0); setPosition(0); setSessionStartedAt(null)
+    loadQuestion('', false, { subjectId: id, topicId: '', reviewOnly: false })
   }
 
   function chooseTopic(nextSubjectId, nextTopicId) {
     setSubjectId(nextSubjectId); setExpandedSubjectId(nextSubjectId); setTopicId(nextTopicId); setReviewOnly(false); setQuestion(null); setAvailable(0); setPosition(0); setSessionStartedAt(null)
+    loadQuestion('', false, { subjectId: nextSubjectId, topicId: nextTopicId, reviewOnly: false })
+  }
+
+  function startTimer() {
+    const started = Date.now()
+    setSessionStartedAt(started)
+    setSessionNow(started)
+  }
+
+  function subjectQuestionCount(subject) {
+    return (subject.topicos || []).reduce((total, topic) => total + (counts.topicos?.[topic.id]?.questoes || 0), 0)
   }
 
   const options = question?.tipo === 'CE' ? [['C', 'Certo'], ['E', 'Errado']] : Object.entries(question?.alternativas || {})
   const sessionSeconds = sessionStartedAt ? Math.max(0, Math.floor((sessionNow - sessionStartedAt) / 1000)) : 0
   return (
-    <section><header className="page-title compact"><div><p className="eyebrow">MOTOR DE PRÁTICA</p><h1>Questões</h1><p>Questões não são descartadas ao abrir. Tentativas e revisões ficam registradas.</p></div><div className="card-session-clock"><small>TEMPO DE PRÁTICA</small><b>{elapsedLabel(sessionSeconds)}</b><span>{sessionStartedAt ? 'sessão em andamento' : 'inicia com a primeira questão'}</span></div></header>
-      <div className="question-layout"><aside className="panel practice-filter"><div className="catalog-heading"><div><span className="eyebrow">CONTEÚDO</span><h2>{reviewOnly ? 'Revisão programada' : 'Disciplinas e tópicos'}</h2></div><span className="catalog-total">{subjects.length}</span></div>{reviewOnly && <p className="alert warning">O mentor mostrará somente as questões que venceram nesta revisão.</p>}<div className="subject-catalog">{subjects.map((subject) => { const expanded = expandedSubjectId === subject.id; const selected = subjectId === subject.id; return <div className={`catalog-subject ${expanded ? 'expanded' : ''} ${selected ? 'selected' : ''}`} key={subject.id}><button className="catalog-subject-button" onClick={() => chooseSubject(subject.id)} aria-expanded={expanded}><span className="catalog-chevron">›</span><span><b>{subject.nome}</b><small>{subject.topicos?.length || 0} tópicos</small></span></button>{expanded && <div className="catalog-topics"><button className={!topicId && selected ? 'active' : ''} onClick={() => chooseTopic(subject.id, '')}><span>Todos os tópicos</span><small>misturar disciplina</small></button>{(subject.topicos || []).map((topic, index) => <button className={topicId === topic.id ? 'active' : ''} onClick={() => chooseTopic(subject.id, topic.id)} key={topic.id}><span>{topic.nome}</span><small>{String(index + 1).padStart(2, '0')}</small></button>)}</div>}</div> })}</div><button className="primary sketch-action" onClick={() => loadQuestion('', Boolean(question))} disabled={!subjectId || loading}>{question ? 'Próxima questão' : reviewOnly ? 'Iniciar revisão' : 'Começar prática'}</button>{available > 0 && <strong className="available-count">{available} questões disponíveis</strong>}<p>O gabarito aparece somente após resposta e classificação.</p></aside>
+    <section><header className="page-title compact"><div><p className="eyebrow">MOTOR DE PRÁTICA</p><h1>Questões</h1><p>Selecione a disciplina ou o tópico para abrir a primeira questão. O timer é opcional.</p></div><div className="card-session-clock"><small>TEMPO DE PRÁTICA</small><b>{elapsedLabel(sessionSeconds)}</b><span>{sessionStartedAt ? 'timer em andamento' : 'timer opcional'}</span><button className="secondary timer-start" onClick={startTimer} disabled={Boolean(sessionStartedAt)}>Iniciar timer</button></div></header>
+      <div className="question-layout"><aside className="panel practice-filter"><div className="catalog-heading"><div><span className="eyebrow">CONTEÚDO</span><h2>{reviewOnly ? 'Revisão programada' : 'Disciplinas e tópicos'}</h2></div><span className="catalog-total">{counts.totais?.questoes || 0}</span></div>{reviewOnly && <p className="alert warning">O mentor mostrará somente as questões que venceram nesta revisão.</p>}<div className="subject-catalog">{subjects.map((subject) => { const expanded = expandedSubjectId === subject.id; const selected = subjectId === subject.id; const subjectCount = subjectQuestionCount(subject); return <div className={`catalog-subject ${expanded ? 'expanded' : ''} ${selected ? 'selected' : ''}`} key={subject.id}><button className="catalog-subject-button" onClick={() => chooseSubject(subject.id)} aria-expanded={expanded}><span className="catalog-chevron">›</span><span><b>{subject.nome}</b><small>{subjectCount} questões</small></span></button>{expanded && <div className="catalog-topics"><button className={!topicId && selected ? 'active' : ''} onClick={() => chooseTopic(subject.id, '')}><span>Todos os tópicos</span><small>{subjectCount}</small></button>{(subject.topicos || []).map((topic) => <button className={topicId === topic.id ? 'active' : ''} onClick={() => chooseTopic(subject.id, topic.id)} key={topic.id}><span>{topic.nome}</span><small>{counts.topicos?.[topic.id]?.questoes || 0}</small></button>)}</div>}</div> })}</div>{question && <button className="primary sketch-action" onClick={() => loadQuestion('', true)} disabled={loading}>Próxima questão</button>}{available > 0 && <strong className="available-count">{available} questões disponíveis</strong>}<p>O gabarito aparece somente após resposta e classificação.</p></aside>
         <div>{!question ? <div className="panel question-empty"><span>?</span><h2>{message || 'Escolha uma disciplina e, se quiser, um tópico.'}</h2><p>Deixe “Todos os tópicos” selecionado para misturar toda a disciplina.</p></div> : <article className="panel question-card"><div className="question-meta"><span>Questão {position} de {available} · {question.topico?.nome || question.tipo}</span><button onClick={() => setReportOpen(true)}>Reportar problema na questão</button></div><h2>{question.enunciado}</h2><div className="answers">{options.map(([letter, text]) => <div className={`answer-option ${answer === letter ? 'selected' : ''} ${eliminated.includes(letter) ? 'eliminated' : ''}`} key={letter}><button className="answer-choice" onClick={() => !result && setAnswer(letter)} disabled={Boolean(result)}><b>{letter}</b><span>{text}</span></button>{question.tipo === 'ME' && <button className="answer-eliminate" aria-label={`${eliminated.includes(letter) ? 'Recuperar' : 'Eliminar'} alternativa ${letter}`} title={eliminated.includes(letter) ? 'Recuperar alternativa' : 'Eliminar alternativa'} onClick={() => !result && setEliminated((current) => current.includes(letter) ? current.filter((item) => item !== letter) : [...current, letter])} disabled={Boolean(result)}>×</button>}</div>)}</div>
           {!result && <div className="confidence"><h3>Como você chegou à resposta?</h3><div>{classifications.map(([id, label, hint]) => <button key={id} className={classification === id ? 'selected' : ''} onClick={() => setClassification(id)}><b>{label}</b><small>{hint}</small></button>)}</div><button className="primary confirm" disabled={!answer || !classification || loading} onClick={confirm}>Confirmar resposta</button></div>}
           {result && <div className={`feedback ${result.resultado}`}><div className="feedback-head"><span>{result.resultado === 'acerto' ? '✓' : '×'}</span><div><small>GABARITO {result.gabarito}</small><h3>{result.resultado === 'acerto' ? 'Resposta correta' : 'Resposta incorreta'}</h3></div></div>{result.revisao_imediata && <div className="alert warning">Falsa certeza: item colocado no topo da fila de revisão.</div>}{result.mostrar_explicacao ? <><p>{result.explicacao}</p>{result.comentarios_alternativas && <div className="alternative-comments"><h4>Comentário das alternativas</h4>{Object.entries(result.comentarios_alternativas).map(([letter, comment]) => <div key={letter} className={letter === result.gabarito ? 'correct' : ''}><b>{letter}</b><p>{comment}</p></div>)}</div>}<blockquote><small>EVIDÊNCIA VINCULADA</small>{result.trecho_fonte}</blockquote><Source value={result.fonte} /></> : <p className="feedback-compact">Acerto confirmado. A explicação foi ocultada conforme sua classificação.</p>}<small className="next-review-label">Próxima revisão: {new Date(result.proxima_revisao).toLocaleDateString('pt-BR')}.</small><button className="primary next" onClick={() => loadQuestion('', true)}>Continuar</button></div>}

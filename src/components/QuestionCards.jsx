@@ -8,19 +8,23 @@ const ratings = [
   ['facil', 'Fácil', 'intervalo longo'],
 ]
 
-function clockLabel(seconds) {
+function elapsedLabel(seconds) {
   const safe = Math.max(0, seconds)
-  return `${String(Math.floor(safe / 60)).padStart(2, '0')}:${String(safe % 60).padStart(2, '0')}`
+  const hours = Math.floor(safe / 3600)
+  const minutes = Math.floor((safe % 3600) / 60)
+  const rest = safe % 60
+  return hours ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}` : `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
 }
 
 export default function QuestionCards({ objective, target, onTargetApplied }) {
   const subjects = (objective?.materias || []).filter((item) => !(objective?.tipo === 'faculdade' && ['análise e produção de texto', 'analise e producao de texto'].includes(item.nome.toLocaleLowerCase('pt-BR'))))
   const [subjectId, setSubjectId] = useState('')
-  const topics = useMemo(() => subjects.find((item) => item.id === subjectId)?.topicos || [], [subjects, subjectId])
+  const [expandedSubjectId, setExpandedSubjectId] = useState('')
   const [topicId, setTopicId] = useState('')
   const [cards, setCards] = useState([])
+  const [counts, setCounts] = useState({ topicos: {}, totais: { questoes: 0, cards: 0 } })
   const [stats, setStats] = useState({ total: 0, vencidos: 0, novos: 0 })
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [revealed, setRevealed] = useState(false)
   const [reviewed, setReviewed] = useState(0)
@@ -28,22 +32,36 @@ export default function QuestionCards({ objective, target, onTargetApplied }) {
   const [now, setNow] = useState(Date.now())
 
   function load() {
+    if (!subjectId) {
+      setCards([])
+      setStats({ total: 0, vencidos: 0, novos: 0 })
+      setMessage('')
+      return Promise.resolve()
+    }
     setLoading(true)
-    const params = new URLSearchParams({ recurso: 'cards' })
-    if (objective?.id) params.set('objetivoId', objective.id)
-    if (subjectId) params.set('materiaId', subjectId)
+    const params = new URLSearchParams({ recurso: 'cards', objetivoId: objective.id, materiaId: subjectId })
     if (topicId) params.set('topicoId', topicId)
     return api(`/api/questoes?${params}`).then((data) => {
       setCards(data.cards)
       setStats({ total: data.total, vencidos: data.vencidos, novos: data.novos })
       setMessage('')
-    }).catch((error) => setMessage(error.message)).finally(() => setLoading(false))
+    }).catch((error) => {
+      setCards([])
+      setMessage(error.message)
+    }).finally(() => setLoading(false))
   }
 
-  useEffect(() => { setSubjectId(''); setTopicId(''); setReviewed(0); setStartedAt(null) }, [objective?.id])
+  useEffect(() => {
+    setSubjectId(''); setExpandedSubjectId(''); setTopicId(''); setReviewed(0); setStartedAt(null); setRevealed(false)
+  }, [objective?.id])
+  useEffect(() => {
+    if (!objective?.id) return setCounts({ topicos: {}, totais: { questoes: 0, cards: 0 } })
+    api(`/api/catalogo?recurso=contagens&objetivoId=${objective.id}`).then(setCounts).catch((error) => setMessage(error.message))
+  }, [objective?.id])
   useEffect(() => {
     if (!target?.subjectId || !subjects.some((item) => item.id === target.subjectId)) return
     setSubjectId(target.subjectId)
+    setExpandedSubjectId(target.subjectId)
   }, [target?.subjectId, objective?.id])
   useEffect(() => {
     if (target?.subjectId !== subjectId) return
@@ -59,23 +77,37 @@ export default function QuestionCards({ objective, target, onTargetApplied }) {
   }, [startedAt])
 
   const queue = useMemo(() => cards.filter((item) => item.vencido), [cards])
-  const remainingSeconds = startedAt ? 30 * 60 - Math.floor((now - startedAt) / 1000) : 30 * 60
-  const sessionEnded = Boolean(startedAt) && remainingSeconds <= 0
-  const card = startedAt && !sessionEnded ? queue[0] : null
+  const card = queue[0] || null
+  const elapsedSeconds = startedAt ? Math.floor((now - startedAt) / 1000) : 0
+  const sessionTotal = reviewed + queue.length
 
-  function resetSessionFilters(change) {
+  function resetFocus(change) {
     change()
     setStartedAt(null)
     setReviewed(0)
     setRevealed(false)
   }
 
-  function startSession() {
+  function chooseSubject(id) {
+    const opening = expandedSubjectId !== id
+    setExpandedSubjectId(opening ? id : '')
+    if (!opening) return
+    resetFocus(() => { setSubjectId(id); setTopicId('') })
+  }
+
+  function chooseTopic(nextSubjectId, nextTopicId) {
+    setExpandedSubjectId(nextSubjectId)
+    resetFocus(() => { setSubjectId(nextSubjectId); setTopicId(nextTopicId) })
+  }
+
+  function startTimer() {
     const started = Date.now()
     setStartedAt(started)
     setNow(started)
-    setReviewed(0)
-    setRevealed(false)
+  }
+
+  function subjectCardCount(subject) {
+    return (subject.topicos || []).reduce((total, topic) => total + (counts.topicos?.[topic.id]?.cards || 0), 0)
   }
 
   async function answer(resultado) {
@@ -93,8 +125,8 @@ export default function QuestionCards({ objective, target, onTargetApplied }) {
     }
   }
 
-  return <section><header className="page-title compact"><div><p className="eyebrow">REVISÃO ESPAÇADA</p><h1>Question Cards</h1><p>Sessão diária de 30 minutos. O tempo começa somente quando você inicia.</p></div><div className="card-session-clock"><small>SESSÃO DE HOJE</small><b>{clockLabel(remainingSeconds)}</b><span>{reviewed} revisados</span></div></header>
-    <article className="panel card-filter"><div><label>Disciplina</label><select value={subjectId} onChange={(event) => resetSessionFilters(() => { setSubjectId(event.target.value); setTopicId('') })}><option value="">Todas as disciplinas</option>{subjects.map((item) => <option value={item.id} key={item.id}>{item.nome}</option>)}</select></div><div><label>Tópico</label><select value={topicId} onChange={(event) => resetSessionFilters(() => setTopicId(event.target.value))} disabled={!subjectId}><option value="">Todos os tópicos</option>{topics.map((item) => <option value={item.id} key={item.id}>{item.nome}</option>)}</select></div><div className="card-queue-stats"><span><b>{stats.vencidos}</b> para hoje</span><span><b>{stats.novos}</b> novos</span><span><b>{stats.total}</b> no acervo</span></div></article>
-    {loading && !startedAt ? <div className="panel question-empty"><h2>Organizando sua fila...</h2></div> : !startedAt ? <div className="panel question-empty"><h2>{message || `${stats.vencidos} cards disponíveis para hoje.`}</h2><p>O cronômetro de 30 minutos ainda não começou.</p><button className="primary" onClick={startSession} disabled={!stats.vencidos}>Iniciar Question Cards</button></div> : sessionEnded ? <div className="panel question-empty"><h2>Sessão de 30 minutos concluída.</h2><p>{reviewed} cards foram revisados.</p></div> : !card ? <div className="panel question-empty"><h2>{message || 'Revisões disponíveis concluídas.'}</h2><p>Você terminou a fila antes do tempo.</p></div> : <article className="panel card-study"><div className="card-study-meta"><span>{card.objetivo?.tipo === 'faculdade' ? 'Faculdade' : 'BACEN'} · {card.materia?.nome}</span><small>{card.topico?.nome}</small></div><div className="card-face"><span>{revealed ? 'RESPOSTA E EXPLICAÇÃO' : 'PERGUNTA'}</span><h2>{revealed ? card.verso : card.frente}</h2></div>{revealed ? <><blockquote><small>TRECHO DE ORIGEM</small>{card.trecho_fonte}</blockquote><span className="source-link">{card.fonte}</span><div className="anki-actions">{ratings.map(([id, label, hint]) => <button className={`rating-${id}`} key={id} onClick={() => answer(id)} disabled={loading}><b>{label}</b><small>{hint}</small></button>)}</div></> : <button className="primary card-reveal" onClick={() => setRevealed(true)}>Mostrar resposta</button>}</article>}
+  return <section><header className="page-title compact"><div><p className="eyebrow">REVISÃO ESPAÇADA</p><h1>Question Cards</h1><p>Selecione a disciplina ou o tópico para abrir o primeiro card. O timer é opcional.</p></div>{subjectId && stats.vencidos > 0 && <div className="card-session-clock"><small>SESSÃO DE HOJE</small><b>{elapsedLabel(elapsedSeconds)}</b><span>{reviewed} revisados</span><button className="secondary timer-start" onClick={startTimer} disabled={Boolean(startedAt)}>Iniciar timer</button></div>}</header>
+    <div className="question-layout"><aside className="panel practice-filter"><div className="catalog-heading"><div><span className="eyebrow">CONTEÚDO</span><h2>Disciplinas e tópicos</h2></div><span className="catalog-total">{counts.totais?.cards || 0}</span></div><div className="subject-catalog">{subjects.map((subject) => { const expanded = expandedSubjectId === subject.id; const selected = subjectId === subject.id; const subjectCount = subjectCardCount(subject); return <div className={`catalog-subject ${expanded ? 'expanded' : ''} ${selected ? 'selected' : ''}`} key={subject.id}><button className="catalog-subject-button" onClick={() => chooseSubject(subject.id)} aria-expanded={expanded}><span className="catalog-chevron">›</span><span><b>{subject.nome}</b><small>{subjectCount} cards</small></span></button>{expanded && <div className="catalog-topics"><button className={!topicId && selected ? 'active' : ''} onClick={() => chooseTopic(subject.id, '')}><span>Todos os tópicos</span><small>{subjectCount}</small></button>{(subject.topicos || []).map((topic) => <button className={topicId === topic.id ? 'active' : ''} onClick={() => chooseTopic(subject.id, topic.id)} key={topic.id}><span>{topic.nome}</span><small>{counts.topicos?.[topic.id]?.cards || 0}</small></button>)}</div>}</div> })}</div>{subjectId && <div className="card-queue-stats compact"><span><b>{stats.vencidos}</b> para hoje</span><span><b>{stats.novos}</b> novos</span><span><b>{stats.total}</b> no acervo</span></div>}</aside>
+      <div>{loading && !card ? <div className="panel question-empty"><h2>Organizando sua fila...</h2></div> : !subjectId ? <div className="panel question-empty"><span>?</span><h2>Escolha uma disciplina e, se quiser, um tópico.</h2><p>Todos os tópicos mistura os cards da disciplina.</p></div> : !card ? <div className="panel question-empty"><h2>{message || 'Nenhum Question Card está vencido neste foco.'}</h2><p>O mentor mantém a revisão espaçada e mostrará o conteúdo quando ele vencer.</p></div> : <article className="panel question-card card-study"><div className="question-meta"><span>Question Card {reviewed + 1} de {sessionTotal} · {card.topico?.nome}</span><small>{card.objetivo?.tipo === 'faculdade' ? 'Faculdade' : 'BACEN'} · {card.materia?.nome}</small></div><h2>{card.frente}</h2>{revealed ? <div className="feedback acerto card-answer"><div className="feedback-head"><span>✓</span><div><small>RESPOSTA</small><h3>Resposta do card</h3></div></div><p className="card-answer-text">{card.verso}</p><blockquote><small>TRECHO DE ORIGEM</small>{card.trecho_fonte}</blockquote><span className="source-link">{card.fonte}</span><div className="anki-actions">{ratings.map(([id, label, hint]) => <button className={`rating-${id}`} key={id} onClick={() => answer(id)} disabled={loading}><b>{label}</b><small>{hint}</small></button>)}</div></div> : <button className="primary card-reveal" onClick={() => setRevealed(true)}>Mostrar resposta</button>}</article>}</div></div>
   </section>
 }
