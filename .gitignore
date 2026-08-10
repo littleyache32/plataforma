@@ -7,3 +7,5 @@ dist/
 *.log
 tmp/
 output/pdf/
+output/plataforma-pessoal-vazia/
+output/plataforma-pessoal-vazia.zip
