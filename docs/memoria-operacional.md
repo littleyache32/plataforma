@@ -63,6 +63,7 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - Erro, Dúvida e Sem conhecimento enviam automaticamente a questão ao Caderno de Questões. O caderno é uma opção própria dentro de Questões e alimenta futuras revisões.
 - Cards devem ser atômicos, específicos, baseados em recuperação ativa e sem duplicidade. Priorizar recordação, distinção, aplicação, exceção e correção.
 - Responder questões não pode elevar o tópico acima de 50 Question Cards. O fluxo atualiza card correspondente quando existente; o Caderno absorve a necessidade de revisão sem criar excedente.
+- Em 11 de agosto de 2026, o usuário determinou a exclusão integral das questões e dos Question Cards de Faculdade e BACEN. O acervo deve permanecer vazio até nova autorização explícita para reconstrução. As metas de 100 questões e 50 cards por tópico continuam apenas como especificação para uma reconstrução futura.
 
 ## Erros anteriores e prevenção
 
@@ -116,3 +117,4 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - 2026-08-11, nova regra de acervo: a meta mínima de 30 questões foi substituída por uma composição exata por tópico aplicável, com 100 questões distribuídas em 60 fáceis, 30 médias e 10 difíceis, além de exatamente 50 Question Cards. Excedentes podem ser arquivados de forma recuperável para cumprir a composição.
 - 2026-08-11, nova regra de revisão: erro, Dúvida e Sem conhecimento devem incluir automaticamente a questão no Caderno de Questões para revisões futuras.
 - 2026-08-11, acervo normalizado: os 113 tópicos aplicáveis ficaram com exatamente 11.300 questões e 5.650 Question Cards. Cada tópico possui 100 questões, sendo 60 fáceis, 30 médias e 10 difíceis, e 50 cards. A transação adicionou 8.367 questões e 1.290 cards e arquivou recuperavelmente 185 questões e 640 cards excedentes. Gatilhos no banco impedem novos excedentes.
+- 2026-08-11, exclusão solicitada: o usuário determinou apagar todas as questões e todos os Question Cards de Faculdade e BACEN. A limpeza inclui os registros diretamente dependentes, mas preserva objetivos, disciplinas, tópicos, materiais, conhecimento, mentor e planejamento. Regra resultante: não repovoar o acervo sem nova autorização explícita.
