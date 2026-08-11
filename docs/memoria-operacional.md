@@ -52,17 +52,17 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 
 ### Questões e Question Cards
 
-- Questões existentes válidas não devem ser apagadas para ajustar quantidade ou porcentagem.
-- Remover ou arquivar somente defeitos objetivos: duplicidade, formato inválido, fonte ausente, evidência insuficiente ou conteúdo estruturalmente imprestável.
-- Meta atual: pelo menos 30 questões e 50 Question Cards por tópico aplicável.
-- Distribuição desejada das questões: 60% fáceis, 30% médias e 10% difíceis. Novas questões compensam o acervo existente sem apagar válidas.
+- Cada tópico aplicável deve ter exatamente 100 questões ativas e exatamente 50 Question Cards ativos, nem mais nem menos.
+- Cada tópico deve ter exatamente 60 questões fáceis, 30 médias e 10 difíceis. Para cumprir a regra exata, itens excedentes podem ser arquivados de forma recuperável, priorizando a preservação de itens já respondidos e de melhor qualidade.
 - Toda questão exige fonte, trecho de evidência, gabarito e explicação.
 - BACEN usa CE e ME, com predominância compatível com Cebraspe. Faculdade pode mesclar CE e ME.
 - Na prática, a disciplina começa vazia. Tópico vazio significa todos os tópicos.
 - A classificação Certeza, Dúvida, Eliminação ou Sem conhecimento vem antes do gabarito.
 - Explicação aparece em erro, acerto com Dúvida e acerto com Sem conhecimento. Acerto com Certeza ou Eliminação não mostra explicação.
 - Questões e Question Cards usam revisão espaçada. Revisões vencidas viram demandas do mentor.
+- Erro, Dúvida e Sem conhecimento enviam automaticamente a questão ao Caderno de Questões. O caderno é uma opção própria dentro de Questões e alimenta futuras revisões.
 - Cards devem ser atômicos, específicos, baseados em recuperação ativa e sem duplicidade. Priorizar recordação, distinção, aplicação, exceção e correção.
+- Responder questões não pode elevar o tópico acima de 50 Question Cards. O fluxo atualiza card correspondente quando existente; o Caderno absorve a necessidade de revisão sem criar excedente.
 
 ## Erros anteriores e prevenção
 
@@ -113,3 +113,6 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - 2026-08-10, correção de classificação: itens de tópicos legados amplos foram redistribuídos por correspondência textual para remédios constitucionais, Poderes, verbos, pronomes, redes, navegadores, DFC, DVA, remuneração, conceitos de Arquivologia e modelos de Administração Pública. O total do acervo foi preservado, e 12 dos 71 tópicos BACEN permanecem sem conteúdo.
 - 2026-08-10, decisão visual: a paleta foi refinada para azul predominante e acabamento mais minimalista, preservando a linguagem sketch, a hierarquia e todas as funcionalidades.
 - 2026-08-10, correção visual e de prática: o refinamento azul predominante foi rejeitado e a paleta sketch anterior deve ser restaurada. Contagens de disciplinas e tópicos precisam refletir o acervo ativo; Questões e Question Cards abrem o primeiro item ao selecionar o foco e usam timer progressivo opcional, independente da resolução.
+- 2026-08-11, nova regra de acervo: a meta mínima de 30 questões foi substituída por uma composição exata por tópico aplicável, com 100 questões distribuídas em 60 fáceis, 30 médias e 10 difíceis, além de exatamente 50 Question Cards. Excedentes podem ser arquivados de forma recuperável para cumprir a composição.
+- 2026-08-11, nova regra de revisão: erro, Dúvida e Sem conhecimento devem incluir automaticamente a questão no Caderno de Questões para revisões futuras.
+- 2026-08-11, acervo normalizado: os 113 tópicos aplicáveis ficaram com exatamente 11.300 questões e 5.650 Question Cards. Cada tópico possui 100 questões, sendo 60 fáceis, 30 médias e 10 difíceis, e 50 cards. A transação adicionou 8.367 questões e 1.290 cards e arquivou recuperavelmente 185 questões e 640 cards excedentes. Gatilhos no banco impedem novos excedentes.

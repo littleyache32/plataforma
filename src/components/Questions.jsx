@@ -16,7 +16,7 @@ function elapsedLabel(seconds) {
   return hours ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}` : `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
 }
 
-export default function Questions({ objective, target, onTargetApplied, reviewQuestionId, onReviewLoaded }) {
+export default function Questions({ objective, target, onTargetApplied, reviewQuestionId, onReviewLoaded, notebookOnly = false }) {
   const subjects = (objective?.materias || []).filter((item) => !(objective?.tipo === 'faculdade' && ['análise e produção de texto', 'analise e producao de texto'].includes(item.nome.toLocaleLowerCase('pt-BR'))))
   const [subjectId, setSubjectId] = useState('')
   const [expandedSubjectId, setExpandedSubjectId] = useState('')
@@ -39,10 +39,7 @@ export default function Questions({ objective, target, onTargetApplied, reviewQu
   const [sessionNow, setSessionNow] = useState(Date.now())
 
   useEffect(() => { setSubjectId(''); setExpandedSubjectId(''); setTopicId(''); setReviewOnly(false); setQuestion(null); setAvailable(0); setPosition(0); setSessionStartedAt(null) }, [objective?.id])
-  useEffect(() => {
-    if (!objective?.id) return setCounts({ topicos: {}, totais: { questoes: 0, cards: 0 } })
-    api(`/api/catalogo?recurso=contagens&objetivoId=${objective.id}`).then(setCounts).catch((error) => setMessage(error.message))
-  }, [objective?.id])
+  useEffect(() => { loadCounts() }, [objective?.id, notebookOnly])
   useEffect(() => {
     if (!target?.subjectId || !subjects.some((item) => item.id === target.subjectId)) return
     setSubjectId(target.subjectId)
@@ -69,7 +66,7 @@ export default function Questions({ objective, target, onTargetApplied, reviewQu
       const selectedSubjectId = focus.subjectId ?? subjectId
       const selectedTopicId = focus.topicId ?? topicId
       const selectedReviewOnly = focus.reviewOnly ?? reviewOnly
-      const reviewParam = selectedReviewOnly ? '&revisao=1' : ''
+      const reviewParam = selectedReviewOnly ? '&revisao=1' : notebookOnly ? '&caderno=1' : ''
       const path = id ? `/api/pratica?questaoId=${id}` : selectedTopicId ? `/api/pratica?topicoId=${selectedTopicId}${reviewParam}` : `/api/pratica?materiaId=${selectedSubjectId}${reviewParam}`
       const data = await api(path)
       setQuestion(data.questao); setAvailable(data.disponiveis || 1); setPosition((current) => id ? 1 : advance ? Math.min(current + 1, data.disponiveis || current + 1) : 1); setAnswer(''); setEliminated([]); setClassification(''); setResult(null); startedAt.current = Date.now()
@@ -81,6 +78,7 @@ export default function Questions({ objective, target, onTargetApplied, reviewQu
     try {
       const data = await api('/api/pratica', { method: 'POST', body: JSON.stringify({ questaoId: question.id, resposta: answer, classificacao: classification, tempo: Math.max(0, Math.round((Date.now() - startedAt.current) / 1000)) }) })
       setResult(data)
+      if (notebookOnly) loadCounts()
     } catch (err) { setMessage(err.message) } finally { setLoading(false) }
   }
 
@@ -108,6 +106,15 @@ export default function Questions({ objective, target, onTargetApplied, reviewQu
     setSessionNow(started)
   }
 
+  function loadCounts() {
+    if (!objective?.id) {
+      setCounts({ topicos: {}, totais: { questoes: 0, cards: 0 } })
+      return Promise.resolve()
+    }
+    const notebookParam = notebookOnly ? '&caderno=1' : ''
+    return api(`/api/catalogo?recurso=contagens&objetivoId=${objective.id}${notebookParam}`).then(setCounts).catch((error) => setMessage(error.message))
+  }
+
   function subjectQuestionCount(subject) {
     return (subject.topicos || []).reduce((total, topic) => total + (counts.topicos?.[topic.id]?.questoes || 0), 0)
   }
@@ -115,7 +122,7 @@ export default function Questions({ objective, target, onTargetApplied, reviewQu
   const options = question?.tipo === 'CE' ? [['C', 'Certo'], ['E', 'Errado']] : Object.entries(question?.alternativas || {})
   const sessionSeconds = sessionStartedAt ? Math.max(0, Math.floor((sessionNow - sessionStartedAt) / 1000)) : 0
   return (
-    <section><header className="page-title compact"><div><p className="eyebrow">MOTOR DE PRÁTICA</p><h1>Questões</h1><p>Selecione a disciplina ou o tópico para abrir a primeira questão. O timer é opcional.</p></div><div className="card-session-clock"><small>TEMPO DE PRÁTICA</small><b>{elapsedLabel(sessionSeconds)}</b><span>{sessionStartedAt ? 'timer em andamento' : 'timer opcional'}</span><button className="secondary timer-start" onClick={startTimer} disabled={Boolean(sessionStartedAt)}>Iniciar timer</button></div></header>
+    <section><header className="page-title compact"><div><p className="eyebrow">{notebookOnly ? 'REVISÃO PESSOAL' : 'MOTOR DE PRÁTICA'}</p><h1>{notebookOnly ? 'Caderno de Questões' : 'Questões'}</h1><p>{notebookOnly ? 'Erros, Dúvida e Sem conhecimento entram aqui automaticamente para futuras revisões.' : 'Selecione a disciplina ou o tópico para abrir a primeira questão. O timer é opcional.'}</p></div><div className="card-session-clock"><small>TEMPO DE PRÁTICA</small><b>{elapsedLabel(sessionSeconds)}</b><span>{sessionStartedAt ? 'timer em andamento' : 'timer opcional'}</span><button className="secondary timer-start" onClick={startTimer} disabled={Boolean(sessionStartedAt)}>Iniciar timer</button></div></header>
       <div className="question-layout"><aside className="panel practice-filter"><div className="catalog-heading"><div><span className="eyebrow">CONTEÚDO</span><h2>{reviewOnly ? 'Revisão programada' : 'Disciplinas e tópicos'}</h2></div><span className="catalog-total">{counts.totais?.questoes || 0}</span></div>{reviewOnly && <p className="alert warning">O mentor mostrará somente as questões que venceram nesta revisão.</p>}<div className="subject-catalog">{subjects.map((subject) => { const expanded = expandedSubjectId === subject.id; const selected = subjectId === subject.id; const subjectCount = subjectQuestionCount(subject); return <div className={`catalog-subject ${expanded ? 'expanded' : ''} ${selected ? 'selected' : ''}`} key={subject.id}><button className="catalog-subject-button" onClick={() => chooseSubject(subject.id)} aria-expanded={expanded}><span className="catalog-chevron">›</span><span><b>{subject.nome}</b><small>{subjectCount} questões</small></span></button>{expanded && <div className="catalog-topics"><button className={!topicId && selected ? 'active' : ''} onClick={() => chooseTopic(subject.id, '')}><span>Todos os tópicos</span><small>{subjectCount}</small></button>{(subject.topicos || []).map((topic) => <button className={topicId === topic.id ? 'active' : ''} onClick={() => chooseTopic(subject.id, topic.id)} key={topic.id}><span>{topic.nome}</span><small>{counts.topicos?.[topic.id]?.questoes || 0}</small></button>)}</div>}</div> })}</div>{question && <button className="primary sketch-action" onClick={() => loadQuestion('', true)} disabled={loading}>Próxima questão</button>}{available > 0 && <strong className="available-count">{available} questões disponíveis</strong>}<p>O gabarito aparece somente após resposta e classificação.</p></aside>
         <div>{!question ? <div className="panel question-empty"><span>?</span><h2>{message || 'Escolha uma disciplina e, se quiser, um tópico.'}</h2><p>Deixe “Todos os tópicos” selecionado para misturar toda a disciplina.</p></div> : <article className="panel question-card"><div className="question-meta"><span>Questão {position} de {available} · {question.topico?.nome || question.tipo}</span><button onClick={() => setReportOpen(true)}>Reportar problema na questão</button></div><h2>{question.enunciado}</h2><div className="answers">{options.map(([letter, text]) => <div className={`answer-option ${answer === letter ? 'selected' : ''} ${eliminated.includes(letter) ? 'eliminated' : ''}`} key={letter}><button className="answer-choice" onClick={() => !result && setAnswer(letter)} disabled={Boolean(result)}><b>{letter}</b><span>{text}</span></button>{question.tipo === 'ME' && <button className="answer-eliminate" aria-label={`${eliminated.includes(letter) ? 'Recuperar' : 'Eliminar'} alternativa ${letter}`} title={eliminated.includes(letter) ? 'Recuperar alternativa' : 'Eliminar alternativa'} onClick={() => !result && setEliminated((current) => current.includes(letter) ? current.filter((item) => item !== letter) : [...current, letter])} disabled={Boolean(result)}>×</button>}</div>)}</div>
           {!result && <div className="confidence"><h3>Como você chegou à resposta?</h3><div>{classifications.map(([id, label, hint]) => <button key={id} className={classification === id ? 'selected' : ''} onClick={() => setClassification(id)}><b>{label}</b><small>{hint}</small></button>)}</div><button className="primary confirm" disabled={!answer || !classification || loading} onClick={confirm}>Confirmar resposta</button></div>}

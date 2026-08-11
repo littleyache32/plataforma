@@ -38,16 +38,27 @@ export default async function handler(req, res) {
   try {
     if (queryParam(req, 'recurso') === 'contagens') {
       const objetivoId = queryParam(req, 'objetivoId')
+      const somenteCaderno = queryParam(req, 'caderno') === '1'
       if (!objetivoId) return res.status(400).json({ error: 'Objetivo obrigatorio.' })
       const supabase = getSupabaseAdmin()
       const { data: subjects, error: subjectsError } = await supabase.from('materia').select('topicos:topico(id)').eq('objetivo_id', objetivoId)
       if (subjectsError) throw subjectsError
       const topicIds = (subjects || []).flatMap((subject) => (subject.topicos || []).map((topic) => topic.id))
       if (!topicIds.length) return res.status(200).json({ topicos: {}, totais: { questoes: 0, cards: 0 } })
-      const [questions, cards] = await Promise.all([
-        fetchAllTopicReferences(() => supabase.from('questao').select('topico_id').in('topico_id', topicIds).eq('ativa', true).eq('marcada_errada', false).neq('estado', 'arquivada')),
-        fetchAllTopicReferences(() => supabase.from('question_card').select('topico_id').in('topico_id', topicIds).eq('ativa', true)),
-      ])
+      let notebookQuestionIds = null
+      if (somenteCaderno) {
+        const pending = await fetchAllTopicReferences(() => supabase.from('revisao_item').select('questao_id').eq('status', 'pendente'))
+        notebookQuestionIds = pending.map((item) => item.questao_id)
+      }
+      const questionPromise = somenteCaderno && !notebookQuestionIds.length
+        ? Promise.resolve([])
+        : fetchAllTopicReferences(() => {
+          let query = supabase.from('questao').select('topico_id').in('topico_id', topicIds).eq('ativa', true).eq('marcada_errada', false).neq('estado', 'arquivada')
+          if (somenteCaderno) query = query.in('id', notebookQuestionIds)
+          return query
+        })
+      const cardPromise = somenteCaderno ? Promise.resolve([]) : fetchAllTopicReferences(() => supabase.from('question_card').select('topico_id').in('topico_id', topicIds).eq('ativa', true))
+      const [questions, cards] = await Promise.all([questionPromise, cardPromise])
       const questionCounts = groupCounts(questions)
       const cardCounts = groupCounts(cards)
       const topics = Object.fromEntries(topicIds.map((id) => [id, { questoes: questionCounts[id] || 0, cards: cardCounts[id] || 0 }]))

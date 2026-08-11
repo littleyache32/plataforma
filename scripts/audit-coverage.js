@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY
 if (!process.env.SUPABASE_URL || !key) throw new Error('Supabase não configurado.')
 const supabase = createClient(process.env.SUPABASE_URL, key, { auth: { persistSession: false } })
-const questionTarget = 30
+const questionTarget = 100
 const cardTarget = 50
 
 async function allRows(table, columns) {

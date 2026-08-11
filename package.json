@@ -21,6 +21,8 @@
     "acervo:expandir:300-600": "node --env-file=.env.local scripts/expand-requested-batch.js --questions=300 --cards=600",
     "acervo:expandir:offline": "node --env-file=.env.local scripts/expand-offline-library.js",
     "acervo:expandir:offline:aplicar": "node --env-file=.env.local scripts/expand-offline-library.js --apply",
+    "acervo:normalizar:exato": "node --env-file=.env.local scripts/normalize-exact-library.js",
+    "acervo:normalizar:exato:aplicar": "node --env-file=.env.local scripts/normalize-exact-library.js --apply",
     "template:exportar": "node scripts/build-empty-platform-package.js",
     "audit:producao": "node --env-file=.env.local scripts/audit-production.js",
     "audit:cobertura": "node --env-file=.env.local scripts/audit-coverage.js",

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import Icon from './Icon.jsx'
 
-const questionsArea = { id: 'questoes', label: 'Questões', children: [['questoes', 'Objetivas'], ['discursivas', 'Discursivas']] }
+const questionsArea = { id: 'questoes', label: 'Questões', children: [['questoes', 'Objetivas'], ['caderno', 'Caderno de questões'], ['discursivas', 'Discursivas']] }
 const studentAreas = [
   { id: 'semana', label: 'Semana' }, questionsArea, { id: 'cards', label: 'Question Cards' }, { id: 'simulados', label: 'Simulados' }, { id: 'desempenho', label: 'Desempenho' },
 ]
@@ -14,9 +14,9 @@ const adminAreas = [
 export default function Layout({ area, onAreaChange, catalog, objectiveId, onObjectiveChange, context, onContextChange, mode, onModeChange, onLogout, children }) {
   const areas = mode === 'administrador' ? adminAreas : studentAreas
   const [menuOpen, setMenuOpen] = useState(false)
-  const [questionsOpen, setQuestionsOpen] = useState(['questoes', 'discursivas'].includes(area))
+  const [questionsOpen, setQuestionsOpen] = useState(['questoes', 'caderno', 'discursivas'].includes(area))
   useEffect(() => {
-    if (['questoes', 'discursivas'].includes(area)) setQuestionsOpen(true)
+    if (['questoes', 'caderno', 'discursivas'].includes(area)) setQuestionsOpen(true)
   }, [area])
   const selectArea = (id) => { onAreaChange(id); setMenuOpen(false) }
   const renderNavigation = () => areas.map((item) => item.children ? <div className={`nav-group ${questionsOpen ? 'open' : ''}`} key={item.id}>

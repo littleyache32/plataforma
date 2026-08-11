@@ -93,6 +93,7 @@ export default function App() {
       {area === 'materiais' && mode === 'administrador' && <Materials {...common} />}
       {area === 'prazos' && mode === 'administrador' && <Deadlines catalog={catalog} />}
       {area === 'questoes' && <Questions {...common} target={studyTarget?.objectiveId === objective?.id ? studyTarget : null} onTargetApplied={() => setStudyTarget(null)} reviewQuestionId={reviewQuestionId} onReviewLoaded={() => setReviewQuestionId('')} />}
+      {area === 'caderno' && <Questions {...common} notebookOnly />}
       {area === 'discursivas' && <DiscursiveQuestions />}
       {area === 'cards' && <QuestionCards objective={objective} target={studyTarget?.objectiveId === objective?.id ? studyTarget : null} onTargetApplied={() => setStudyTarget(null)} />}
       {area === 'simulados' && <Simulations objective={objective} />}

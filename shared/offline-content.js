@@ -4,6 +4,10 @@ import { auditQuestion, normalizeContent } from './question-quality.js'
 
 const verbPattern = /\b(?:e|sao|representa|representam|consiste|consistem|corresponde|correspondem|abrange|abrangem|inclui|incluem|deve|devem|permite|permitem|exige|exigem|possui|possuem|pode|podem|pressupoe|pressupoem|decorre|decorrem)\b/i
 const excludedPattern = /^(?:referencias|bibliografia|fontes|fonte|leitura complementar|conclusao|resumo do capitulo)\b/i
+const questionLeads = ['Com base no material de estudo', 'À luz do conteúdo apresentado', 'Segundo a referência vinculada', 'No contexto conceitual do tópico', 'Considerando a formulação didática', 'A partir da evidência apresentada', 'Conforme a sistematização do conteúdo', 'No âmbito da disciplina', 'Tendo em vista o fundamento indicado', 'Com apoio no trecho de referência']
+const questionFocus = ['quanto ao conceito central', 'quanto ao alcance da afirmação', 'em relação ao fundamento estudado', 'sobre a definição apresentada', 'a respeito da regra examinada', 'quanto à compreensão do conteúdo']
+const cardLeads = ['O que o material estabelece sobre', 'Como deve ser compreendido', 'Qual é a ideia essencial associada a', 'Que regra se relaciona a', 'Qual fundamento explica', 'Como o conteúdo define', 'O que precisa ser lembrado sobre', 'Qual afirmação resume', 'Como se identifica', 'Que conclusão decorre de']
+const cardFocus = ['no tópico', 'no contexto de', 'na revisão de', 'segundo a seção', 'conforme o estudo de']
 
 function cleanMarkdown(value) {
   return String(value || '')
@@ -47,7 +51,6 @@ export function extractLearningUnits(markdown) {
   const seen = new Set()
   let section = 'Conceitos essenciais'
   let paragraph = []
-
   const add = (raw, original = raw) => {
     for (const claim of sentenceParts(raw)) {
       if (!usableClaim(claim)) continue
@@ -61,13 +64,9 @@ export function extractLearningUnits(markdown) {
     if (paragraph.length) add(paragraph.join(' '), paragraph.join(' '))
     paragraph = []
   }
-
   for (const rawLine of String(markdown || '').split(/\r?\n/)) {
     const line = rawLine.trim()
-    if (!line) {
-      flush()
-      continue
-    }
+    if (!line) { flush(); continue }
     const heading = line.match(/^#{1,6}\s+(.+)/)
     if (heading) {
       flush()
@@ -75,11 +74,7 @@ export function extractLearningUnits(markdown) {
       if (next && !excludedPattern.test(next)) section = next
       continue
     }
-    if (/^\s*(?:[-+*]|\d+[.)])\s+/.test(rawLine)) {
-      flush()
-      add(line, line)
-      continue
-    }
+    if (/^\s*(?:[-+*]|\d+[.)])\s+/.test(rawLine)) { flush(); add(line, line); continue }
     if (/^(?:---+|___+|\*\*\*+)$/.test(line)) continue
     paragraph.push(line)
   }
@@ -98,12 +93,49 @@ function negateClaim(claim) {
 function cardFront(unit, topicName, variant = 0) {
   const anchor = anchorFor(unit.claim)
   const section = unit.section && unit.section !== 'Conceitos essenciais' ? unit.section : topicName
-  if (variant === 0) return `O que o material estabelece sobre ${anchor} em ${section}?`
-  if (variant === 1) return `Como deve ser compreendido ${anchor} no tópico ${topicName}?`
-  return `Qual é a ideia essencial associada a ${anchor} em ${section}?`
+  const lead = cardLeads[variant % cardLeads.length]
+  const focus = cardFocus[Math.floor(variant / cardLeads.length) % cardFocus.length]
+  return `${lead} ${anchor} ${focus} ${section || topicName}?`
 }
 
-export function buildTopicItems({ topic, knowledge, existingQuestions = [], existingCards = [], questionTarget = 30, cardTarget = 50 }) {
+function difficultyGroup(value) {
+  const level = Number(value)
+  return level <= 2 ? 'easy' : level === 3 ? 'medium' : 'hard'
+}
+
+function buildQuestion(unit, secondUnit, topic, source, knowledgeVersion, difficulty, cycle) {
+  const lead = questionLeads[cycle % questionLeads.length]
+  const focus = questionFocus[Math.floor(cycle / questionLeads.length) % questionFocus.length]
+  const firstFalse = cycle % 2 === 1 ? negateClaim(unit.claim) : null
+  const firstClaim = firstFalse || unit.claim
+  let claim = firstClaim
+  let evidence = unit.evidence
+  let explanation = `O material de estudo registra: "${unit.claim}"`
+  let falseItem = Boolean(firstFalse)
+  if (difficulty === 'hard' && secondUnit) {
+    const secondFalse = cycle % 3 === 2 ? negateClaim(secondUnit.claim) : null
+    claim = `${firstClaim} Além disso, ${secondFalse || secondUnit.claim}`
+    evidence = `${unit.evidence}\n\n${secondUnit.evidence}`.slice(0, 2600)
+    explanation = `A análise conjunta depende destes fundamentos do material: "${unit.claim}" e "${secondUnit.claim}"`
+    falseItem = falseItem || Boolean(secondFalse)
+  }
+  const depth = difficulty === 'easy' ? 'em formulação direta' : difficulty === 'medium' ? 'em análise intermediária' : 'em análise integrada'
+  return {
+    topico_id: topic.id,
+    tipo: 'CE',
+    enunciado: `${lead}, ${focus} e ${depth}, julgue a proposição relativa a ${topic.name}: ${claim}`,
+    alternativas: null,
+    gabarito: falseItem ? 'E' : 'C',
+    explicacao: explanation,
+    fonte: source,
+    trecho_fonte: evidence,
+    origem: 'material',
+    dificuldade: difficulty === 'easy' ? 1 : difficulty === 'medium' ? 3 : 5,
+    versao_conhecimento: knowledgeVersion || null,
+  }
+}
+
+export function buildTopicItems({ topic, knowledge, existingQuestions = [], existingCards = [], questionTarget = 30, cardTarget = 50, difficultyTargets = null }) {
   const units = extractLearningUnits(knowledge.text)
   if (!units.length) throw new Error(`Nenhuma unidade aproveitável em ${topic.subject} > ${topic.name}.`)
   const source = String(knowledge.source || `${topic.subject} - material de estudo`).trim()
@@ -111,36 +143,32 @@ export function buildTopicItems({ topic, knowledge, existingQuestions = [], exis
   const cardKeys = new Set(existingCards.map((item) => normalizeContent(item.frente)))
   const questions = []
   const cards = []
-  const missingQuestions = Math.max(0, questionTarget - existingQuestions.length)
+  const targetByDifficulty = difficultyTargets || { easy: questionTarget, medium: 0, hard: 0 }
+  const existingByDifficulty = Object.fromEntries(['easy', 'medium', 'hard'].map((group) => [group, existingQuestions.filter((item) => difficultyGroup(item.dificuldade) === group).length]))
+  const missingByDifficulty = difficultyTargets
+    ? Object.fromEntries(['easy', 'medium', 'hard'].map((group) => [group, Math.max(0, Number(targetByDifficulty[group] || 0) - existingByDifficulty[group])]))
+    : { easy: Math.max(0, questionTarget - existingQuestions.length), medium: 0, hard: 0 }
+  const missingQuestions = Object.values(missingByDifficulty).reduce((sum, value) => sum + value, 0)
   const missingCards = Math.max(0, cardTarget - existingCards.length)
 
-  for (let cycle = 0; questions.length < missingQuestions && cycle < units.length * 3; cycle += 1) {
-    const unit = units[cycle % units.length]
-    const falseItem = cycle % 2 === 1 ? negateClaim(unit.claim) : null
-    const claim = falseItem || unit.claim
-    const statement = `Julgue o item a seguir, relativo a ${topic.name}: ${claim}`
-    const key = normalizeContent(statement)
-    if (questionKeys.has(key)) continue
-    const question = {
-      topico_id: topic.id,
-      tipo: 'CE',
-      enunciado: statement,
-      alternativas: null,
-      gabarito: falseItem ? 'E' : 'C',
-      explicacao: `O material de estudo registra: "${unit.claim}"`,
-      fonte: source,
-      trecho_fonte: unit.evidence,
-      origem: 'material',
-      dificuldade: cycle % 5 === 4 ? 2 : 1,
-      versao_conhecimento: knowledge.version || null,
+  for (const difficulty of ['easy', 'medium', 'hard']) {
+    const target = missingByDifficulty[difficulty]
+    let generated = 0
+    for (let cycle = 0; generated < target && cycle < Math.max(1200, units.length * 240); cycle += 1) {
+      const unit = units[cycle % units.length]
+      const secondUnit = units[(cycle * 7 + 3) % units.length]
+      const question = buildQuestion(unit, secondUnit, topic, source, knowledge.version, difficulty, cycle)
+      const key = normalizeContent(question.enunciado)
+      if (questionKeys.has(key)) continue
+      const audit = auditQuestion(question, false)
+      if (!audit.approved) continue
+      questionKeys.add(key)
+      questions.push({ ...question, audit })
+      generated += 1
     }
-    const audit = auditQuestion(question, false)
-    if (!audit.approved) continue
-    questionKeys.add(key)
-    questions.push({ ...question, audit })
   }
 
-  for (let cycle = 0; cards.length < missingCards && cycle < units.length * 4; cycle += 1) {
+  for (let cycle = 0; cards.length < missingCards && cycle < Math.max(1000, units.length * 180); cycle += 1) {
     const unit = units[cycle % units.length]
     const variant = Math.floor(cycle / units.length)
     const front = cardFront(unit, topic.name, variant)

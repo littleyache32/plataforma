@@ -14,6 +14,7 @@ export default async function handler(req, res) {
       const materiaId = queryParam(req, 'materiaId')
       const questaoId = queryParam(req, 'questaoId')
       const somenteRevisao = queryParam(req, 'revisao') === '1'
+      const somenteCaderno = queryParam(req, 'caderno') === '1'
       if (!topicoId && !materiaId && !questaoId) return res.status(400).json({ error: 'Materia, topico ou questao obrigatorio.' })
 
       let query = supabase.from('questao')
@@ -21,6 +22,13 @@ export default async function handler(req, res) {
         .eq('marcada_errada', false)
         .eq('ativa', true)
         .neq('estado', 'arquivada')
+      if (somenteCaderno && !questaoId) {
+        const { data: notebookItems, error: notebookError } = await supabase.from('revisao_item').select('questao_id').eq('status', 'pendente')
+        if (notebookError) throw notebookError
+        const notebookQuestionIds = (notebookItems || []).map((item) => item.questao_id)
+        if (!notebookQuestionIds.length) return res.status(404).json({ error: 'Seu Caderno de Questões está vazio.' })
+        query = query.in('id', notebookQuestionIds)
+      }
       if (somenteRevisao && !questaoId) query = query.not('proxima_revisao', 'is', null).lte('proxima_revisao', new Date().toISOString())
       if (questaoId) query = query.eq('id', questaoId).limit(1)
       else if (topicoId) query = query.eq('topico_id', topicoId).limit(1000)
@@ -91,20 +99,6 @@ export default async function handler(req, res) {
       if (existingCardError) throw existingCardError
       if (existingCard) {
         const { error: cardError } = await supabase.from('question_card').update({ ocorrencias: existingCard.ocorrencias + 1, questao_id: question.id, proxima_revisao: due }).eq('id', existingCard.id)
-        if (cardError) throw cardError
-      } else {
-        const { error: cardError } = await supabase.from('question_card').insert({
-          objetivo_id: materia.objetivo_id,
-          materia_id: materia.id,
-          topico_id: topico.id,
-          questao_id: question.id,
-          chave,
-          frente: question.enunciado,
-          verso: `Gabarito: ${question.gabarito}\n\n${question.explicacao}`,
-          fonte: question.fonte,
-          trecho_fonte: question.trecho_fonte,
-          proxima_revisao: due,
-        })
         if (cardError) throw cardError
       }
     }
