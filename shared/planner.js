@@ -1,7 +1,7 @@
 import { resolveMentorPolicy } from './mentor-policy.js'
 
 const DAY_MS = 86_400_000
-export const MENTORSHIP_START = '2026-08-10'
+export const MENTORSHIP_START = '2026-08-17'
 
 function isoDate(date) {
   return date.toISOString().slice(0, 10)
@@ -30,8 +30,7 @@ export function canGenerateMentorWeek({ weekStart, today }) {
   const start = new Date(`${weekStart}T12:00:00Z`)
   const end = new Date(start); end.setUTCDate(end.getUTCDate() + 6)
   const current = new Date(`${today}T12:00:00Z`)
-  if (weekStart === MENTORSHIP_START && current <= end) return true
-  if (today < '2026-08-09') return false
+  if (today < '2026-08-16') return false
   if (current >= start && current <= end) return true
   const tomorrow = new Date(current); tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
   return current.getUTCDay() === 0 && isoDate(tomorrow) === weekStart
@@ -121,7 +120,7 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     faculdade: targets.filter((item) => item.context === 'faculdade' && !normalized(item.subject).includes('analise e producao de texto')),
   }
   const rotationSeed = Math.floor(new Date(`${weekStart}T12:00:00Z`).getTime() / (DAY_MS * 7))
-  const onboarding = weekStart >= MENTORSHIP_START && weekStart < '2026-08-24'
+  const onboarding = weekStart >= MENTORSHIP_START && weekStart < '2026-08-31'
   const rows = []
 
   for (let day = 0; day < 7; day += 1) {

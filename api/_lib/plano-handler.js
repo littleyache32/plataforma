@@ -48,10 +48,19 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
     supabase.from('sessao').select('id,data,status,movida_em,movida_pelo_mentor_em,ordem,duracao_estimada,prioridade').eq('status', 'planejada').lt('data', inicio).order('data').limit(100),
     loadModuleKnowledge(supabase, 'mentor').then((data) => ({ data })).catch(() => supabase.from('mentor_conhecimento').select('versao,politica').eq('ativo', true).order('criado_em', { ascending: false }).limit(1).maybeSingle()),
     supabase.from('questao').select('id,topico_id,proxima_revisao').eq('ativa', true).eq('marcada_errada', false).not('proxima_revisao', 'is', null).lte('proxima_revisao', `${weekEnd}T23:59:59-03:00`),
+    supabase.from('acervo_meta').select('topico_id').eq('expansao_bloqueada', false),
   ])
   const error = results.find((item) => item.error)?.error
   if (error) throw error
-  const [catalogResult, recordsResult, reviewResult, commitmentsResult, existingResult, carryoverResult, knowledgeResult, spacedQuestionResult] = results
+  const [catalogResult, recordsResult, reviewResult, commitmentsResult, existingResult, carryoverResult, knowledgeResult, spacedQuestionResult, availableTopicsResult] = results
+  const availableTopicIds = new Set((availableTopicsResult.data || []).map((item) => item.topico_id))
+  const mentorCatalog = (catalogResult.data || []).map((objective) => objective.tipo !== 'concurso' ? objective : ({
+    ...objective,
+    materias: (objective.materias || []).map((subject) => ({
+      ...subject,
+      topicos: (subject.topicos || []).filter((topic) => availableTopicIds.has(topic.id)),
+    })).filter((subject) => subject.topicos.length),
+  }))
   const modularPolicy = knowledgeResult.data?.conteudo?.politica
   const policy = knowledgeResult.data ? { ...(modularPolicy || knowledgeResult.data.politica || {}), versao: knowledgeResult.data.versao } : {}
   const grouped = new Map()
@@ -71,7 +80,7 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
     reviewGroups.set(key, current)
   }
   const scheduledQuestionReviews = allocateQuestionReviews(reviewGroups.values(), inicio, weekEnd)
-  const demands = buildMentorWeek({ weekStart: inicio, catalog: catalogResult.data || [], priorities, pendingReviews: reviewResult.count || 0, scheduledQuestionReviews, commitments: commitmentsResult.data || [], policy })
+  const demands = buildMentorWeek({ weekStart: inicio, catalog: mentorCatalog, priorities, pendingReviews: reviewResult.count || 0, scheduledQuestionReviews, commitments: commitmentsResult.data || [], policy })
   if (!demands.length) return { status: 200, body: { criadas: 0, motivo: 'Nenhuma disciplina disponivel.' } }
   const existingByKey = new Map((existingResult.data || []).map((item) => [item.chave_mentor, item]))
   const recalibrated = demands.map((item) => {
@@ -86,7 +95,7 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
   const upsert = await supabase.from('sessao').upsert(recalibrated, { onConflict: 'chave_mentor' }).select('id')
   if (upsert.error) throw upsert.error
   const activeKeys = new Set(demands.map((item) => item.chave_mentor))
-  const onboardingWithoutCards = inicio >= '2026-08-10' && inicio < '2026-08-24'
+  const onboardingWithoutCards = inicio >= '2026-08-17' && inicio < '2026-08-31'
   const obsoleteIds = (existingResult.data || []).filter((item) => {
     if (item.status !== 'planejada') return false
     if (onboardingWithoutCards && item.chave_mentor && !activeKeys.has(item.chave_mentor)) return true

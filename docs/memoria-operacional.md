@@ -1,6 +1,6 @@
 # Memória operacional da plataforma
 
-Última atualização: 10 de agosto de 2026.
+Última atualização: 11 de agosto de 2026.
 
 ## Finalidade
 
@@ -44,7 +44,8 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - Atividades normais duram 30, 60 ou no máximo 90 minutos. Provas e simulados podem exceder.
 - Arrastar demanda significa reorganizar a ordem dentro do mesmo dia. Não mover entre dias por arraste.
 - Demanda não concluída deve ser redistribuída pelo mentor para um dia posterior possível.
-- De 10 a 23 de agosto de 2026: três horas diárias, sendo uma hora de Faculdade de segunda a quinta e duas horas de BACEN; sexta a domingo são três horas de BACEN; sem questões, Question Cards ou simulados.
+- De 17 a 30 de agosto de 2026: três horas diárias, sendo uma hora de Faculdade de segunda a quinta e duas horas de BACEN; sexta a domingo são três horas de BACEN; sem questões, Question Cards ou simulados.
+- A semana é preparada automaticamente no domingo às 23h30, horário de Brasília. Abrir o aplicativo na segunda-feira funciona como contingência caso a execução agendada não ocorra.
 - Faculdade segue aula dada, aula estudada: Pessoas e Negócios na segunda, Teoria do Crime na terça, Teorias da Justiça na quarta e Teoria da Constituição na quinta.
 - Após a fase inicial, BACEN tem prioridade de carga. Question Cards BACEN são diários quando liberados; Faculdade, duas vezes por semana.
 - Simulados só podem ser considerados a partir da semana de 7 de setembro de 2026.
@@ -63,7 +64,8 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - Erro, Dúvida e Sem conhecimento enviam automaticamente a questão ao Caderno de Questões. O caderno é uma opção própria dentro de Questões e alimenta futuras revisões.
 - Cards devem ser atômicos, específicos, baseados em recuperação ativa e sem duplicidade. Priorizar recordação, distinção, aplicação, exceção e correção.
 - Responder questões não pode elevar o tópico acima de 50 Question Cards. O fluxo atualiza card correspondente quando existente; o Caderno absorve a necessidade de revisão sem criar excedente.
-- Em 11 de agosto de 2026, o usuário determinou a exclusão integral das questões e dos Question Cards de Faculdade e BACEN. O acervo deve permanecer vazio até nova autorização explícita para reconstrução. As metas de 100 questões e 50 cards por tópico continuam apenas como especificação para uma reconstrução futura.
+- Em 11 de agosto de 2026, o usuário autorizou reconstruir o acervo BACEN exclusivamente a partir dos PDFs do Estratégia fornecidos por ele, sem Gemini. Só tópicos com fonte específica suficiente podem receber questões e cards; tópicos sem fonte ficam bloqueados.
+- Os PDFs pagos do Estratégia não podem ser enviados ao GitHub. O texto integral fica apenas no Supabase protegido, e o repositório guarda importadores, mapeamentos e auditorias.
 
 ## Erros anteriores e prevenção
 
@@ -118,3 +120,7 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - 2026-08-11, nova regra de revisão: erro, Dúvida e Sem conhecimento devem incluir automaticamente a questão no Caderno de Questões para revisões futuras.
 - 2026-08-11, acervo normalizado: os 113 tópicos aplicáveis ficaram com exatamente 11.300 questões e 5.650 Question Cards. Cada tópico possui 100 questões, sendo 60 fáceis, 30 médias e 10 difíceis, e 50 cards. A transação adicionou 8.367 questões e 1.290 cards e arquivou recuperavelmente 185 questões e 640 cards excedentes. Gatilhos no banco impedem novos excedentes.
 - 2026-08-11, exclusão solicitada: o usuário determinou apagar todas as questões e todos os Question Cards de Faculdade e BACEN. A limpeza inclui os registros diretamente dependentes, mas preserva objetivos, disciplinas, tópicos, materiais, conhecimento, mentor e planejamento. Regra resultante: não repovoar o acervo sem nova autorização explícita.
+- 2026-08-11, novo início: a data real da mentoria passou a ser 17 de agosto de 2026. Sessões anteriores foram removidas, e as duas semanas de construção de base passaram a abranger 17 a 30 de agosto.
+- 2026-08-11, nova fonte autorizada: 11 pacotes do Estratégia foram auditados, totalizando 114 PDFs únicos, 24.410 páginas, nenhuma página sem texto e nenhuma falha de extração. O material didático local criado anteriormente foi removido.
+- 2026-08-11, cobertura conservadora: os PDFs sustentam diretamente 63 dos 71 tópicos BACEN. Oito tópicos sem aula específica permanecem bloqueados para impedir conteúdo inventado: Gestão de Políticas Públicas; Licitações e Lei 8.666; Serviços Públicos; Correio Eletrônico; Word/Writer; Navegadores; Probabilidade; Problemas com Dados, Figuras e Palitos.
+- 2026-08-11, reconstrução autorizada: foram importados 114 materiais, 6.300 questões e 3.150 Question Cards para os 63 tópicos cobertos. Cada tópico coberto tem exatamente 100 questões, com 60 fáceis, 30 médias, 10 difíceis, 75 CE e 25 ME, além de 50 cards. A reconstrução ocorreu sem Gemini e passou na auditoria transacional.
