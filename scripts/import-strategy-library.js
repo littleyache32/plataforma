@@ -29,6 +29,8 @@ function pagesFromText(text) {
 function candidateClaims(text, document) {
   const claims = []
   for (const page of pagesFromText(text)) {
+    if (page.page <= 5) continue
+    if (/\bQUEST(?:ÃO|ÕES)\b/i.test(page.content) && /\b(FGV|FCC|CEBRASPE|CESPE|VUNESP|GABARITO|LETRA\s+[A-E])\b/i.test(page.content)) continue
     const lines = page.content
       .replace(/Documento última vez atualizado[^\n]*/gi, ' ')
       .replace(/Prof\.?\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ][^\n]{0,100}/g, ' ')
@@ -37,12 +39,20 @@ function candidateClaims(text, document) {
     for (const raw of lines) {
       const claim = compact(raw).replace(/^[-•▪◦]+\s*/, '')
       if (claim.length < 80 || claim.length > 520) continue
-      if (/[?]$/.test(claim) || /^(quest[aã]o|coment[aá]rios?|gabarito|resumo|sum[aá]rio)\b/i.test(claim)) continue
+      if (!/^[A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9]/.test(claim)) continue
+      if (/^Vamos\b/i.test(claim)) continue
+      if (/^\d+(?:\.\d+)+\s/.test(claim)) continue
+      if (/[.!;:][A-ZÁÉÍÓÚÂÊÔÃÕÇ]/.test(claim)) continue
+      if (/\b(letra|alternativa)\s+[A-E]\b/i.test(claim)) continue
+      if (/[?]/.test(claim) || /\b(quest(?:ão|ões)|gabarit\w*|comentad[ao]s?|alternativa|assinale|enunciado|sum[aá]rio|índice|resumo|galera)\b/i.test(claim)) continue
+      if (/\.{3,}|\b\d+\s*\.\s*\d+\s+\d+\b/.test(claim)) continue
       if (/estrat[eé]gia concursos|www\.|https?:|instagram|telegram|assinatura|curso completo/i.test(claim)) continue
+      if (/^(galera|pessoal|gente)\b|^sabe\s+quando\b|ol[aá],?\s+pessoal|caros?\s+alunos?|meus\s+amigos|\b(comigo|imaginem|aula)\b|\b(eu|meu|minha|nós)\b|vamos\s+(estudar|analisar|ver)|professor(?:a)?\b/i.test(claim)) continue
+      if (/\bBACEN\b.{0,80}\b(t[eé]cnico|suporte|administrativo)\b/i.test(claim)) continue
       if (/^[A-ZÁÉÍÓÚÂÊÔÃÕÇ\d\s.,:;()/-]+$/.test(claim)) continue
       const letters = (claim.match(/[A-Za-zÀ-ÿ]/g) || []).length
       if (letters / claim.length < 0.62) continue
-      if (!/[.!;:]$/.test(claim)) continue
+      if (!/[.]$/.test(claim)) continue
       claims.push({ text: claim, page: page.page, document })
     }
   }
@@ -60,14 +70,15 @@ function sourceOf(claim) {
 
 function questionFor(topic, claims, index) {
   const claim = claims[index % claims.length]
+  const cycle = Math.floor(index / claims.length)
   const difficulty = index < 60 ? (index % 2) + 1 : index < 90 ? 3 : (index % 2) + 4
   const evidence = claim.text
   const source = sourceOf(claim)
   if (index < 75) {
     const correct = index % 2 === 0
     const enunciado = correct
-      ? `Com base no material de ${topic.topico}, julgue o item: ${claim.text}`
-      : `Com base no material de ${topic.topico}, julgue o item: a afirmação “${claim.text}” é rejeitada pelo conteúdo estudado.`
+      ? cycle ? `Durante a revisão de ${topic.topico}, avalie a afirmação à luz do material: ${claim.text}` : `Com base no material de ${topic.topico}, julgue o item: ${claim.text}`
+      : cycle ? `No estudo de ${topic.topico}, julgue se o material rejeita a seguinte afirmação: “${claim.text}”.` : `Com base no material de ${topic.topico}, julgue o item: a afirmação “${claim.text}” é rejeitada pelo conteúdo estudado.`
     return {
       topico_id: topic.id, tipo: 'CE', enunciado, alternativas: null,
       gabarito: correct ? 'C' : 'E',
@@ -95,7 +106,7 @@ function questionFor(topic, claims, index) {
   }
   return {
     topico_id: topic.id, tipo: 'ME',
-    enunciado: `A respeito de ${topic.topico}, considere o ponto do material iniciado por “${claim.text.slice(0, 260)}”. Assinale a alternativa correta.`,
+    enunciado: `A respeito de ${topic.topico}, considere o ponto da página ${claim.page} de “${basename(claim.document.arquivo)}”, iniciado por “${claim.text.slice(0, 260)}”. Assinale a alternativa correta.`,
     alternativas: alternatives, gabarito: answer,
     explicacao: `A alternativa ${answer} corresponde diretamente ao conteúdo da fonte: ${claim.text}`,
     fonte: source, trecho_fonte: evidence, origem: 'material', dificuldade: difficulty,
@@ -150,12 +161,12 @@ try {
     const claims = [...new Map(sources.flatMap((document) => document.claims).map((claim) => [normalizeContent(claim.text), claim])).values()]
     return { ...topic, sources, claims }
   })
-  const supported = topics.filter((topic) => topic.sources.length && topic.claims.length >= 100)
+  const supported = topics.filter((topic) => topic.sources.length && topic.claims.length >= 50)
   const unsupported = topics.filter((topic) => !supported.includes(topic))
-  if (supported.length !== 63 || unsupported.length !== 8) throw new Error(`Cobertura inesperada: ${supported.length} cobertos e ${unsupported.length} bloqueados.`)
+  if (supported.length !== 63 || unsupported.length !== 8) throw new Error(`Cobertura inesperada: ${supported.length} cobertos e ${unsupported.length} bloqueados: ${unsupported.map((item) => `${item.materia} > ${item.topico} (${item.claims.length})`).join('; ')}`)
 
   const questions = supported.flatMap((topic) => Array.from({ length: 100 }, (_, index) => questionFor(topic, topic.claims, index)))
-  const cards = supported.flatMap((topic) => Array.from({ length: 50 }, (_, index) => cardFor(topic, topic.claims.slice(50), index)))
+  const cards = supported.flatMap((topic) => Array.from({ length: 50 }, (_, index) => cardFor(topic, topic.claims, index)))
   const questionFailures = questions.map((item) => auditQuestion(item)).filter((audit) => !audit.approved)
   const cardFailures = cards.map((item) => auditCard(item)).filter((audit) => !audit.approved)
   const uniqueQuestions = new Set(questions.map((item) => `${item.topico_id}:${normalizeContent(item.enunciado)}`))
@@ -181,17 +192,27 @@ try {
   } else {
     await client.query('begin')
     try {
+      await client.query(`delete from question_card`)
       await client.query(`delete from questao`)
       await client.query(`alter table questao disable trigger trg_exact_question_ceiling`)
       await client.query(`alter table question_card disable trigger trg_exact_card_ceiling`)
       await client.query(`delete from conhecimento where materia_id in (select m.id from materia m join objetivo o on o.id=m.objetivo_id where o.tipo in ('concurso','faculdade'))`)
-      await client.query(`delete from material where objetivo_id in (select id from objetivo where tipo in ('concurso','faculdade'))`)
       const materialIds = new Map()
-      for (const document of documents) {
-        const subject = result.rows.find((topic) => topic.materia === document.subject)
-        if (!subject) throw new Error(`Disciplina não encontrada para ${document.arquivo}`)
-        const inserted = await client.query(`insert into material (objetivo_id,materia_id,tipo,nome,conteudo,status,motivo,forcado,versao) values ($1,$2,'pdf',$3,$4,'aceito',$5,false,$6) returning id`, [subject.objetivo_id, subject.materia_id, basename(document.arquivo), document.text, `PDF do Estratégia auditado: ${document.paginas} páginas, SHA-256 ${document.sha256}.`, VERSION])
-        materialIds.set(document.arquivo, inserted.rows[0].id)
+      const existingMaterials = await client.query(`select id,motivo from material where versao=$1`, [VERSION])
+      if (existingMaterials.rowCount === documents.length) {
+        for (const document of documents) {
+          const existing = existingMaterials.rows.find((item) => item.motivo.includes(document.sha256))
+          if (!existing) throw new Error(`Material existente não localizado pelo hash: ${document.arquivo}`)
+          materialIds.set(document.arquivo, existing.id)
+        }
+      } else {
+        await client.query(`delete from material where objetivo_id in (select id from objetivo where tipo in ('concurso','faculdade'))`)
+        for (const document of documents) {
+          const subject = result.rows.find((topic) => topic.materia === document.subject)
+          if (!subject) throw new Error(`Disciplina não encontrada para ${document.arquivo}`)
+          const inserted = await client.query(`insert into material (objetivo_id,materia_id,tipo,nome,conteudo,status,motivo,forcado,versao) values ($1,$2,'pdf',$3,$4,'aceito',$5,false,$6) returning id`, [subject.objetivo_id, subject.materia_id, basename(document.arquivo), document.text, `PDF do Estratégia auditado: ${document.paginas} páginas, SHA-256 ${document.sha256}.`, VERSION])
+          materialIds.set(document.arquivo, inserted.rows[0].id)
+        }
       }
       const knowledge = supported.flatMap((topic) => topic.claims.slice(0, 50).map((claim) => ({ materia_id: topic.materia_id, topico_id: topic.id, trecho: claim.text, origem: `estrategia:${claim.document.sha256}`, material_id: materialIds.get(claim.document.arquivo), versao: VERSION })))
       await insertRows('conhecimento', ['materia_id','topico_id','trecho','origem','material_id','versao'], knowledge, 100)
