@@ -1,6 +1,6 @@
-import { getSupabaseAdmin } from './_lib/supabase.js'
-import { allowMethods, fail, queryParam, requireAccess } from './_lib/http.js'
-import { scoreboard } from '../shared/mentor.js'
+import { getSupabaseAdmin } from './supabase.js'
+import { allowMethods, fail, queryParam, requireAccess } from './http.js'
+import { scoreboard } from '../../shared/mentor.js'
 
 function percent(value, total) { return total ? Math.round((value / total) * 100) : 0 }
 

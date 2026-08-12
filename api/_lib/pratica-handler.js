@@ -1,7 +1,7 @@
-import { getSupabaseAdmin } from './_lib/supabase.js'
-import { allowMethods, fail, queryParam, requireAccess } from './_lib/http.js'
-import { practiceTransition, selectPracticeQuestion, shouldShowExplanation } from '../shared/practice.js'
-import { cardKey, cardTransition } from '../shared/cards.js'
+import { getSupabaseAdmin } from './supabase.js'
+import { allowMethods, fail, queryParam, requireAccess } from './http.js'
+import { practiceTransition, selectPracticeQuestion, shouldShowExplanation } from '../../shared/practice.js'
+import { cardKey, cardTransition } from '../../shared/cards.js'
 
 const classifications = ['certeza', 'duvida', 'eliminacao', 'sem_conhecimento']
 

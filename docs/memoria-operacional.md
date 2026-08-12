@@ -83,6 +83,7 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - Demandas e execuções do mentor usam chaves únicas. O plano é bloqueado se houver duplicidade ou carga superior a 480 minutos no dia.
 - O fechamento transfere no máximo três pendências e somente quando elas couberem na capacidade do dia. Tópicos sem fonte específica não entram no planejamento.
 - Falhas de funções e do cron são registradas para resolução no painel administrativo.
+- A implantação gratuita usa sete funções serverless: Autenticação, Estudos, Planejamento, Desempenho, Mentor, Administração e Cron. Os handlers permanecem separados em `api/_lib`; consolidar a porta de entrada não autoriza misturar responsabilidades no código nem remover funcionalidades.
 
 ## Erros anteriores e prevenção
 
@@ -151,3 +152,4 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - 2026-08-11, adaptação de carga: depois das duas semanas iniciais fixas, o mentor reduz somente os blocos de estudo BACEN para 30 minutos quando a aderência recente fica abaixo de 70%, mantém 60 minutos na faixa sustentável e amplia para 90 minutos apenas depois de duas semanas consecutivas com pelo menos 85%.
 - 2026-08-12, seleção de escopo: foram aprovados P1 itens 5 e 6; P2 itens 5 e 6; P3 itens 1, 3, 4, 5 e 6; P4 itens 2, 3 e 5. P1 item 4 já estava concluído. Os demais itens da lista original não devem ser inferidos como aprovados.
 - 2026-08-12, entrega operacional: o mentor passou a produzir fechamento semanal e trajetória condicionada à existência de data-alvo; cards ganharam denúncia e limite diário; o Administrador recebeu saúde, falhas, auditoria, cobertura e backup; e o planejador passou a bloquear duplicidade, excesso diário e transferência descontrolada.
+- 2026-08-12, arquitetura aprovada: as doze portas serverless foram consolidadas em sete áreas para preservar margem no plano gratuito da Vercel. As URLs públicas e os handlers especializados devem continuar separados e compatíveis. Timer de foco, alertas do mentor, modo offline, busca global e comparador de edital foram apenas sugestões e não estão autorizados para implementação.

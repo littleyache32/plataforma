@@ -1,11 +1,11 @@
-import { getSupabaseAdmin } from '../_lib/supabase.js'
-import { generateJson } from '../_lib/gemini.js'
-import { generationPrompt, normalizeQuestion, questionBatchSchema } from '../_lib/questions.js'
-import { allowMethods, enforceRateLimit, fail, requireAccess } from '../_lib/http.js'
-import { queryParam } from '../_lib/http.js'
-import archiveHandler from '../_lib/acervo-handler.js'
-import rebuildHandler from '../_lib/rebuild-handler.js'
-import panelHandler from '../_lib/painel-handler.js'
+import { getSupabaseAdmin } from './supabase.js'
+import { generateJson } from './gemini.js'
+import { generationPrompt, normalizeQuestion, questionBatchSchema } from './questions.js'
+import { allowMethods, enforceRateLimit, fail, requireAccess } from './http.js'
+import { queryParam } from './http.js'
+import archiveHandler from './acervo-handler.js'
+import rebuildHandler from './rebuild-handler.js'
+import panelHandler from './painel-handler.js'
 
 export default async function handler(req, res) {
   if (queryParam(req, 'recurso') === 'painel') return panelHandler(req, res)

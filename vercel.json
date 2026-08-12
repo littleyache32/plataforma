@@ -6,12 +6,21 @@
   "outputDirectory": "dist",
   "crons": [{ "path": "/api/cron/mentor", "schedule": "30 2 * * 1" }],
   "rewrites": [
-    { "source": "/api/health", "destination": "/api/catalogo?recurso=health" },
-    { "source": "/api/plano", "destination": "/api/sessoes?recurso=plano" },
-    { "source": "/api/estudo", "destination": "/api/catalogo?recurso=estudo" },
-    { "source": "/api/admin/acervo", "destination": "/api/admin/seed?recurso=acervo" },
-    { "source": "/api/admin/reconstruir", "destination": "/api/admin/seed?recurso=reconstruir" },
-    { "source": "/api/admin/painel", "destination": "/api/admin/seed?recurso=painel" }
+    { "source": "/api/catalogo", "destination": "/api/estudos?modulo=catalogo" },
+    { "source": "/api/questoes", "destination": "/api/estudos?modulo=questoes" },
+    { "source": "/api/pratica", "destination": "/api/estudos?modulo=pratica" },
+    { "source": "/api/health", "destination": "/api/estudos?modulo=catalogo&recurso=health" },
+    { "source": "/api/estudo", "destination": "/api/estudos?modulo=catalogo&recurso=estudo" },
+    { "source": "/api/objetivos", "destination": "/api/planejamento?modulo=objetivos" },
+    { "source": "/api/sessoes", "destination": "/api/planejamento?modulo=sessoes" },
+    { "source": "/api/plano", "destination": "/api/planejamento?modulo=sessoes&recurso=plano" },
+    { "source": "/api/placar", "destination": "/api/desempenho?modulo=placar" },
+    { "source": "/api/simulados", "destination": "/api/desempenho?modulo=simulados" },
+    { "source": "/api/admin/materiais", "destination": "/api/admin?modulo=materiais" },
+    { "source": "/api/admin/seed", "destination": "/api/admin?modulo=seed" },
+    { "source": "/api/admin/acervo", "destination": "/api/admin?modulo=seed&recurso=acervo" },
+    { "source": "/api/admin/reconstruir", "destination": "/api/admin?modulo=seed&recurso=reconstruir" },
+    { "source": "/api/admin/painel", "destination": "/api/admin?modulo=painel" }
   ],
   "functions": {
     "api/**/*.js": {

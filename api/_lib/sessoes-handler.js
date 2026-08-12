@@ -1,6 +1,6 @@
-import { getSupabaseAdmin } from './_lib/supabase.js'
-import { allowMethods, fail, queryParam, requireAccess } from './_lib/http.js'
-import planHandler from './_lib/plano-handler.js'
+import { getSupabaseAdmin } from './supabase.js'
+import { allowMethods, fail, queryParam, requireAccess } from './http.js'
+import planHandler from './plano-handler.js'
 
 export default async function handler(req, res) {
   if (queryParam(req, 'recurso') === 'plano') return planHandler(req, res)

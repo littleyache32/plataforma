@@ -1,8 +1,8 @@
 import { PDFParse } from 'pdf-parse'
 import { randomUUID } from 'node:crypto'
-import { getSupabaseAdmin } from '../_lib/supabase.js'
-import { generateJson } from '../_lib/gemini.js'
-import { allowMethods, enforceRateLimit, fail, requireAccess } from '../_lib/http.js'
+import { getSupabaseAdmin } from './supabase.js'
+import { generateJson } from './gemini.js'
+import { allowMethods, enforceRateLimit, fail, requireAccess } from './http.js'
 
 const materialSchema = {
   type: 'object',

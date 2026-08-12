@@ -244,7 +244,7 @@ async function sanitizeCode() {
     await writeFile(path, content)
   }
 
-  await replaceIn('api/admin/seed.js', [
+  await replaceIn('api/_lib/seed-handler.js', [
     [/import archiveHandler[^\n]+\n/, ''],
     [/import rebuildHandler[^\n]+\n/, ''],
     [/\s*if \(queryParam\(req, 'recurso'\) === 'acervo'\)[^\n]+\n/, '\n'],

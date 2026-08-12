@@ -1,6 +1,6 @@
-import { getSupabaseAdmin } from './_lib/supabase.js'
-import { allowMethods, fail, queryParam, requireAccess } from './_lib/http.js'
-import { cardTransition } from '../shared/cards.js'
+import { getSupabaseAdmin } from './supabase.js'
+import { allowMethods, fail, queryParam, requireAccess } from './http.js'
+import { cardTransition } from '../../shared/cards.js'
 
 const reportReasons = ['gabarito_incorreto', 'questao_ambigua', 'fonte_insuficiente', 'conteudo_desatualizado', 'erro_formatacao']
 const cardReportReasons = ['card_ambiguo', 'card_incompleto', 'card_incorreto']

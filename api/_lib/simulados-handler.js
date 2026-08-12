@@ -1,5 +1,5 @@
-import { getSupabaseAdmin } from './_lib/supabase.js'
-import { allowMethods, fail, queryParam, requireAccess } from './_lib/http.js'
+import { getSupabaseAdmin } from './supabase.js'
+import { allowMethods, fail, queryParam, requireAccess } from './http.js'
 
 const classifications = ['certeza', 'duvida', 'eliminacao', 'sem_conhecimento']
 

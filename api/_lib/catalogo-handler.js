@@ -1,6 +1,6 @@
-import { getSupabaseAdmin } from './_lib/supabase.js'
-import { allowMethods, fail, queryParam, requireAccess } from './_lib/http.js'
-import studyHandler from './_lib/estudo-handler.js'
+import { getSupabaseAdmin } from './supabase.js'
+import { allowMethods, fail, queryParam, requireAccess } from './http.js'
+import studyHandler from './estudo-handler.js'
 
 const countPageSize = 1000
 
