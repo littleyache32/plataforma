@@ -11,7 +11,7 @@ export default async function handler(req, res) {
       const inicio = queryParam(req, 'inicio')
       const fim = queryParam(req, 'fim')
       const objetivoId = queryParam(req, 'objetivoId')
-      let query = supabase.from('sessao').select('id,titulo,tipo,data,duracao_estimada,duracao_realizada,status,prioridade,ordem,ordenada_em,movida_em,movida_pelo_mentor_em,origem,objetivo:objetivo_id(id,nome,tipo),materia:materia_id(id,nome),topico:topico_id(id,nome)').order('data').order('ordem').order('prioridade')
+      let query = supabase.from('sessao').select('id,titulo,tipo,data,data_planejada_original,duracao_estimada,duracao_realizada,status,concluida_em,prioridade,ordem,ordenada_em,movida_em,movida_pelo_mentor_em,origem,objetivo:objetivo_id(id,nome,tipo),materia:materia_id(id,nome),topico:topico_id(id,nome)').order('data').order('ordem').order('prioridade')
       if (inicio) query = query.gte('data', inicio)
       if (fim) query = query.lte('data', fim)
       if (objetivoId) query = query.eq('objetivo_id', objetivoId)
@@ -42,6 +42,7 @@ export default async function handler(req, res) {
         if (!['planejada', 'feita', 'parcial'].includes(status)) return res.status(400).json({ error: 'Status de conclusao invalido.' })
         update.status = status
         update.duracao_realizada = status === 'planejada' ? null : Number.isInteger(duracaoRealizada) ? duracaoRealizada : null
+        update.concluida_em = status === 'feita' ? new Date().toISOString() : null
       }
       if (!Object.keys(update).length) return res.status(400).json({ error: 'Informe uma alteracao para a demanda.' })
       const { error } = await supabase.from('sessao').update(update).eq('id', id)

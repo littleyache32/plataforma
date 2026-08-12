@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildMentorWeek, canGenerateMentorWeek, planOverdueMoves } from '../shared/planner.js'
+import { adherenceAdjustment, buildMentorWeek, canGenerateMentorWeek, planOverdueMoves } from '../shared/planner.js'
 
 const catalog = [
   { id: 'bacen', tipo: 'concurso', materias: [{ id: 'cont', nome: 'Contabilidade', topicos: [{ id: 'cont-1', nome: 'Balanço' }] }] },
@@ -122,5 +122,37 @@ describe('buildMentorWeek', () => {
     const expanded = [{ id: 'bacen', tipo: 'concurso', materias: [{ id: 'cont', nome: 'Contabilidade', topicos: [{ id: 'forte', nome: 'Fortes' }, { id: 'fraco', nome: 'Fracos' }] }] }]
     const result = buildMentorWeek({ weekStart: '2026-08-17', catalog: expanded, priorities: [{ id: 'fraco' }] })
     expect(result.some((item) => item.topico_id === 'fraco')).toBe(true)
+  })
+
+  it('reduz apenas o estudo BACEN quando a aderencia fica abaixo de 70%', () => {
+    const result = buildMentorWeek({
+      weekStart: '2026-08-31',
+      catalog,
+      adherenceHistory: [{ inicio: '2026-08-24', planejadas: 10, concluidas: 6 }],
+    })
+    expect(adherenceAdjustment([{ planejadas: 10, concluidas: 6 }]).nivel).toBe('reduzir')
+    expect(result.filter((item) => item.chave_mentor.includes('estudo-bacen')).every((item) => item.duracao_estimada === 30)).toBe(true)
+    expect(result.filter((item) => item.tipo === 'especial' && item.objetivo_id === 'bacen')).toHaveLength(7)
+    expect(result.filter((item) => item.chave_mentor.includes('questoes-bacen'))).toHaveLength(7)
+  })
+
+  it('aumenta o estudo BACEN somente apos duas semanas com pelo menos 85%', () => {
+    const oneWeek = adherenceAdjustment([{ planejadas: 10, concluidas: 9 }])
+    const twoWeeks = [{ planejadas: 10, concluidas: 9 }, { planejadas: 12, concluidas: 11 }]
+    const result = buildMentorWeek({ weekStart: '2026-08-31', catalog, adherenceHistory: twoWeeks })
+    expect(oneWeek.nivel).toBe('manter')
+    expect(adherenceAdjustment(twoWeeks).nivel).toBe('aumentar')
+    expect(result.filter((item) => item.chave_mentor.includes('estudo-bacen')).every((item) => item.duracao_estimada === 90)).toBe(true)
+  })
+
+  it('nao altera a carga fixa das duas semanas iniciais por causa da aderencia', () => {
+    const result = buildMentorWeek({
+      weekStart: '2026-08-24',
+      catalog,
+      adherenceHistory: [{ planejadas: 21, concluidas: 2 }],
+    })
+    const totals = result.reduce((map, item) => map.set(item.data, (map.get(item.data) || 0) + item.duracao_estimada), new Map())
+    expect([...totals.values()].every((total) => total === 180)).toBe(true)
+    expect(result.every((item) => item.tipo === 'estudo')).toBe(true)
   })
 })

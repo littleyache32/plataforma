@@ -4,7 +4,7 @@ import { api } from '../api.js'
 const typeLabels = { estudo: 'Estudo', revisao: 'Revisão', exercicio: 'Exercício', especial: 'Especial', questoes: 'Exercício', simulado: 'Exercício', aula: 'Estudo', prova: 'Exercício', trabalho: 'Estudo' }
 const typeClasses = { estudo: 'estudo', revisao: 'revisao', exercicio: 'exercicio', especial: 'especial', questoes: 'exercicio', simulado: 'exercicio', aula: 'estudo', prova: 'exercicio', trabalho: 'estudo' }
 const priorities = { 1: 'Alta', 2: 'Média', 3: 'Baixa', 4: 'Flexível' }
-const mentorshipStart = '2026-08-10'
+const mentorshipStart = '2026-08-17'
 
 function localIso(date) {
   const offset = date.getTimezoneOffset() * 60_000

@@ -41,6 +41,7 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 
 - O usuário é o mentorado. A plataforma prepara e recalibra a semana.
 - Demandas são orientadas por entrega, não por horário rígido.
+- A demanda deve ser concluída inteira na mesma execução. Ultrapassar a estimativa não cria continuação, não divide a atividade e não reduz a aderência quando a entrega foi concluída.
 - Atividades normais duram 30, 60 ou no máximo 90 minutos. Provas e simulados podem exceder.
 - Arrastar demanda significa reorganizar a ordem dentro do mesmo dia. Não mover entre dias por arraste.
 - Demanda não concluída deve ser redistribuída pelo mentor para um dia posterior possível.
@@ -48,6 +49,7 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - A semana é preparada automaticamente no domingo às 23h30, horário de Brasília. Abrir o aplicativo na segunda-feira funciona como contingência caso a execução agendada não ocorra.
 - Faculdade segue aula dada, aula estudada: Pessoas e Negócios na segunda, Teoria do Crime na terça, Teorias da Justiça na quarta e Teoria da Constituição na quinta.
 - Após a fase inicial, BACEN tem prioridade de carga. Question Cards BACEN são diários quando liberados; Faculdade, duas vezes por semana.
+- Após a fase inicial, a carga de estudo BACEN se adapta pela conclusão das demandas: abaixo de 70% na semana mais recente, o bloco cai de 60 para 30 minutos; entre 70% e 85%, permanece em 60 minutos; a partir de 85% por duas semanas consecutivas, sobe para 90 minutos. Faculdade, revisões vencidas, Questões e Question Cards não são removidos por esse ajuste.
 - Simulados só podem ser considerados a partir da semana de 7 de setembro de 2026.
 - A matéria Análise e Produção de Texto não recebe questões nem Question Cards.
 
@@ -131,3 +133,5 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - 2026-08-11, segunda correção de Question Cards: amostragem aleatória mostrou que forçar 50 cards por tópico mantinha conectivos sem contexto, linguagem de aula e respostas incompletas. Regra resultante: o acervo ideal passa a 1.890 cards, 30 por tópico coberto, aceitando apenas trechos autossuficientes e removendo o corte automático de expressões.
 - 2026-08-11, terceira correção de Question Cards: filtros rigorosos mostraram que dois tópicos sustentam apenas 14 e 16 cards autossuficientes. Regra resultante: não completar metas com fragmentos artificiais; manter 1.250 cards úteis, de 14 a 20 por tópico e teto de 20.
 - 2026-08-11, limite reconhecido: filtros determinísticos garantem estrutura, fonte e remoção de ruído evidente, mas não substituem revisão semântica humana de todo o acervo. Não declarar perfeição semântica dos 1.250 cards; a curadoria integral permanece uma etapa distinta e não autoriza Gemini.
+- 2026-08-11, correção do mentor: a aderência mede demandas concluídas, sem penalizar o tempo real acima da estimativa. Uma atividade concluída permanece uma entrega única, sem continuação automática. Timer geral, mapa pedagógico dos PDFs e ampliação do painel do Yoda não foram autorizados nesta etapa.
+- 2026-08-11, adaptação de carga: depois das duas semanas iniciais fixas, o mentor reduz somente os blocos de estudo BACEN para 30 minutos quando a aderência recente fica abaixo de 70%, mantém 60 minutos na faixa sustentável e amplia para 90 minutos apenas depois de duas semanas consecutivas com pelo menos 85%.
