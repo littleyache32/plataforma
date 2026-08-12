@@ -4,11 +4,14 @@ import path from 'node:path'
 import pg from 'pg'
 import { auditQuestion, normalizeContent } from '../shared/question-quality.js'
 import { auditCard } from '../shared/card-quality.js'
+import { buildEfficientCardContent } from '../shared/card-content.js'
 import { matchesStrategyTopic, subjectForStrategyDocument } from './strategy-source-map.js'
 
 const VERSION = 'estrategia-2026.08.11'
+const CARD_TARGET = 20
 const REPORT = path.resolve(process.argv.find((item) => item.endsWith('auditoria.json')) || 'tmp/estrategia-2026-08-11/parsed/auditoria.json')
 const APPLY = process.argv.includes('--apply')
+const CARDS_ONLY = process.argv.includes('--cards-only')
 const connectionString = process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL
 if (!connectionString) throw new Error('POSTGRES_URL_NON_POOLING ou POSTGRES_URL nao configurada.')
 
@@ -114,17 +117,14 @@ function questionFor(topic, claims, index) {
   }
 }
 
-function cardFor(topic, claims, index) {
-  const claim = claims[index % claims.length]
-  const words = claim.text.split(/\s+/)
-  const cut = Math.max(6, Math.min(words.length - 4, Math.round(words.length * 0.48)))
-  const prefix = words.slice(0, cut).join(' ')
-  const suffix = words.slice(cut).join(' ')
+function cardFor(topic, source, index) {
+  const { claim, content } = source
   return {
     objetivo_id: topic.objetivo_id, materia_id: topic.materia_id, topico_id: topic.id,
     chave: `estrategia:${topic.id}:${hash(`${claim.text}:${index}`).slice(0, 24)}`,
-    frente: `Complete, segundo o material: “${prefix} ...”`,
-    verso: suffix,
+    frente: content.frente, verso: content.respostaDireta,
+    resposta_direta: content.respostaDireta, explicacao_curta: content.explicacaoCurta,
+    dica_escopo: content.dicaEscopo, modelo_card: content.modeloCard, apoio_memoria: null,
     fonte: sourceOf(claim), trecho_fonte: claim.text,
     dificuldade: index < 30 ? 2 : index < 45 ? 3 : 4,
     tipo_card: 'recordacao', ativa: true, ativo: true,
@@ -159,20 +159,26 @@ try {
   const topics = result.rows.map((topic) => {
     const sources = documents.filter((document) => matchesStrategyTopic(document.arquivo, topic.materia, topic.topico))
     const claims = [...new Map(sources.flatMap((document) => document.claims).map((claim) => [normalizeContent(claim.text), claim])).values()]
-    return { ...topic, sources, claims }
+    const primaryCardSources = claims.map((claim) => ({ claim, content: buildEfficientCardContent(claim.text, topic.topico) })).filter((item) => item.content)
+    const alternativeCardSources = primaryCardSources.filter((item) => item.content.alternativa).map((item) => ({ claim: item.claim, content: item.content.alternativa }))
+    const cardSources = primaryCardSources.length >= CARD_TARGET ? primaryCardSources : [...primaryCardSources, ...alternativeCardSources]
+    return { ...topic, sources, claims, cardSources }
   })
   const supported = topics.filter((topic) => topic.sources.length && topic.claims.length >= 50)
   const unsupported = topics.filter((topic) => !supported.includes(topic))
   if (supported.length !== 63 || unsupported.length !== 8) throw new Error(`Cobertura inesperada: ${supported.length} cobertos e ${unsupported.length} bloqueados: ${unsupported.map((item) => `${item.materia} > ${item.topico} (${item.claims.length})`).join('; ')}`)
 
   const questions = supported.flatMap((topic) => Array.from({ length: 100 }, (_, index) => questionFor(topic, topic.claims, index)))
-  const cards = supported.flatMap((topic) => Array.from({ length: 50 }, (_, index) => cardFor(topic, topic.claims, index)))
+  const cards = supported.flatMap((topic) => topic.cardSources.slice(0, CARD_TARGET).map((source, index) => cardFor(topic, source, index)))
   const questionFailures = questions.map((item) => auditQuestion(item)).filter((audit) => !audit.approved)
-  const cardFailures = cards.map((item) => auditCard(item)).filter((audit) => !audit.approved)
+  const cardFailures = cards.map((card) => ({ card, audit: auditCard(card) })).filter((item) => !item.audit.approved)
   const uniqueQuestions = new Set(questions.map((item) => `${item.topico_id}:${normalizeContent(item.enunciado)}`))
   const uniqueCards = new Set(cards.map((item) => item.chave))
   if (questionFailures.length || uniqueQuestions.size !== questions.length) throw new Error(`Falha na auditoria das questões: ${questionFailures.length} reprovadas e ${questions.length - uniqueQuestions.size} duplicadas.`)
-  if (cardFailures.length || uniqueCards.size !== cards.length) throw new Error(`Falha na auditoria dos cards: ${cardFailures.length} reprovados.`)
+  if (cardFailures.length || uniqueCards.size !== cards.length) {
+    const reasons = cardFailures.flatMap((item) => item.audit.reasons).reduce((totals, reason) => ({ ...totals, [reason]: (totals[reason] || 0) + 1 }), {})
+    throw new Error(`Falha na auditoria dos cards: ${cardFailures.length} reprovados. ${JSON.stringify(reasons)} Amostras: ${JSON.stringify(cardFailures.slice(0, 5).map((item) => item.card.frente))}`)
+  }
 
   const summary = {
     aplicar: APPLY, pdfs: documents.length, paginas: report.paginas,
@@ -185,6 +191,11 @@ try {
       dificil: questions.filter((item) => item.dificuldade >= 4).length,
     },
     question_cards: cards.length,
+    cards_por_topico: {
+      minimo: Math.min(...supported.map((topic) => Math.min(CARD_TARGET, topic.cardSources.length))),
+      maximo: Math.max(...supported.map((topic) => Math.min(CARD_TARGET, topic.cardSources.length))),
+      distribuicao: Object.fromEntries([...new Set(supported.map((topic) => Math.min(CARD_TARGET, topic.cardSources.length)))].sort((a, b) => a - b).map((total) => [total, supported.filter((topic) => Math.min(CARD_TARGET, topic.cardSources.length) === total).length])),
+    },
   }
   if (!APPLY) {
     process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`)
@@ -192,6 +203,18 @@ try {
   } else {
     await client.query('begin')
     try {
+      cardsImport: {
+      if (CARDS_ONLY) {
+        await client.query(`alter table question_card disable trigger trg_exact_card_ceiling`)
+        await client.query(`delete from question_card`)
+        await insertRows('question_card', ['objetivo_id','materia_id','topico_id','chave','frente','verso','resposta_direta','explicacao_curta','dica_escopo','modelo_card','apoio_memoria','fonte','trecho_fonte','dificuldade','tipo_card','ativa','ativo','versao_conhecimento'], cards, 100)
+        await client.query(`alter table question_card enable trigger trg_exact_card_ceiling`)
+        const cardCheck = await client.query(`select count(*)::int total, count(resposta_direta)::int respostas, count(explicacao_curta)::int explicacoes, count(dica_escopo)::int dicas, count(modelo_card)::int modelos from question_card where ativa and ativo`)
+        if (Object.values(cardCheck.rows[0]).some((total) => total !== cards.length)) throw new Error(`Verificação dos cards falhou: ${JSON.stringify(cardCheck.rows[0])}`)
+        await client.query('commit')
+        process.stdout.write(`${JSON.stringify({ ...summary, somente_cards: true, banco: cardCheck.rows[0] }, null, 2)}\n`)
+        break cardsImport
+      }
       await client.query(`delete from question_card`)
       await client.query(`delete from questao`)
       await client.query(`alter table questao disable trigger trg_exact_question_ceiling`)
@@ -217,7 +240,7 @@ try {
       const knowledge = supported.flatMap((topic) => topic.claims.slice(0, 50).map((claim) => ({ materia_id: topic.materia_id, topico_id: topic.id, trecho: claim.text, origem: `estrategia:${claim.document.sha256}`, material_id: materialIds.get(claim.document.arquivo), versao: VERSION })))
       await insertRows('conhecimento', ['materia_id','topico_id','trecho','origem','material_id','versao'], knowledge, 100)
       await insertRows('questao', ['topico_id','tipo','enunciado','alternativas','gabarito','explicacao','fonte','trecho_fonte','origem','dificuldade','comentarios_alternativas','versao_conhecimento'], questions, 100)
-      await insertRows('question_card', ['objetivo_id','materia_id','topico_id','chave','frente','verso','fonte','trecho_fonte','dificuldade','tipo_card','ativa','ativo','versao_conhecimento'], cards, 100)
+      await insertRows('question_card', ['objetivo_id','materia_id','topico_id','chave','frente','verso','resposta_direta','explicacao_curta','dica_escopo','modelo_card','apoio_memoria','fonte','trecho_fonte','dificuldade','tipo_card','ativa','ativo','versao_conhecimento'], cards, 100)
       await client.query(`alter table questao enable trigger trg_exact_question_ceiling`)
       await client.query(`alter table question_card enable trigger trg_exact_card_ceiling`)
       await client.query(`update acervo_meta set questoes_alvo=100,cards_alvo=50,expansao_bloqueada=true,motivo_bloqueio='Fonte específica do Estratégia não fornecida.',atualizado_em=now() where topico_id = any($1::uuid[])`, [unsupported.map((item) => item.id)])
@@ -236,6 +259,7 @@ try {
       if (check.rows[0].questoes !== questions.length || check.rows[0].cards !== cards.length || check.rows[0].materiais !== documents.length) throw new Error(`Verificação transacional falhou: ${JSON.stringify(check.rows[0])}`)
       await client.query('commit')
       process.stdout.write(`${JSON.stringify({ ...summary, banco: check.rows[0] }, null, 2)}\n`)
+      }
     } catch (error) {
       await client.query('rollback')
       throw error

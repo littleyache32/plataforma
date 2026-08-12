@@ -21,6 +21,7 @@ try {
       count(*) filter(where tipo='ME')::int me
       from questao where ativa and not marcada_errada and estado <> 'arquivada'
       group by topico_id order by topico_id`)
+  const cardCoverage = await client.query(`select topico_id,count(*)::int total from question_card where ativa and ativo group by topico_id`)
   const blocked = await client.query(`select count(*)::int total from acervo_meta am join topico t on t.id=am.topico_id join materia m on m.id=t.materia_id join objetivo o on o.id=m.objetivo_id where o.tipo='concurso' and am.expansao_bloqueada`)
   const oldSessions = await client.query(`select count(*)::int total from sessao where data < date '2026-08-17'`)
   const triggers = await client.query(`select tgname,tgenabled from pg_trigger where tgname in ('trg_exact_question_ceiling','trg_exact_card_ceiling') order by tgname`)
@@ -33,8 +34,9 @@ try {
     limit 20
   `) : { rows: [] }
   const invalid = coverage.rows.filter((item) => item.total !== 100 || item.faceis !== 60 || item.medias !== 30 || item.dificeis !== 10 || item.ce !== 75 || item.me !== 25)
-  const result = { ...totals.rows[0], topicos_cobertos: coverage.rowCount, topicos_invalidos: invalid.length, topicos_bloqueados: blocked.rows[0].total, sessoes_antes_inicio: oldSessions.rows[0].total, ruido_editorial: noisyItems.rows[0], amostras_ruido: noisySamples.rows, gatilhos: triggers.rows }
-  if (result.materiais !== 114 || result.questoes !== 6300 || result.cards !== 3150 || result.topicos_cobertos !== 63 || result.topicos_invalidos || result.topicos_bloqueados !== 8 || result.sessoes_antes_inicio || result.ruido_editorial.questoes || result.ruido_editorial.cards || triggers.rows.some((item) => item.tgenabled !== 'O')) throw new Error(`Auditoria falhou: ${JSON.stringify(result)}`)
+  const invalidCards = cardCoverage.rows.filter((item) => item.total < 14 || item.total > 20)
+  const result = { ...totals.rows[0], topicos_cobertos: coverage.rowCount, topicos_invalidos: invalid.length, topicos_cards_invalidos: invalidCards.length, topicos_bloqueados: blocked.rows[0].total, sessoes_antes_inicio: oldSessions.rows[0].total, ruido_editorial: noisyItems.rows[0], amostras_ruido: noisySamples.rows, gatilhos: triggers.rows }
+  if (result.materiais !== 114 || result.questoes !== 6300 || result.cards !== 1250 || result.topicos_cobertos !== 63 || result.topicos_invalidos || result.topicos_cards_invalidos || result.topicos_bloqueados !== 8 || result.sessoes_antes_inicio || result.ruido_editorial.questoes || result.ruido_editorial.cards || triggers.rows.some((item) => item.tgenabled !== 'O')) throw new Error(`Auditoria falhou: ${JSON.stringify(result)}`)
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
 } finally {
   await client.end()

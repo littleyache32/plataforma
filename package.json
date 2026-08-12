@@ -30,6 +30,7 @@
     "audit:cards": "node --env-file=.env.local scripts/audit-and-adapt-cards.js",
     "estrategia:auditar": "node --env-file=.env.local scripts/import-strategy-library.js",
     "estrategia:importar": "node --env-file=.env.local scripts/import-strategy-library.js --apply",
+    "estrategia:cards": "node --env-file=.env.local scripts/import-strategy-library.js --apply --cards-only",
     "estrategia:validar": "node --env-file=.env.local scripts/audit-strategy-production.js"
   },
   "dependencies": {

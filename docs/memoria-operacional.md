@@ -53,7 +53,7 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 
 ### Questões e Question Cards
 
-- Cada tópico aplicável deve ter exatamente 100 questões ativas e exatamente 50 Question Cards ativos, nem mais nem menos.
+- Cada tópico coberto pelo material do Estratégia deve ter exatamente 100 questões ativas. Question Cards obedecem à densidade de fatos autossuficientes, com teto de 20 por tópico. Para os 63 tópicos atualmente cobertos, o núcleo inicial ideal é 1.250 cards; aumentar esse total não é prioridade.
 - Cada tópico deve ter exatamente 60 questões fáceis, 30 médias e 10 difíceis. Para cumprir a regra exata, itens excedentes podem ser arquivados de forma recuperável, priorizando a preservação de itens já respondidos e de melhor qualidade.
 - Toda questão exige fonte, trecho de evidência, gabarito e explicação.
 - BACEN usa CE e ME, com predominância compatível com Cebraspe. Faculdade pode mesclar CE e ME.
@@ -63,7 +63,8 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - Questões e Question Cards usam revisão espaçada. Revisões vencidas viram demandas do mentor.
 - Erro, Dúvida e Sem conhecimento enviam automaticamente a questão ao Caderno de Questões. O caderno é uma opção própria dentro de Questões e alimenta futuras revisões.
 - Cards devem ser atômicos, específicos, baseados em recuperação ativa e sem duplicidade. Priorizar recordação, distinção, aplicação, exceção e correção.
-- Responder questões não pode elevar o tópico acima de 50 Question Cards. O fluxo atualiza card correspondente quando existente; o Caderno absorve a necessidade de revisão sem criar excedente.
+- A frente do card usa contexto mínimo, comando direto e dica do formato esperado. O verso apresenta primeiro a resposta direta, depois explicação de até duas frases. Imagem ou mnemônico é opcional e só entra quando for fiel e realmente útil. Os formatos permitidos são pergunta e resposta, lacuna e causa e efeito.
+- Responder questões não pode elevar o tópico acima de 20 Question Cards. O fluxo atualiza card correspondente quando existente; o Caderno absorve a necessidade de revisão sem criar excedente.
 - Em 11 de agosto de 2026, o usuário autorizou reconstruir o acervo BACEN exclusivamente a partir dos PDFs do Estratégia fornecidos por ele, sem Gemini. Só tópicos com fonte específica suficiente podem receber questões e cards; tópicos sem fonte ficam bloqueados.
 - Os PDFs pagos do Estratégia não podem ser enviados ao GitHub. O texto integral fica apenas no Supabase protegido, e o repositório guarda importadores, mapeamentos e auditorias.
 
@@ -126,3 +127,7 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - 2026-08-11, reconstrução autorizada: foram importados 114 materiais, 6.300 questões e 3.150 Question Cards para os 63 tópicos cobertos. Cada tópico coberto tem exatamente 100 questões, com 60 fáceis, 30 médias, 10 difíceis, 75 CE e 25 ME, além de 50 cards. A reconstrução ocorreu sem Gemini e passou na auditoria transacional.
 - 2026-08-11, correção de qualidade: a inspeção visual identificou sumário, abertura de aula, pergunta retórica, relato pessoal, metadado de questão anterior e fragmento de alternativa entre os primeiros itens gerados. Regra resultante: a extração para prática ignora as cinco páginas iniciais, páginas de provas comentadas, títulos e saudações, e aceita somente frases declarativas completas, sem marcas de banca, questão, gabarito ou alternativa.
 - 2026-08-11, auditoria final do Estratégia: os 6.300 enunciados e 3.150 cards passaram na busca em lote por ruído editorial, com zero ocorrências. Amostras em produção de Contabilidade, Constitucional, Português, Lógica e Informática foram inspecionadas; as contagens por disciplina, tópico e Question Cards foram confirmadas no navegador, sem erro no console.
+- 2026-08-11, correção de Question Cards: o modelo de cortar uma frase ao meio foi rejeitado por não garantir atomicidade nem recuperação clara. Regra resultante: manter 3.150 cards, 50 por tópico coberto, e estruturar cada item com contexto mínimo, pergunta ou lacuna inequívoca, dica de escopo, resposta direta e explicação curta vinculada à fonte.
+- 2026-08-11, segunda correção de Question Cards: amostragem aleatória mostrou que forçar 50 cards por tópico mantinha conectivos sem contexto, linguagem de aula e respostas incompletas. Regra resultante: o acervo ideal passa a 1.890 cards, 30 por tópico coberto, aceitando apenas trechos autossuficientes e removendo o corte automático de expressões.
+- 2026-08-11, terceira correção de Question Cards: filtros rigorosos mostraram que dois tópicos sustentam apenas 14 e 16 cards autossuficientes. Regra resultante: não completar metas com fragmentos artificiais; manter 1.250 cards úteis, de 14 a 20 por tópico e teto de 20.
+- 2026-08-11, limite reconhecido: filtros determinísticos garantem estrutura, fonte e remoção de ruído evidente, mas não substituem revisão semântica humana de todo o acervo. Não declarar perfeição semântica dos 1.250 cards; a curadoria integral permanece uma etapa distinta e não autoriza Gemini.

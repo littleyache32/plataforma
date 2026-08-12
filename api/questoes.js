@@ -13,7 +13,7 @@ export default async function handler(req, res) {
         const objetivoId = queryParam(req, 'objetivoId')
         const materiaId = queryParam(req, 'materiaId')
         const topicoId = queryParam(req, 'topicoId')
-        const fields = 'id,frente,verso,fonte,trecho_fonte,ocorrencias,repeticoes,intervalo_dias,fator_facilidade,lapsos,proxima_revisao,ultima_revisao,criado_em,materia:materia_id(id,nome),topico:topico_id(id,nome),objetivo:objetivo_id(nome,tipo)'
+        const fields = 'id,frente,verso,resposta_direta,explicacao_curta,dica_escopo,modelo_card,apoio_memoria,fonte,trecho_fonte,ocorrencias,repeticoes,intervalo_dias,fator_facilidade,lapsos,proxima_revisao,ultima_revisao,criado_em,materia:materia_id(id,nome),topico:topico_id(id,nome),objetivo:objetivo_id(nome,tipo)'
         let query = supabase.from('question_card').select(fields).eq('ativa', true).lte('proxima_revisao', new Date().toISOString()).order('proxima_revisao').order('criado_em')
         if (objetivoId) query = query.eq('objetivo_id', objetivoId)
         if (materiaId) query = query.eq('materia_id', materiaId)

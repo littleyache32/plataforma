@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { auditQuestion } from '../shared/question-quality.js'
 import { auditCard, inferCardType } from '../shared/card-quality.js'
+import { buildEfficientCardContent } from '../shared/card-content.js'
 
 describe('auditoria do acervo', () => {
   it('aprova questão CE completa e vinculada à evidência', () => {
@@ -14,5 +15,13 @@ describe('auditoria do acervo', () => {
   it('reconhece cards de distinção e exige fonte', () => {
     expect(inferCardType({ frente: 'Qual a diferença entre eficiência e eficácia?' })).toBe('distincao')
     expect(auditCard({ frente: 'Qual a diferença entre eficiência e eficácia?', verso: 'Eficiência otimiza recursos; eficácia alcança o resultado.', fonte: '', trecho_fonte: 'Texto suficientemente longo para servir como evidência rastreável.' }).approved).toBe(false)
+  })
+  it('estrutura card atômico com contexto, escopo, resposta direta e explicação', () => {
+    const card = buildEfficientCardContent('A taxa Selic provoca redução da inflação.', 'Política monetária')
+    expect(card.frente).toContain('[Política monetária]')
+    expect(card.frente).toContain('(efeito principal)')
+    expect(card.respostaDireta).toBe('redução da inflação')
+    expect(card.explicacaoCurta).toBe('A taxa Selic provoca redução da inflação.')
+    expect(card.modeloCard).toBe('causa_efeito')
   })
 })
