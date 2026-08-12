@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import Icon from './Icon.jsx'
+import OfflineStatus from './OfflineStatus.jsx'
 
 const questionsArea = { id: 'questoes', label: 'Questões', children: [['questoes', 'Objetivas'], ['caderno', 'Caderno de questões'], ['discursivas', 'Discursivas']] }
 const studentAreas = [
-  { id: 'semana', label: 'Semana' }, questionsArea, { id: 'cards', label: 'Question Cards' }, { id: 'simulados', label: 'Simulados' }, { id: 'desempenho', label: 'Desempenho' },
+  { id: 'semana', label: 'Semana' }, { id: 'tempo', label: 'Tempo de estudo' }, { id: 'revisoes', label: 'Revisões' }, questionsArea, { id: 'cards', label: 'Question Cards' }, { id: 'simulados', label: 'Simulados' }, { id: 'desempenho', label: 'Desempenho' },
 ]
 
 const adminAreas = [
-  { id: 'semana', label: 'Semana' }, { id: 'controle', label: 'Controle operacional' }, { id: 'objetivos', label: 'Objetivos' }, { id: 'prazos', label: 'Provas e entregas' }, { id: 'materiais', label: 'Materiais' },
+  { id: 'semana', label: 'Semana' }, { id: 'tempo', label: 'Tempo de estudo' }, { id: 'revisoes', label: 'Revisões' }, { id: 'controle', label: 'Controle operacional' }, { id: 'edital', label: 'Comparador de edital' }, { id: 'objetivos', label: 'Objetivos' }, { id: 'prazos', label: 'Provas e entregas' }, { id: 'materiais', label: 'Materiais' },
   questionsArea, { id: 'cards', label: 'Question Cards' }, { id: 'simulados', label: 'Simulados' }, { id: 'desempenho', label: 'Desempenho' },
 ]
 
@@ -31,6 +32,7 @@ export default function Layout({ area, onAreaChange, catalog, objectiveId, onObj
     </aside>
     <section className="workspace">
       <header className="workspace-head"><button className="mobile-menu-toggle" onClick={() => setMenuOpen((value) => !value)} aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'} aria-expanded={menuOpen}><span/><span/><span/></button><div className="workspace-controls"><span className="mobile-brand">ME</span>{area === 'semana' ? <span className="week-overview-label">Visão geral: Faculdade + BACEN</span> : <><div className="context-switch" aria-label="Contexto de estudo"><button className={context === 'faculdade' ? 'active' : ''} onClick={() => onContextChange('faculdade')}>Faculdade</button><button className={context === 'concurso' ? 'active' : ''} onClick={() => onContextChange('concurso')}>BACEN</button></div>{catalog.length > 1 && <select aria-label="Objetivo ativo" value={objectiveId} onChange={(event) => onObjectiveChange(event.target.value)}>{catalog.map((item) => <option value={item.id} key={item.id}>{item.nome}</option>)}</select>}</>}</div><div className="mode-switch" aria-label="Modo de uso"><button className={mode === 'aluno' ? 'active' : ''} onClick={() => onModeChange('aluno')}>Modo Aluno</button><button className={mode === 'administrador' ? 'active' : ''} onClick={() => onModeChange('administrador')}>Administrador</button></div></header>
+      <div className="workspace-sync"><OfflineStatus/></div>
       <main className="page">{children}</main>
       <nav className={`mobile-nav ${menuOpen ? 'open' : ''}`}>{renderNavigation()}</nav>
     </section>

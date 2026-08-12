@@ -43,15 +43,20 @@ export default async function handler(req, res) {
         if (archived.error) throw archived.error
         return res.status(201).json({ ok: true, mensagem: 'Problema registrado e card retirado da fila.' })
       }
-      const { id, resultado } = req.body || {}
+      const { id, resultado, operacaoId } = req.body || {}
       if (!id || !['novamente', 'dificil', 'bom', 'facil'].includes(resultado)) return res.status(400).json({ error: 'Card e avaliacao validos sao obrigatorios.' })
+      if (operacaoId) {
+        const prior = await supabase.from('question_card_registro').select('id,resultado').eq('operacao_id', operacaoId).maybeSingle()
+        if (prior.error) throw prior.error
+        if (prior.data) return res.status(200).json({ ok: true, repetida: true })
+      }
       const { data: card, error: cardError } = await supabase.from('question_card').select('id,repeticoes,intervalo_dias,fator_facilidade,lapsos,introduzido_em').eq('id', id).eq('ativa', true).single()
       if (cardError) throw cardError
       const transition = cardTransition({ resultado, repeticoes: card.repeticoes, intervaloDias: card.intervalo_dias, fatorFacilidade: card.fator_facilidade, lapsos: card.lapsos })
       const now = new Date().toISOString()
       const [{ error: updateError }, { error: recordError }] = await Promise.all([
         supabase.from('question_card').update({ repeticoes: transition.repeticoes, intervalo_dias: transition.intervaloDias, fator_facilidade: transition.fatorFacilidade, lapsos: transition.lapsos, proxima_revisao: transition.proximaRevisao, ultima_revisao: now, introduzido_em: card.introduzido_em || now }).eq('id', id),
-        supabase.from('question_card_registro').insert({ question_card_id: id, resultado }),
+        supabase.from('question_card_registro').insert({ question_card_id: id, resultado, operacao_id: operacaoId || null }),
       ])
       if (updateError || recordError) throw updateError || recordError
       return res.status(200).json({ ok: true, proxima_revisao: transition.proximaRevisao })

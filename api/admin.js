@@ -4,6 +4,7 @@ const handlers = {
   materiais: () => import('./_lib/materiais-handler.js'),
   painel: () => import('./_lib/painel-handler.js'),
   seed: () => import('./_lib/seed-handler.js'),
+  edital: () => import('./_lib/edital-handler.js'),
 }
 
 export default async function handler(req, res) {

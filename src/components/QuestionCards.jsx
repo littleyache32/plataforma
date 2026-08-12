@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api.js'
+import FocusTimer from './FocusTimer.jsx'
 
 const ratings = [
   ['novamente', 'De novo', '10 min'],
@@ -8,14 +9,6 @@ const ratings = [
   ['facil', 'Fácil', 'intervalo longo'],
 ]
 const reportReasons = [['card_ambiguo', 'Card ambíguo'], ['card_incompleto', 'Card incompleto'], ['card_incorreto', 'Card incorreto']]
-
-function elapsedLabel(seconds) {
-  const safe = Math.max(0, seconds)
-  const hours = Math.floor(safe / 3600)
-  const minutes = Math.floor((safe % 3600) / 60)
-  const rest = safe % 60
-  return hours ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}` : `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
-}
 
 export default function QuestionCards({ objective, target, onTargetApplied }) {
   const subjects = (objective?.materias || []).filter((item) => !(objective?.tipo === 'faculdade' && ['análise e produção de texto', 'analise e producao de texto'].includes(item.nome.toLocaleLowerCase('pt-BR'))))
@@ -29,8 +22,6 @@ export default function QuestionCards({ objective, target, onTargetApplied }) {
   const [message, setMessage] = useState('')
   const [revealed, setRevealed] = useState(false)
   const [reviewed, setReviewed] = useState(0)
-  const [startedAt, setStartedAt] = useState(null)
-  const [now, setNow] = useState(Date.now())
   const [reportOpen, setReportOpen] = useState(false)
   const [reportReason, setReportReason] = useState('card_ambiguo')
 
@@ -55,7 +46,7 @@ export default function QuestionCards({ objective, target, onTargetApplied }) {
   }
 
   useEffect(() => {
-    setSubjectId(''); setExpandedSubjectId(''); setTopicId(''); setReviewed(0); setStartedAt(null); setRevealed(false)
+    setSubjectId(''); setExpandedSubjectId(''); setTopicId(''); setReviewed(0); setRevealed(false)
   }, [objective?.id])
   useEffect(() => {
     if (!objective?.id) return setCounts({ topicos: {}, totais: { questoes: 0, cards: 0 } })
@@ -69,24 +60,17 @@ export default function QuestionCards({ objective, target, onTargetApplied }) {
   useEffect(() => {
     if (target?.subjectId !== subjectId) return
     setTopicId(target.topicId || '')
-    setReviewed(0); setStartedAt(null); setRevealed(false)
+    setReviewed(0); setRevealed(false)
     onTargetApplied?.()
   }, [subjectId, target?.subjectId, target?.topicId])
   useEffect(() => { load() }, [objective?.id, subjectId, topicId])
-  useEffect(() => {
-    if (!startedAt) return undefined
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [startedAt])
 
   const queue = useMemo(() => cards.filter((item) => item.vencido), [cards])
   const card = queue[0] || null
-  const elapsedSeconds = startedAt ? Math.floor((now - startedAt) / 1000) : 0
   const sessionTotal = reviewed + queue.length
 
   function resetFocus(change) {
     change()
-    setStartedAt(null)
     setReviewed(0)
     setRevealed(false)
   }
@@ -101,12 +85,6 @@ export default function QuestionCards({ objective, target, onTargetApplied }) {
   function chooseTopic(nextSubjectId, nextTopicId) {
     setExpandedSubjectId(nextSubjectId)
     resetFocus(() => { setSubjectId(nextSubjectId); setTopicId(nextTopicId) })
-  }
-
-  function startTimer() {
-    const started = Date.now()
-    setStartedAt(started)
-    setNow(started)
   }
 
   function subjectCardCount(subject) {
@@ -137,7 +115,7 @@ export default function QuestionCards({ objective, target, onTargetApplied }) {
     } catch (error) { setMessage(error.message) }
   }
 
-  return <section><header className="page-title compact"><div><p className="eyebrow">REVISÃO ESPAÇADA</p><h1>Question Cards</h1><p>Selecione a disciplina ou o tópico para abrir o primeiro card. O timer é opcional.</p></div>{subjectId && stats.vencidos > 0 && <div className="card-session-clock"><small>SESSÃO DE HOJE</small><b>{elapsedLabel(elapsedSeconds)}</b><span>{reviewed} revisados</span><button className="secondary timer-start" onClick={startTimer} disabled={Boolean(startedAt)}>Iniciar timer</button></div>}</header>
+  return <section><header className="page-title compact"><div><p className="eyebrow">REVISÃO ESPAÇADA</p><h1>Question Cards</h1><p>Selecione a disciplina ou o tópico para abrir o primeiro card. O timer é opcional.</p></div>{subjectId && <FocusTimer objetivoId={objective?.id} materiaId={subjectId} topicoId={topicId || null} contexto="card" titulo={`Question Cards · ${subjects.find((item) => item.id === subjectId)?.nome || 'disciplina'}`}/>}</header>
     <div className="question-layout"><aside className="panel practice-filter"><div className="catalog-heading"><div><span className="eyebrow">CONTEÚDO</span><h2>Disciplinas e tópicos</h2></div><span className="catalog-total">{counts.totais?.cards || 0}</span></div><div className="subject-catalog">{subjects.map((subject) => { const expanded = expandedSubjectId === subject.id; const selected = subjectId === subject.id; const subjectCount = subjectCardCount(subject); return <div className={`catalog-subject ${expanded ? 'expanded' : ''} ${selected ? 'selected' : ''}`} key={subject.id}><button className="catalog-subject-button" onClick={() => chooseSubject(subject.id)} aria-expanded={expanded}><span className="catalog-chevron">›</span><span><b>{subject.nome}</b><small>{subjectCount} cards</small></span></button>{expanded && <div className="catalog-topics"><button className={!topicId && selected ? 'active' : ''} onClick={() => chooseTopic(subject.id, '')}><span>Todos os tópicos</span><small>{subjectCount}</small></button>{(subject.topicos || []).map((topic) => <button className={topicId === topic.id ? 'active' : ''} onClick={() => chooseTopic(subject.id, topic.id)} key={topic.id}><span>{topic.nome}</span><small>{counts.topicos?.[topic.id]?.cards || 0}</small></button>)}</div>}</div> })}</div>{subjectId && <div className="card-queue-stats compact"><span><b>{stats.vencidos}</b> para hoje</span><span><b>{stats.novos}</b> novos</span><span><b>{stats.total}</b> no acervo</span></div>}</aside>
       <div>{loading && !card ? <div className="panel question-empty"><h2>Organizando sua fila...</h2></div> : !subjectId ? <div className="panel question-empty"><span>?</span><h2>Escolha uma disciplina e, se quiser, um tópico.</h2><p>Todos os tópicos mistura os cards da disciplina.</p></div> : !card ? <div className="panel question-empty"><h2>{message || 'Nenhum Question Card está vencido neste foco.'}</h2><p>O mentor mantém a revisão espaçada e mostrará o conteúdo quando ele vencer.</p></div> : <article className="panel question-card card-study"><div className="question-meta"><span>Question Card {reviewed + 1} de {sessionTotal} · {card.topico?.nome}</span><button onClick={() => setReportOpen(true)}>Reportar problema no card</button></div><small>{card.objetivo?.tipo === 'faculdade' ? 'Faculdade' : 'BACEN'} · {card.materia?.nome}</small><h2>{card.frente}</h2>{revealed ? <div className="feedback acerto card-answer"><div className="feedback-head"><span>✓</span><div><small>RESPOSTA</small><h3>Resposta do card</h3></div></div><p className="card-answer-text"><strong>{card.resposta_direta || card.verso}</strong></p>{card.explicacao_curta && <p className="card-explanation">{card.explicacao_curta}</p>}{card.apoio_memoria && <p className="card-memory-aid">{card.apoio_memoria}</p>}<blockquote><small>TRECHO DE ORIGEM</small>{card.trecho_fonte}</blockquote><span className="source-link">{card.fonte}</span><div className="anki-actions">{ratings.map(([id, label, hint]) => <button className={`rating-${id}`} key={id} onClick={() => answer(id)} disabled={loading}><b>{label}</b><small>{hint}</small></button>)}</div></div> : <button className="primary card-reveal" onClick={() => setRevealed(true)}>Mostrar resposta</button>}</article>}</div></div>
       {reportOpen && <div className="modal-backdrop"><div className="modal panel"><span className="eyebrow">CONTROLE DE QUALIDADE</span><h2>Reportar Question Card</h2><p>O card será retirado da fila até a auditoria.</p><label>Motivo</label><select value={reportReason} onChange={(event) => setReportReason(event.target.value)}>{reportReasons.map(([id, label]) => <option value={id} key={id}>{label}</option>)}</select><div className="modal-actions"><button className="secondary" onClick={() => setReportOpen(false)}>Cancelar</button><button className="danger-button" onClick={report}>Reportar e retirar</button></div></div></div>}

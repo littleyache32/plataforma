@@ -84,6 +84,11 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - O fechamento transfere no máximo três pendências e somente quando elas couberem na capacidade do dia. Tópicos sem fonte específica não entram no planejamento.
 - Falhas de funções e do cron são registradas para resolução no painel administrativo.
 - A implantação gratuita usa sete funções serverless: Autenticação, Estudos, Planejamento, Desempenho, Mentor, Administração e Cron. Os handlers permanecem separados em `api/_lib`; consolidar a porta de entrada não autoriza misturar responsabilidades no código nem remover funcionalidades.
+- O timer de estudo é progressivo e persistente, pode ser iniciado em demanda, disciplina, Questões e Question Cards, permite pausa e retomada e oferece modo foco. O tempo real não divide automaticamente uma demanda concluída.
+- O Yoda é a porta da central de alertas: revisões vencidas, pendências, risco de acúmulo, prazos e mudança de carga. Semana e próxima demanda continuam acessíveis pelos módulos próprios.
+- A Central de Revisão unifica questões erradas, Dúvida, Sem conhecimento, cards vencidos e revisões do mentor, ordenadas por urgência.
+- A plataforma é instalável como PWA. Semana e cards previamente carregados ficam disponíveis em conexão instável; mutações offline usam identificadores únicos e sincronizam quando a internet retorna.
+- O Administrador possui comparador de edital BACEN e backups automáticos semanais com retenção de 90 dias. Restaurar exige confirmação explícita e substitui os dados de progresso cobertos pelo snapshot.
 
 ## Erros anteriores e prevenção
 
@@ -154,3 +159,5 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - 2026-08-12, entrega operacional: o mentor passou a produzir fechamento semanal e trajetória condicionada à existência de data-alvo; cards ganharam denúncia e limite diário; o Administrador recebeu saúde, falhas, auditoria, cobertura e backup; e o planejador passou a bloquear duplicidade, excesso diário e transferência descontrolada.
 - 2026-08-12, arquitetura aprovada: as doze portas serverless foram consolidadas em sete áreas para preservar margem no plano gratuito da Vercel. As URLs públicas e os handlers especializados devem continuar separados e compatíveis. Timer de foco, alertas do mentor, modo offline, busca global e comparador de edital foram apenas sugestões e não estão autorizados para implementação.
 - 2026-08-12, correção da consolidação: o primeiro deploy das sete funções carregava todas as dependências administrativas ao abrir o painel e falhou em produção. Regra resultante: Painel, Materiais e Seed compartilham a função Administração, mas seus handlers são carregados sob demanda para manter dependências e falhas isoladas.
+- 2026-08-12, nova autorização explícita: timer integrado no estilo YPT, central de alertas do Yoda, PWA offline, comparador de edital BACEN, backup automático com recuperação, modo foco, botão Próxima demanda e Central unificada de revisão foram aprovados em conjunto. A busca global continuou rejeitada e não deve ser acrescentada.
+- 2026-08-12, regra de confiabilidade offline: respostas de Questões, revisões de Question Cards e registros de timer recebem identificador de operação único. A repetição durante a sincronização deve devolver o resultado já registrado, sem duplicar estatística nem tempo.

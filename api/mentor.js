@@ -23,7 +23,7 @@ export default async function handler(req, res) {
     const currentWeek = monday()
     const previousStart = addDays(currentWeek, -7)
     const previousEnd = addDays(currentWeek, -1)
-    const [{ data: topics, error: topicsError }, { data: records, error: recordsError }, { data: reviewItems, error: reviewError }, { data: inventory, error: inventoryError }, modularKnowledge, { data: legacyPolicy }, { data: objective }, { data: weeklySessions, error: sessionsError }] = await Promise.all([
+    const [{ data: topics, error: topicsError }, { data: records, error: recordsError }, { data: reviewItems, error: reviewError }, { data: inventory, error: inventoryError }, modularKnowledge, { data: legacyPolicy }, { data: objective }, { data: weeklySessions, error: sessionsError }, { data: pendingSessions, error: pendingError }, { data: commitments, error: commitmentsError }] = await Promise.all([
       supabase.from('topico').select('id,nome,materia:materia_id(id,nome,objetivo:objetivo_id(id,nome))'),
       supabase.from('registro').select('resultado,classificacao,tempo,criado_em,questao!inner(topico_id,topico:topico_id(materia:materia_id(objetivo_id)))').order('criado_em', { ascending: false }),
       supabase.from('revisao_item').select('id,motivo,prioridade,agendada_para,questao:questao_id(id,enunciado,topico_id,topico:topico_id(materia:materia_id(objetivo_id)))').eq('status', 'pendente').order('prioridade').order('agendada_para').limit(20),
@@ -32,8 +32,10 @@ export default async function handler(req, res) {
       supabase.from('mentor_conhecimento').select('versao,politica').eq('ativo', true).order('criado_em', { ascending: false }).limit(1).maybeSingle(),
       objetivoId ? supabase.from('objetivo').select('id,data_alvo').eq('id', objetivoId).maybeSingle() : Promise.resolve({ data: null }),
       supabase.from('sessao').select('id,status,data,data_planejada_original,duracao_estimada,topico_id,objetivo_id,concluida_em').eq('origem', 'mentor').gte('data_planejada_original', previousStart).lte('data_planejada_original', previousEnd),
+      supabase.from('sessao').select('id,titulo,data,prioridade,objetivo_id').neq('status','feita').lte('data',addDays(currentWeek,6)).order('data').limit(30),
+      supabase.from('compromisso').select('id,titulo,data,tipo,objetivo_id').eq('concluido',false).gte('data',new Date().toISOString().slice(0,10)).lte('data',addDays(new Date().toISOString().slice(0,10),14)).order('data').limit(20),
     ])
-    if (topicsError || recordsError || reviewError || inventoryError || sessionsError) throw topicsError || recordsError || reviewError || inventoryError || sessionsError
+    if (topicsError || recordsError || reviewError || inventoryError || sessionsError || pendingError || commitmentsError) throw topicsError || recordsError || reviewError || inventoryError || sessionsError || pendingError || commitmentsError
 
     const policy = modularKnowledge?.conteudo?.politica || legacyPolicy?.politica || {}
     const topicMap = new Map()
@@ -101,12 +103,22 @@ export default async function handler(req, res) {
     const remainingTopics = Math.max(0, diagnoses.length - coveredTopics)
     const trajectory = { conteudo_restante: remainingTopics, topicos_totais: diagnoses.length, ritmo_atual: planned ? `${completed} de ${planned} demandas` : 'coletando dados', capacidade_projetada: hasTargetDate ? probable?.cobertura_estimada || 0 : null, risco_nao_concluir: hasTargetDate && probable ? Math.round(probable.risco_atraso * 100) : null, data_alvo_definida: hasTargetDate }
     const weeklyClose = { semana_inicio: previousStart, semana_fim: previousEnd, planejado: planned, realizado: completed, minutos_realizados: completedMinutes, pendencias: Math.max(0, planned - completed), revisoes_pendentes: filteredReviews.length, aderencia: Math.round(adherence * 100), ajuste_proxima_semana: adjustment.nivel }
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
+    const scopedPending=(pendingSessions||[]).filter((item)=>!objetivoId||item.objetivo_id===objetivoId)
+    const scopedCommitments=(commitments||[]).filter((item)=>!objetivoId||item.objetivo_id===objetivoId)
+    const alerts=[]
+    if(filteredReviews.length) alerts.push({tipo:'revisao',gravidade:'alta',titulo:`${filteredReviews.length} revisoes vencidas`,mensagem:'A central de revisao ordenou os itens mais urgentes.'})
+    const overdue=scopedPending.filter((item)=>item.data<today); if(overdue.length) alerts.push({tipo:'pendencia',gravidade:'alta',titulo:`${overdue.length} demandas nao concluidas`,mensagem:'O mentor vai redistribuir no fechamento sem ultrapassar o limite.'})
+    if(scopedPending.length>=8) alerts.push({tipo:'acumulo',gravidade:'media',titulo:'Risco de acumulo',mensagem:`Ha ${scopedPending.length} demandas abertas na semana.`})
+    for(const item of scopedCommitments.slice(0,3)) alerts.push({tipo:'prazo',gravidade:'media',titulo:item.titulo,mensagem:`${item.tipo} em ${new Date(`${item.data}T12:00:00`).toLocaleDateString('pt-BR')}.`})
+    if(planned) alerts.push({tipo:'carga',gravidade:'baixa',titulo:`Carga da proxima semana: ${adjustment.nivel}`,mensagem:adjustment.motivo})
     const body = {
       fase: mentorPhase(), prioridades, cenarios,
       politica: { versao: modularKnowledge?.versao || legacyPolicy?.versao || '2026.08.2' },
       resumo: { topicos_cobertos: coveredTopics, topicos_totais: diagnoses.length, dias_restantes: hasTargetDate ? daysRemaining : null, revisoes_imediatas: revisaoImediata.length },
       trajetoria: trajectory,
       fechamento_semanal: weeklyClose,
+      alertas: alerts,
     }
     if (!compact) Object.assign(body, { topicos: diagnoses, revisao_imediata: revisaoImediata })
     return res.status(200).json(body)

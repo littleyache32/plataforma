@@ -21,11 +21,14 @@ async function exportData(supabase) {
 }
 
 export default async function handler(req, res) {
-  if (!allowMethods(req, res, ['GET', 'PATCH']) || !requireAccess(req, res)) return
+  if (!allowMethods(req, res, ['GET', 'POST', 'PATCH']) || !requireAccess(req, res)) return
   const supabase = getSupabaseAdmin()
   try {
     const resource = queryParam(req, 'recurso')
     if (req.method === 'GET' && resource === 'exportar') return res.status(200).json(await exportData(supabase))
+    if (req.method === 'GET' && resource === 'backups') { const result=await supabase.from('backup_snapshot').select('id,tipo,status,criado_em,restaurado_em').order('criado_em',{ascending:false}).limit(12); if(result.error) throw result.error; return res.status(200).json({backups:result.data||[]}) }
+    if (req.method === 'POST' && resource === 'backups') { const result=await supabase.rpc('criar_backup_snapshot',{p_tipo:'manual'}); if(result.error) throw result.error; return res.status(201).json({id:result.data}) }
+    if (req.method === 'PATCH' && resource === 'backups') { const {id,confirmacao}=req.body||{}; if(!id||confirmacao!=='RESTAURAR') return res.status(400).json({error:'Confirmacao de restauracao invalida.'}); const result=await supabase.rpc('restaurar_backup_snapshot',{p_id:id}); if(result.error) throw result.error; return res.status(200).json({ok:true}) }
     if (req.method === 'PATCH') {
       const { tipo, id, acao } = req.body || {}
       if (!id) return res.status(400).json({ error: 'Item obrigatorio.' })

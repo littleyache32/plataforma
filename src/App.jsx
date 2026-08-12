@@ -14,6 +14,9 @@ const Performance = lazy(() => import('./components/Performance.jsx'))
 const QuestionCards = lazy(() => import('./components/QuestionCards.jsx'))
 const Deadlines = lazy(() => import('./components/Deadlines.jsx'))
 const AdminPanel = lazy(() => import('./components/AdminPanel.jsx'))
+const StudyTime = lazy(() => import('./components/StudyTime.jsx'))
+const ReviewCenter = lazy(() => import('./components/ReviewCenter.jsx'))
+const EdictComparator = lazy(() => import('./components/EdictComparator.jsx'))
 
 export default function App() {
   const [status, setStatus] = useState('loading')
@@ -27,6 +30,7 @@ export default function App() {
 
   async function loadCatalog() {
     const data = await api('/api/catalogo')
+    if (!Array.isArray(data.objetivos)) throw new Error('Catálogo indisponível.')
     setCatalog(data.objetivos)
     setObjectiveId((current) => current || data.objetivos.find((item) => item.tipo === 'concurso')?.id || data.objetivos[0]?.id || '')
   }
@@ -44,6 +48,11 @@ export default function App() {
 
   function openReview(questionId) {
     setReviewQuestionId(questionId)
+    setArea('questoes')
+  }
+
+  function openReviewItem(item) {
+    setReviewQuestionId(item.item_id)
     setArea('questoes')
   }
 
@@ -76,7 +85,7 @@ export default function App() {
 
   function changeMode(nextMode) {
     setMode(nextMode)
-    if (nextMode === 'aluno' && ['objetivos', 'materiais', 'prazos', 'controle'].includes(area)) setArea('semana')
+    if (nextMode === 'aluno' && ['objetivos', 'materiais', 'prazos', 'controle', 'edital'].includes(area)) setArea('semana')
   }
 
   if (status === 'loading') return <main className="loading"><span className="brand-mark">ME</span><p>Organizando sua plataforma...</p></main>
@@ -94,6 +103,9 @@ export default function App() {
       {area === 'materiais' && mode === 'administrador' && <Materials {...common} />}
       {area === 'prazos' && mode === 'administrador' && <Deadlines catalog={catalog} />}
       {area === 'controle' && mode === 'administrador' && <AdminPanel />}
+      {area === 'edital' && mode === 'administrador' && <EdictComparator objective={objective} />}
+      {area === 'tempo' && <StudyTime objective={objective} />}
+      {area === 'revisoes' && <ReviewCenter objective={objective} onOpenQuestion={openReviewItem} onOpenCards={(item) => { setStudyTarget({ objectiveId: objective?.id, subjectId: item.materia_id || '', topicId: item.topico_id || '' }); setArea('cards') }} />}
       {area === 'questoes' && <Questions {...common} target={studyTarget?.objectiveId === objective?.id ? studyTarget : null} onTargetApplied={() => setStudyTarget(null)} reviewQuestionId={reviewQuestionId} onReviewLoaded={() => setReviewQuestionId('')} />}
       {area === 'caderno' && <Questions {...common} notebookOnly />}
       {area === 'discursivas' && <DiscursiveQuestions />}
@@ -101,7 +113,7 @@ export default function App() {
       {area === 'simulados' && <Simulations objective={objective} />}
       {area === 'desempenho' && <Performance objective={objective} mode={mode} onReview={openReview} />}
       </Suspense>
-      {mode === 'aluno' && <MentorWidget objectiveId={objective?.id || ''} onOpenWeek={() => setArea('semana')} onOpenQuestions={(item) => openMentorTarget(item, 'questoes')} onOpenCards={(item) => openMentorTarget(item, 'cards')} />}
+      {mode === 'aluno' && <MentorWidget objectiveId={objective?.id || ''} onOpenAlerts={() => setArea('revisoes')} onOpenWeek={() => setArea('semana')} onOpenQuestions={(item) => openMentorTarget(item, 'questoes')} onOpenCards={(item) => openMentorTarget(item, 'cards')} />}
     </Layout>
   )
 }

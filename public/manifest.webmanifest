@@ -1,0 +1,10 @@
+{
+  "name": "Mentor de Estudos",
+  "short_name": "Mentor",
+  "description": "Semana, foco, questões e revisões em uma plataforma pessoal.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f3ec",
+  "theme_color": "#f5f3ec",
+  "icons": [{ "src": "/mentor-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

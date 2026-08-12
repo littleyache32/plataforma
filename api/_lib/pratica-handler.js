@@ -46,9 +46,14 @@ export default async function handler(req, res) {
       return res.status(200).json({ questao: question, disponiveis: count || questions?.length || 0 })
     }
 
-    const { questaoId, resposta, classificacao, tempo } = req.body || {}
+    const { questaoId, resposta, classificacao, tempo, operacaoId } = req.body || {}
     if (!questaoId || !classifications.includes(classificacao) || !Number.isInteger(tempo) || tempo < 0) {
       return res.status(400).json({ error: 'Resposta, classificacao e tempo validos sao obrigatorios.' })
+    }
+    if (operacaoId) {
+      const prior = await supabase.from('registro').select('id,resultado,classificacao').eq('operacao_id', operacaoId).maybeSingle()
+      if (prior.error) throw prior.error
+      if (prior.data) return res.status(200).json({ ...prior.data, repetida: true })
     }
     const { data: question, error } = await supabase.from('questao')
       .select('id,tipo,gabarito,enunciado,explicacao,comentarios_alternativas,fonte,trecho_fonte,quantidade_tentativas,intervalo_dias,fator_facilidade,lapsos,acertos_seguidos,topico:topico_id(id,materia:materia_id(id,objetivo_id))')
@@ -62,7 +67,7 @@ export default async function handler(req, res) {
     const transition = practiceTransition({ resultado, classificacao, tentativas: question.quantidade_tentativas, intervaloDias: question.intervalo_dias, fatorFacilidade: question.fator_facilidade, lapsos: question.lapsos, acertosSeguidos: question.acertos_seguidos })
     const now = new Date().toISOString()
 
-    const { error: insertError } = await supabase.from('registro').insert({ questao_id: question.id, resultado, classificacao, tempo })
+    const { error: insertError } = await supabase.from('registro').insert({ questao_id: question.id, resultado, classificacao, tempo, operacao_id: operacaoId || null })
     if (insertError) throw insertError
     const { error: updateError } = await supabase.from('questao').update({
       usada: true,
