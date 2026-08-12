@@ -7,7 +7,7 @@ const studentAreas = [
 ]
 
 const adminAreas = [
-  { id: 'semana', label: 'Semana' }, { id: 'objetivos', label: 'Objetivos' }, { id: 'prazos', label: 'Provas e entregas' }, { id: 'materiais', label: 'Materiais' },
+  { id: 'semana', label: 'Semana' }, { id: 'controle', label: 'Controle operacional' }, { id: 'objetivos', label: 'Objetivos' }, { id: 'prazos', label: 'Provas e entregas' }, { id: 'materiais', label: 'Materiais' },
   questionsArea, { id: 'cards', label: 'Question Cards' }, { id: 'simulados', label: 'Simulados' }, { id: 'desempenho', label: 'Desempenho' },
 ]
 

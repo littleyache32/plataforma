@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { adherenceAdjustment, buildMentorWeek, canGenerateMentorWeek, planOverdueMoves } from '../shared/planner.js'
+import { adherenceAdjustment, buildMentorWeek, canGenerateMentorWeek, planOverdueMoves, validateMentorPlan } from '../shared/planner.js'
 
 const catalog = [
   { id: 'bacen', tipo: 'concurso', materias: [{ id: 'cont', nome: 'Contabilidade', topicos: [{ id: 'cont-1', nome: 'Balanço' }] }] },
@@ -154,5 +154,16 @@ describe('buildMentorWeek', () => {
     const totals = result.reduce((map, item) => map.set(item.data, (map.get(item.data) || 0) + item.duracao_estimada), new Map())
     expect([...totals.values()].every((total) => total === 180)).toBe(true)
     expect(result.every((item) => item.tipo === 'estudo')).toBe(true)
+  })
+
+  it('limita a tres pendencias transferidas e nao estoura a capacidade diaria', () => {
+    const overdue = Array.from({ length: 6 }, (_, index) => ({ id: `p${index}`, data: '2026-08-10', status: 'planejada', prioridade: 1, duracao_estimada: 30 }))
+    const moves = planOverdueMoves(overdue, '2026-08-12', '2026-08-16')
+    expect(moves).toHaveLength(3)
+  })
+
+  it('bloqueia chaves duplicadas e carga acima do limite diario', () => {
+    expect(validateMentorPlan([{ chave_mentor: 'a', data: '2026-09-01', duracao_estimada: 60 }, { chave_mentor: 'a', data: '2026-09-01', duracao_estimada: 60 }]).reason).toBe('demanda_duplicada')
+    expect(validateMentorPlan([{ chave_mentor: 'a', data: '2026-09-01', duracao_estimada: 300 }, { chave_mentor: 'b', data: '2026-09-01', duracao_estimada: 200 }]).reason).toBe('limite_diario_excedido')
   })
 })

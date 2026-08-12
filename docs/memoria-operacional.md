@@ -52,6 +52,9 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - Após a fase inicial, a carga de estudo BACEN se adapta pela conclusão das demandas: abaixo de 70% na semana mais recente, o bloco cai de 60 para 30 minutos; entre 70% e 85%, permanece em 60 minutos; a partir de 85% por duas semanas consecutivas, sobe para 90 minutos. Faculdade, revisões vencidas, Questões e Question Cards não são removidos por esse ajuste.
 - Simulados só podem ser considerados a partir da semana de 7 de setembro de 2026.
 - A matéria Análise e Produção de Texto não recebe questões nem Question Cards.
+- O fechamento semanal compara demandas planejadas e concluídas, pendências, revisões e aderência. Esse resultado alimenta o ajuste da semana seguinte.
+- A trajetória até a prova mostra conteúdo restante, ritmo, capacidade projetada e risco somente quando existir data-alvo. Sem data da prova, a plataforma não inventa prazo nem percentual de risco.
+- Não criar manifesto sequencial dos PDFs, marcador de continuidade, continuação automática de aula ou calibração por tempo real. Esses itens não foram selecionados e conflitam com a demanda concluída inteira.
 
 ### Questões e Question Cards
 
@@ -69,6 +72,17 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - Responder questões não pode elevar o tópico acima de 20 Question Cards. O fluxo atualiza card correspondente quando existente; o Caderno absorve a necessidade de revisão sem criar excedente.
 - Em 11 de agosto de 2026, o usuário autorizou reconstruir o acervo BACEN exclusivamente a partir dos PDFs do Estratégia fornecidos por ele, sem Gemini. Só tópicos com fonte específica suficiente podem receber questões e cards; tópicos sem fonte ficam bloqueados.
 - Os PDFs pagos do Estratégia não podem ser enviados ao GitHub. O texto integral fica apenas no Supabase protegido, e o repositório guarda importadores, mapeamentos e auditorias.
+- Revisões vencidas de Question Cards vêm antes de cards novos. O limite inicial é de dez cards novos por objetivo ao dia.
+- O aluno pode denunciar Question Card ambíguo, incompleto ou incorreto. O item denunciado sai da fila até auditoria administrativa.
+
+### Administração e confiabilidade
+
+- O Administrador possui um controle operacional com saúde do mentor, execuções, próxima execução, falhas, política, semana gerada, auditoria de questões e cards, cobertura e backup.
+- O calendário acadêmico registra prova ou entrega, disciplina, data, peso, duração e conteúdo previsto.
+- O backup exporta progresso, respostas, planejamento, compromissos e configurações do mentor em JSON, sem segredos nem PDFs pagos.
+- Demandas e execuções do mentor usam chaves únicas. O plano é bloqueado se houver duplicidade ou carga superior a 480 minutos no dia.
+- O fechamento transfere no máximo três pendências e somente quando elas couberem na capacidade do dia. Tópicos sem fonte específica não entram no planejamento.
+- Falhas de funções e do cron são registradas para resolução no painel administrativo.
 
 ## Erros anteriores e prevenção
 
@@ -135,3 +149,5 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - 2026-08-11, limite reconhecido: filtros determinísticos garantem estrutura, fonte e remoção de ruído evidente, mas não substituem revisão semântica humana de todo o acervo. Não declarar perfeição semântica dos 1.250 cards; a curadoria integral permanece uma etapa distinta e não autoriza Gemini.
 - 2026-08-11, correção do mentor: a aderência mede demandas concluídas, sem penalizar o tempo real acima da estimativa. Uma atividade concluída permanece uma entrega única, sem continuação automática. Timer geral, mapa pedagógico dos PDFs e ampliação do painel do Yoda não foram autorizados nesta etapa.
 - 2026-08-11, adaptação de carga: depois das duas semanas iniciais fixas, o mentor reduz somente os blocos de estudo BACEN para 30 minutos quando a aderência recente fica abaixo de 70%, mantém 60 minutos na faixa sustentável e amplia para 90 minutos apenas depois de duas semanas consecutivas com pelo menos 85%.
+- 2026-08-12, seleção de escopo: foram aprovados P1 itens 5 e 6; P2 itens 5 e 6; P3 itens 1, 3, 4, 5 e 6; P4 itens 2, 3 e 5. P1 item 4 já estava concluído. Os demais itens da lista original não devem ser inferidos como aprovados.
+- 2026-08-12, entrega operacional: o mentor passou a produzir fechamento semanal e trajetória condicionada à existência de data-alvo; cards ganharam denúncia e limite diário; o Administrador recebeu saúde, falhas, auditoria, cobertura e backup; e o planejador passou a bloquear duplicidade, excesso diário e transferência descontrolada.

@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from './supabase.js'
 import { allowMethods, fail, requireAccess } from './http.js'
 import { calculateTopicDiagnosis } from '../../shared/mentor.js'
-import { adherenceAdjustment, buildMentorWeek, canGenerateMentorWeek, planOverdueMoves } from '../../shared/planner.js'
+import { adherenceAdjustment, buildMentorWeek, canGenerateMentorWeek, planOverdueMoves, validateMentorPlan } from '../../shared/planner.js'
 import { loadModuleKnowledge } from './module-knowledge.js'
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
@@ -99,6 +99,8 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
     : adherenceAdjustment(history)
   const demands = buildMentorWeek({ weekStart: inicio, catalog: mentorCatalog, priorities, pendingReviews: reviewResult.count || 0, scheduledQuestionReviews, commitments: commitmentsResult.data || [], adherenceHistory: history, policy })
   if (!demands.length) return { status: 200, body: { criadas: 0, motivo: 'Nenhuma disciplina disponivel.' } }
+  const validation = validateMentorPlan(demands)
+  if (!validation.valid) throw new Error(`Planejamento incoerente bloqueado: ${validation.reason}.`)
   const existingByKey = new Map((existingResult.data || []).map((item) => [item.chave_mentor, item]))
   const recalibrated = demands.map((item) => {
     const previous = existingByKey.get(item.chave_mentor)

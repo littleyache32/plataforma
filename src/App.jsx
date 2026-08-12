@@ -13,6 +13,7 @@ const Simulations = lazy(() => import('./components/Simulations.jsx'))
 const Performance = lazy(() => import('./components/Performance.jsx'))
 const QuestionCards = lazy(() => import('./components/QuestionCards.jsx'))
 const Deadlines = lazy(() => import('./components/Deadlines.jsx'))
+const AdminPanel = lazy(() => import('./components/AdminPanel.jsx'))
 
 export default function App() {
   const [status, setStatus] = useState('loading')
@@ -75,7 +76,7 @@ export default function App() {
 
   function changeMode(nextMode) {
     setMode(nextMode)
-    if (nextMode === 'aluno' && ['objetivos', 'materiais', 'prazos'].includes(area)) setArea('semana')
+    if (nextMode === 'aluno' && ['objetivos', 'materiais', 'prazos', 'controle'].includes(area)) setArea('semana')
   }
 
   if (status === 'loading') return <main className="loading"><span className="brand-mark">ME</span><p>Organizando sua plataforma...</p></main>
@@ -92,6 +93,7 @@ export default function App() {
       {area === 'objetivos' && mode === 'administrador' && <Objectives {...common} />}
       {area === 'materiais' && mode === 'administrador' && <Materials {...common} />}
       {area === 'prazos' && mode === 'administrador' && <Deadlines catalog={catalog} />}
+      {area === 'controle' && mode === 'administrador' && <AdminPanel />}
       {area === 'questoes' && <Questions {...common} target={studyTarget?.objectiveId === objective?.id ? studyTarget : null} onTargetApplied={() => setStudyTarget(null)} reviewQuestionId={reviewQuestionId} onReviewLoaded={() => setReviewQuestionId('')} />}
       {area === 'caderno' && <Questions {...common} notebookOnly />}
       {area === 'discursivas' && <DiscursiveQuestions />}

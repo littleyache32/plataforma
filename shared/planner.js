@@ -48,6 +48,18 @@ export function adherenceAdjustment(history = []) {
   return { nivel: 'manter', motivo: 'aderencia_sustentavel', semanas: measured }
 }
 
+export function validateMentorPlan(demands, { dailyLimit = 480 } = {}) {
+  const keys = new Set()
+  const load = new Map()
+  for (const item of demands) {
+    if (!item?.chave_mentor || keys.has(item.chave_mentor)) return { valid: false, reason: 'demanda_duplicada' }
+    keys.add(item.chave_mentor)
+    load.set(item.data, (load.get(item.data) || 0) + Number(item.duracao_estimada || 0))
+  }
+  const overloaded = [...load.entries()].find(([, minutes]) => minutes > dailyLimit)
+  return overloaded ? { valid: false, reason: 'limite_diario_excedido', data: overloaded[0], minutos: overloaded[1] } : { valid: true }
+}
+
 export function planOverdueMoves(sessions, today, weekEnd) {
   if (today > weekEnd) return []
   const movable = sessions.filter((item) => item.status === 'planejada' && item.data < today)
@@ -58,13 +70,17 @@ export function planOverdueMoves(sessions, today, weekEnd) {
   }
   if (!movable.length || !candidates.length) return []
   const load = Object.fromEntries(candidates.map((date) => [date, sessions.filter((item) => item.data === date && item.status !== 'feita').reduce((sum, item) => sum + (item.duracao_estimada || 0), 0)]))
-  return movable.sort((a, b) => (a.prioridade || 2) - (b.prioridade || 2)).map((item) => {
+  const moves = []
+  for (const item of movable.sort((a, b) => (a.prioridade || 2) - (b.prioridade || 2))) {
+    if (moves.length >= 3) break
     const duration = item.duracao_estimada || 30
     const fitting = candidates.filter((date) => load[date] + duration <= ([0, 6].includes(new Date(`${date}T12:00:00Z`).getUTCDay()) ? 180 : 270))
-    const destination = (fitting.length ? fitting : candidates).sort((a, b) => load[a] - load[b])[0]
+    if (!fitting.length) continue
+    const destination = fitting.sort((a, b) => load[a] - load[b])[0]
     load[destination] += duration
-    return { id: item.id, data: destination }
-  })
+    moves.push({ id: item.id, data: destination })
+  }
+  return moves
 }
 
 function demand({ weekStart, day, slot, target, title, type, duration, priority = 2 }) {

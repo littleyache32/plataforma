@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
+import { getSupabaseAdmin } from './supabase.js'
 
 const COOKIE_NAME = 'mentor_session'
 const SESSION_SECONDS = 60 * 60 * 12
@@ -90,7 +91,10 @@ export async function enforceRateLimit(supabase, action, limit, windowMinutes) {
   if (insertError) throw insertError
 }
 
-export function fail(res, error, fallback = 'Erro interno.') {
+export async function fail(res, error, fallback = 'Erro interno.') {
   console.error(error)
+  try {
+    await getSupabaseAdmin().from('sistema_falha').insert({ origem: fallback, mensagem: String(error?.message || fallback).slice(0, 500), detalhe: String(error?.stack || '').slice(0, 4000) || null })
+  } catch { /* o monitoramento nao pode ocultar a falha original */ }
   return res.status(error?.statusCode || 500).json({ error: error?.statusCode ? error.message : fallback })
 }

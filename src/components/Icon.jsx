@@ -9,6 +9,7 @@ const paths = {
   objetivos: <><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></>,
   prazos: <><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M8 14h3M8 17h6"/></>,
   materiais: <><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h6"/></>,
+  controle: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/><path d="m3 7 5-3 5 4 7-5"/></>,
 }
 
 export default function Icon({ name }) {

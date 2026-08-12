@@ -44,6 +44,9 @@ describe('calculateTopicDiagnosis', () => {
 })
 
 describe('mentorPhase', () => {
+  it('nao cria uma fase de pratica antes do inicio da mentoria', () => {
+    expect(mentorPhase('2026-08-12').id).toBe('aguardando_inicio')
+  })
   it('mantem as duas primeiras semanas exclusivamente para construcao da base', () => {
     expect(mentorPhase('2026-08-17').id).toBe('construcao_base')
     expect(mentorPhase('2026-08-23').descricao).toContain('sem questões')

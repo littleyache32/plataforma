@@ -19,15 +19,16 @@ export default async function handler(req, res) {
   const existing = await supabase.from('mentor_execucao').select('id,resultado').eq('tipo', type).eq('semana_inicio', weekStart).eq('data_execucao', today).eq('status', 'concluida').maybeSingle()
   if (existing.error) return res.status(500).json({ error: 'Falha ao verificar execucao.' })
   if (existing.data) return res.status(200).json({ ok: true, ja_executado: true, semana: weekStart, ...existing.data.resultado })
-  const run = await supabase.from('mentor_execucao').insert({ tipo: type, semana_inicio: weekStart, data_execucao: today, status: 'iniciada', entrada: { today } }).select('id').single()
+  const run = await supabase.from('mentor_execucao').upsert({ tipo: type, semana_inicio: weekStart, data_execucao: today, status: 'iniciada', entrada: { today }, resultado: {}, erro: null, iniciado_em: new Date().toISOString(), concluido_em: null }, { onConflict: 'tipo,semana_inicio,data_execucao' }).select('id').single()
   if (run.error) return res.status(500).json({ error: 'Falha ao registrar execucao.' })
   try {
     const result = await prepareMentorWeek({ inicio: weekStart, today, force: true })
-    await supabase.from('mentor_decisao').insert({ execucao_id: run.data.id, tipo: 'planejamento_semanal', decisao: isSunday ? 'Criar a próxima semana' : 'Recalibrar a semana em curso', justificativa: 'Decisão baseada em prazos, pendências e evidências de desempenho disponíveis no momento da execução.', confianca: isSunday ? 0.82 : 0.72, dados: { today, weekStart, itens: result.body.itens?.length || 0 } })
+    await supabase.from('mentor_decisao').insert({ execucao_id: run.data.id, tipo: 'planejamento_semanal', decisao: isSunday ? 'Criar a próxima semana' : 'Recalibrar a semana em curso', justificativa: 'Decisão baseada em prazos, pendências, aderência e evidências de desempenho disponíveis no momento da execução.', confianca: isSunday ? 0.82 : 0.72, dados: { today, weekStart, itens: result.body.total_planejado || 0, ajuste_carga: result.body.ajuste_carga, remanejadas: result.body.remanejadas || 0 } })
     await supabase.from('mentor_execucao').update({ status: 'concluida', politica_versao: result.body.politica_mentor, resultado: result.body, concluido_em: new Date().toISOString() }).eq('id', run.data.id)
     return res.status(200).json({ ok: true, semana: weekStart, ...result.body })
   } catch (error) {
     await supabase.from('mentor_execucao').update({ status: 'falhou', erro: String(error.message || error), concluido_em: new Date().toISOString() }).eq('id', run.data.id)
+    await supabase.from('sistema_falha').insert({ origem: 'cron_mentor', mensagem: String(error.message || error).slice(0, 500) })
     return res.status(500).json({ error: 'Execucao do mentor falhou.' })
   }
 }
