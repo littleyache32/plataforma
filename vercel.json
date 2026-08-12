@@ -10,7 +10,8 @@
     { "source": "/api/plano", "destination": "/api/sessoes?recurso=plano" },
     { "source": "/api/estudo", "destination": "/api/catalogo?recurso=estudo" },
     { "source": "/api/admin/acervo", "destination": "/api/admin/seed?recurso=acervo" },
-    { "source": "/api/admin/reconstruir", "destination": "/api/admin/seed?recurso=reconstruir" }
+    { "source": "/api/admin/reconstruir", "destination": "/api/admin/seed?recurso=reconstruir" },
+    { "source": "/api/admin/painel", "destination": "/api/admin/seed?recurso=painel" }
   ],
   "functions": {
     "api/**/*.js": {

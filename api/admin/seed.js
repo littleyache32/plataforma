@@ -5,8 +5,10 @@ import { allowMethods, enforceRateLimit, fail, requireAccess } from '../_lib/htt
 import { queryParam } from '../_lib/http.js'
 import archiveHandler from '../_lib/acervo-handler.js'
 import rebuildHandler from '../_lib/rebuild-handler.js'
+import panelHandler from '../_lib/painel-handler.js'
 
 export default async function handler(req, res) {
+  if (queryParam(req, 'recurso') === 'painel') return panelHandler(req, res)
   if (!allowMethods(req, res, ['POST']) || !requireAccess(req, res)) return
   if (queryParam(req, 'recurso') === 'acervo') return archiveHandler(req, res)
   if (queryParam(req, 'recurso') === 'reconstruir') return rebuildHandler(req, res)
