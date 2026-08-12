@@ -22,7 +22,7 @@ function cleanMarkdown(value) {
 
 function sentenceParts(value) {
   const clean = cleanMarkdown(value)
-  if (clean.length <= 420) return [clean]
+  if (clean.length <= 420 && !/[.!?;:].+[.!?;:]/.test(clean)) return [clean]
   return clean.split(/(?<=[.!?;:])\s+(?=[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ0-9])/u).map((item) => item.trim())
 }
 
@@ -96,6 +96,21 @@ function cardFront(unit, topicName, variant = 0) {
   const lead = cardLeads[variant % cardLeads.length]
   const focus = cardFocus[Math.floor(variant / cardLeads.length) % cardFocus.length]
   return `${lead} ${anchor} ${focus} ${section || topicName}?`
+}
+
+function cardAnswer(claim) {
+  const clean = cleanMarkdown(claim)
+  if (clean.length <= 240) return clean
+
+  const clauses = clean
+    .split(/(?<=[.;:])\s+|,\s+(?=(?:que|quando|porque|pois|mas|porém|contudo|logo|portanto)\b)/i)
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 24)
+  const complete = clauses.find((item) => item.length <= 240)
+  if (complete) return /[.!?;:]$/.test(complete) ? complete : `${complete}.`
+
+  const boundary = clean.slice(0, 236).lastIndexOf(' ')
+  return `${clean.slice(0, boundary > 80 ? boundary : 236).replace(/[,;:]$/, '')}.`
 }
 
 function difficultyGroup(value) {
@@ -180,7 +195,7 @@ export function buildTopicItems({ topic, knowledge, existingQuestions = [], exis
       topico_id: topic.id,
       chave: createHash('sha256').update(`${topic.id}|${key}`).digest('hex'),
       frente: front,
-      verso: unit.claim,
+      verso: cardAnswer(unit.claim),
       fonte: source,
       trecho_fonte: unit.evidence,
       dificuldade: cycle % 10 === 9 ? 4 : cycle % 3 === 2 ? 3 : 2,

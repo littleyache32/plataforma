@@ -2,12 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api.js'
 import avatar from '../assets/mentor-avatar.svg'
 
-function todayIso() {
-  const now = new Date()
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
-}
-
-export default function MentorWidget({ objectiveId, onOpenAlerts, onOpenWeek, onOpenQuestions, onOpenCards }) {
+export default function MentorWidget({ objectiveId, onOpenAlerts, onOpenWeek, onOpenNextDemand, onOpenQuestions, onOpenCards }) {
   const [open, setOpen] = useState(false)
   const [mentor, setMentor] = useState(null)
   const [demands, setDemands] = useState([])
@@ -17,15 +12,14 @@ export default function MentorWidget({ objectiveId, onOpenAlerts, onOpenWeek, on
   useEffect(() => {
     if (!open || !objectiveId || loadedFor === objectiveId) return
     let active = true
-    const today = todayIso()
     setLoading(true)
     Promise.all([
       api(`/api/mentor?objetivoId=${objectiveId}&compacto=1`),
-      api(`/api/sessoes?inicio=${today}&fim=${today}`),
+      api('/api/sessoes?recurso=proxima'),
     ]).then(([mentorData, sessionData]) => {
       if (!active) return
       setMentor(mentorData)
-      setDemands((sessionData.sessoes || []).filter((item) => item.status !== 'feita').sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0)))
+      setDemands(sessionData.demanda ? [sessionData.demanda] : [])
       setLoadedFor(objectiveId)
     }).catch(() => {
       if (active) setMentor(null)
@@ -57,7 +51,7 @@ export default function MentorWidget({ objectiveId, onOpenAlerts, onOpenWeek, on
           {trajectory?.risco_nao_concluir > 0 && <div className="chat-message received follow-up"><div className="chat-avatar-space"/><div className="chat-bubble priority-bubble"><small>ALERTA DE TRAJETÓRIA</small><strong>{trajectory.risco_nao_concluir}% de risco</strong><span>{trajectory.conteudo_restante} tópicos ainda precisam de domínio.</span></div></div>}
         </>}
       </div>
-      {!loading && <div className="mentor-actions sketch-replies">{alerts.length > 0 && <button className="primary" onClick={onOpenAlerts}>Abrir central de alertas</button>}<button className="secondary" onClick={onOpenWeek}>Abrir minha semana</button>{!basePhase && priority?.questoes_para_revisar > 0 && <button className="secondary" onClick={() => onOpenQuestions(priority)}>Revisar questões</button>}{!basePhase && priority?.cards_vencidos > 0 && <button className="secondary" onClick={() => onOpenCards(priority)}>Revisar Question Cards</button>}</div>}
+      {!loading && <div className="mentor-actions sketch-replies">{nextDemand && <button className="primary" onClick={() => onOpenNextDemand(nextDemand)}>Abrir próxima demanda</button>}{alerts.length > 0 && <button className="secondary" onClick={onOpenAlerts}>Abrir central de alertas</button>}<button className="secondary" onClick={onOpenWeek}>Abrir minha semana</button>{!basePhase && priority?.questoes_para_revisar > 0 && <button className="secondary" onClick={() => onOpenQuestions(priority)}>Revisar questões</button>}{!basePhase && priority?.cards_vencidos > 0 && <button className="secondary" onClick={() => onOpenCards(priority)}>Revisar Question Cards</button>}</div>}
       <footer><span>Direcionamento baseado em rotina, desempenho e recência.</span><i aria-label="Gemini desativado">IA desativada</i></footer>
     </section>}
     <button className="mentor-trigger" onClick={() => setOpen((value) => !value)} aria-label={open ? 'Fechar mentor' : 'Abrir mentor'} aria-expanded={open}><img src={avatar} alt=""/><span aria-hidden="true"/>{alerts.length > 0 && <b className="mentor-alert-count">{alerts.length}</b>}</button>

@@ -27,6 +27,7 @@ export default function App() {
   const [mode, setMode] = useState('aluno')
   const [reviewQuestionId, setReviewQuestionId] = useState('')
   const [studyTarget, setStudyTarget] = useState(null)
+  const [weekTarget, setWeekTarget] = useState(null)
 
   async function loadCatalog() {
     const data = await api('/api/catalogo')
@@ -97,14 +98,14 @@ export default function App() {
 
   return (
     <Layout area={area} onAreaChange={setArea} catalog={contextCatalog} objectiveId={objective?.id || ''} onObjectiveChange={setObjectiveId} context={context} onContextChange={changeContext} mode={mode} onModeChange={changeMode} onLogout={logout}>
-      {area === 'semana' && <Week catalog={catalog} onOpenQuestions={(item) => openDemand(item, 'questoes')} onOpenCards={(item) => openDemand(item, 'cards')} />}
+      {area === 'semana' && <Week catalog={catalog} target={weekTarget} onTargetApplied={() => setWeekTarget(null)} onOpenQuestions={(item) => openDemand(item, 'questoes')} onOpenCards={(item) => openDemand(item, 'cards')} />}
       <Suspense fallback={<div className="module-loading">Carregando módulo...</div>}>
       {area === 'objetivos' && mode === 'administrador' && <Objectives {...common} />}
       {area === 'materiais' && mode === 'administrador' && <Materials {...common} />}
       {area === 'prazos' && mode === 'administrador' && <Deadlines catalog={catalog} />}
       {area === 'controle' && mode === 'administrador' && <AdminPanel />}
       {area === 'edital' && mode === 'administrador' && <EdictComparator objective={objective} />}
-      {area === 'tempo' && <StudyTime objective={objective} />}
+      {area === 'tempo' && <StudyTime catalog={catalog} />}
       {area === 'revisoes' && <ReviewCenter objective={objective} onOpenQuestion={openReviewItem} onOpenCards={(item) => { setStudyTarget({ objectiveId: objective?.id, subjectId: item.materia_id || '', topicId: item.topico_id || '' }); setArea('cards') }} />}
       {area === 'questoes' && <Questions {...common} target={studyTarget?.objectiveId === objective?.id ? studyTarget : null} onTargetApplied={() => setStudyTarget(null)} reviewQuestionId={reviewQuestionId} onReviewLoaded={() => setReviewQuestionId('')} />}
       {area === 'caderno' && <Questions {...common} notebookOnly />}
@@ -113,7 +114,7 @@ export default function App() {
       {area === 'simulados' && <Simulations objective={objective} />}
       {area === 'desempenho' && <Performance objective={objective} mode={mode} onReview={openReview} />}
       </Suspense>
-      {mode === 'aluno' && <MentorWidget objectiveId={objective?.id || ''} onOpenAlerts={() => setArea('revisoes')} onOpenWeek={() => setArea('semana')} onOpenQuestions={(item) => openMentorTarget(item, 'questoes')} onOpenCards={(item) => openMentorTarget(item, 'cards')} />}
+      {mode === 'aluno' && <MentorWidget objectiveId={objective?.id || ''} onOpenAlerts={() => setArea('revisoes')} onOpenWeek={() => setArea('semana')} onOpenNextDemand={(item) => { setWeekTarget(item); setArea('semana') }} onOpenQuestions={(item) => openMentorTarget(item, 'questoes')} onOpenCards={(item) => openMentorTarget(item, 'cards')} />}
     </Layout>
   )
 }

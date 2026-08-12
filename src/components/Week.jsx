@@ -35,7 +35,7 @@ function minutesLabel(minutes) {
   return hours ? `${hours}h${rest ? ` ${rest}min` : ''}` : `${rest} min`
 }
 
-export default function Week({ catalog, onOpenQuestions, onOpenCards }) {
+export default function Week({ catalog, target, onTargetApplied, onOpenQuestions, onOpenCards }) {
   const [weekOffset, setWeekOffset] = useState(initialWeekOffset)
   const range = useMemo(() => weekRange(weekOffset), [weekOffset])
   const [sessions, setSessions] = useState([])
@@ -73,6 +73,12 @@ export default function Week({ catalog, onOpenQuestions, onOpenCards }) {
     prepareAndLoad()
     return () => { active = false }
   }, [range.start, range.end])
+
+  useEffect(() => {
+    if (!target?.id) return
+    setSelected(target)
+    onTargetApplied?.()
+  }, [target?.id])
 
   async function reorderDemand(day, targetId, event) {
     event.preventDefault()
@@ -116,13 +122,6 @@ export default function Week({ catalog, onOpenQuestions, onOpenCards }) {
     }
   }
 
-  async function openNextDemand() {
-    try {
-      const data = await api('/api/sessoes?recurso=proxima')
-      if (!data.demanda) return setMessage('Nenhuma demanda pendente encontrada.')
-      setSelected(data.demanda)
-    } catch (error) { setMessage(error.message) }
-  }
 
   const days = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(`${range.start}T12:00:00`)
@@ -139,7 +138,6 @@ export default function Week({ catalog, onOpenQuestions, onOpenCards }) {
 
   return (
     <section className="week-page">
-      <button className="primary next-demand-button" onClick={openNextDemand}>Próxima demanda</button>
       <header className="page-title week-title"><div><p className="eyebrow">PLANO DO MENTOR</p><h1>Sua semana</h1><p>O mentor organiza Faculdade e BACEN por demandas. Arraste os cartões para definir a ordem de execução dentro do próprio dia.</p><div className="week-navigation"><button className="secondary" onClick={() => setWeekOffset((value) => value - 1)} aria-label="Semana anterior">‹</button><button className="secondary" onClick={() => setWeekOffset(0)}>Semana atual</button><span>Semana de {weekLabel}</span><button className="secondary" onClick={() => setWeekOffset((value) => value + 1)} aria-label="Próxima semana">›</button></div></div><div className="today-load"><small>{today ? 'HOJE' : 'SEMANA'}</small><b>{minutesLabel(today?.total ?? remainingWeekMinutes)}</b><span>{today?.demands.length ?? sessions.length} demandas</span></div></header>
       <div className="week-legends" aria-label="Filtros das demandas"><button className={`context-key faculdade ${contextFilter === 'faculdade' ? 'active' : ''}`} aria-pressed={contextFilter === 'faculdade'} onClick={() => setContextFilter((current) => current === 'faculdade' ? '' : 'faculdade')}>Faculdade</button><button className={`context-key concurso ${contextFilter === 'concurso' ? 'active' : ''}`} aria-pressed={contextFilter === 'concurso'} onClick={() => setContextFilter((current) => current === 'concurso' ? '' : 'concurso')}>BACEN</button>{Object.entries({ estudo: 'Estudo', revisao: 'Revisão', exercicio: 'Exercício', especial: 'Especial' }).map(([id, label]) => <button className={`context-key demand-type ${id} ${typeFilter === id ? 'active' : ''}`} aria-pressed={typeFilter === id} key={id} onClick={() => setTypeFilter((current) => current === id ? '' : id)}>{label}</button>)}</div>
       {planning && <p className="mentor-status">Carregando esta semana...</p>}

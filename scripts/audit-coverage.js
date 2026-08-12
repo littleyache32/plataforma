@@ -4,7 +4,7 @@ const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET
 if (!process.env.SUPABASE_URL || !key) throw new Error('Supabase não configurado.')
 const supabase = createClient(process.env.SUPABASE_URL, key, { auth: { persistSession: false } })
 const questionTarget = 100
-const cardTarget = 50
+const cardTarget = 20
 
 async function allRows(table, columns) {
   const rows = []

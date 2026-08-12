@@ -1,6 +1,7 @@
 import pg from 'pg'
 import { buildTopicItems } from '../shared/offline-content.js'
 import { normalizeContent } from '../shared/question-quality.js'
+import { librarySpecs } from './acervo-specs.js'
 
 const apply = process.argv.includes('--apply')
 const connectionString = process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL
@@ -11,6 +12,23 @@ databaseUrl.searchParams.delete('sslmode')
 databaseUrl.searchParams.delete('sslrootcert')
 const client = new pg.Client({ connectionString: databaseUrl.toString(), ssl: { rejectUnauthorized: false } })
 const quotas = { easy: 60, medium: 30, hard: 10 }
+
+function curricularFallback(row) {
+  const spec = librarySpecs.find((item) => item.subject === row.materia)
+  const topic = spec?.topics?.find(([name]) => name === row.nome)
+  if (!spec || !topic) return null
+  const scope = String(topic[1] || '').replace(/\s+/g, ' ').trim()
+  const elements = scope.split(/[,;]\s*/).map((item) => item.trim()).filter((item) => item.length >= 4)
+  const statements = [
+    `O estudo de ${row.nome} abrange ${scope}`,
+    ...elements.map((item) => `No recorte curricular de ${row.nome}, o programa inclui ${item}`),
+  ]
+  return {
+    text: `# ${row.nome}\n\n${statements.map((item) => `${item}.`).join('\n\n')}`,
+    source: spec.basis,
+    version: null,
+  }
+}
 
 function chunks(items, size) {
   const result = []
@@ -130,7 +148,8 @@ try {
   const coverage = []
 
   for (const row of topics) {
-    if (!row.trecho) throw new Error(`Sem material de origem para ${row.materia} > ${row.nome}.`)
+    const knowledge = row.trecho ? { text: row.trecho, source: row.fonte, version: row.versao } : curricularFallback(row)
+    if (!knowledge?.text) throw new Error(`Sem material de origem para ${row.materia} > ${row.nome}.`)
     const existingQuestions = questionsByTopic.get(row.id) || []
     const keptQuestions = []
     for (const group of ['easy', 'medium', 'hard']) {
@@ -139,10 +158,10 @@ try {
       archivedQuestions.push(...ranked.slice(quotas[group]).map((item) => item.id))
     }
     const existingCards = [...(cardsByTopic.get(row.id) || [])].sort(rankCards)
-    const keptCards = existingCards.slice(0, 50)
-    archivedCards.push(...existingCards.slice(50).map((item) => item.id))
+    const keptCards = existingCards.slice(0, 20)
+    archivedCards.push(...existingCards.slice(20).map((item) => item.id))
     const topic = { id: row.id, name: row.nome, subjectId: row.materia_id, subject: row.materia, objectiveId: row.objetivo_id, context: row.contexto }
-    const built = buildTopicItems({ topic, knowledge: { text: row.trecho, source: row.fonte, version: row.versao }, existingQuestions: keptQuestions, existingCards: keptCards, questionTarget: 100, cardTarget: 50, difficultyTargets: quotas })
+    const built = buildTopicItems({ topic, knowledge, existingQuestions: keptQuestions, existingCards: keptCards, questionTarget: 100, cardTarget: 20, difficultyTargets: quotas })
     allQuestions.push(...built.questions)
     allCards.push(...built.cards)
     coverage.push({ contexto: row.contexto, materia: row.materia, topico: row.nome, unidades: built.units, questoes_antes: existingQuestions.length, questoes_arquivadas: existingQuestions.length - keptQuestions.length, questoes_novas: built.questions.length, cards_antes: existingCards.length, cards_arquivados: existingCards.length - keptCards.length, cards_novos: built.cards.length })
@@ -182,9 +201,9 @@ try {
           (select count(*) from question_card c where c.topico_id=t.id and c.ativa=true and c.ativo=true) cards
         from topico t left join questao q on q.topico_id=t.id where t.id=any($1::uuid[]) group by t.id
       `, [topics.map((item) => item.id)])
-      const invalid = verification.rows.filter((item) => Number(item.questoes) !== 100 || Number(item.faceis) !== 60 || Number(item.medias) !== 30 || Number(item.dificeis) !== 10 || Number(item.cards) !== 50)
+      const invalid = verification.rows.filter((item) => Number(item.questoes) !== 100 || Number(item.faceis) !== 60 || Number(item.medias) !== 30 || Number(item.dificeis) !== 10 || Number(item.cards) !== 20)
       if (invalid.length) throw new Error(`Verificação final falhou em ${invalid.length} tópicos.`)
-      await client.query(`update acervo_meta set questoes_alvo=100,cards_alvo=50,atualizado_em=now()`)
+      await client.query(`update acervo_meta set questoes_alvo=100,cards_alvo=20,atualizado_em=now()`)
       await client.query('commit')
       summary.questoes_inseridas = insertedQuestions.length
       summary.cards_inseridos = insertedCards.length
