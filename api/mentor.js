@@ -110,6 +110,9 @@ export default async function handler(req, res) {
     if(filteredReviews.length) alerts.push({tipo:'revisao',gravidade:'alta',titulo:`${filteredReviews.length} revisoes vencidas`,mensagem:'A central de revisao ordenou os itens mais urgentes.'})
     const overdue=scopedPending.filter((item)=>item.data<today); if(overdue.length) alerts.push({tipo:'pendencia',gravidade:'alta',titulo:`${overdue.length} demandas nao concluidas`,mensagem:'O mentor vai redistribuir no fechamento sem ultrapassar o limite.'})
     if(scopedPending.length>=8) alerts.push({tipo:'acumulo',gravidade:'media',titulo:'Risco de acumulo',mensagem:`Ha ${scopedPending.length} demandas abertas na semana.`})
+    const falseCertainty = prioridades.find((item) => item.falsa_certeza >= 10)
+    if(falseCertainty) alerts.push({tipo:'preparacao_prova',gravidade:'alta',titulo:`Falsa certeza em ${falseCertainty.materia}`,mensagem:`${falseCertainty.nome} precisa de correção e reteste antes de avançar.`})
+    if(trajectory.risco_nao_concluir > 0) alerts.push({tipo:'trajetoria',gravidade:trajectory.risco_nao_concluir >= 35 ? 'alta' : 'media',titulo:'Risco na trajetória até a prova',mensagem:`No ritmo atual, o risco projetado é de ${trajectory.risco_nao_concluir}%.`})
     for(const item of scopedCommitments.slice(0,3)) alerts.push({tipo:'prazo',gravidade:'media',titulo:item.titulo,mensagem:`${item.tipo} em ${new Date(`${item.data}T12:00:00`).toLocaleDateString('pt-BR')}.`})
     if(planned) alerts.push({tipo:'carga',gravidade:'baixa',titulo:`Carga da proxima semana: ${adjustment.nivel}`,mensagem:adjustment.motivo})
     const body = {

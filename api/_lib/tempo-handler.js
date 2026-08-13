@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from './supabase.js'
 import { allowMethods, fail, queryParam, requireAccess } from './http.js'
 
-const fields = 'id,operacao_id,sessao_id,objetivo_id,materia_id,topico_id,contexto,titulo,status,segundos_acumulados,iniciado_em,retomado_em,finalizado_em,materia:materia_id(nome),objetivo:objetivo_id(nome,tipo)'
+const fields = 'id,operacao_id,sessao_id,objetivo_id,materia_id,topico_id,contexto,titulo,status,segundos_acumulados,duracao_alvo_segundos,iniciado_em,retomado_em,finalizado_em,materia:materia_id(nome),objetivo:objetivo_id(nome,tipo)'
 const elapsed = (item) => item.status === 'rodando' && item.retomado_em ? item.segundos_acumulados + Math.max(0, Math.floor((Date.now() - new Date(item.retomado_em).getTime()) / 1000)) : item.segundos_acumulados
 
 export default async function handler(req, res) {
@@ -23,14 +23,16 @@ export default async function handler(req, res) {
       return res.status(200).json({ ativo: active.data ? { ...active.data, segundos: elapsed(active.data) } : null, historico: items, resumo: { hoje: items.filter((item) => item.status === 'concluido' && item.iniciado_em.slice(0,10) === today).reduce((sum,item) => sum + item.segundos,0), semana: items.filter((item) => item.status === 'concluido').reduce((sum,item) => sum + item.segundos,0), planejado_semana: (planned.data || []).reduce((sum,item) => sum + (item.duracao_estimada || 0) * 60, 0), disciplinas: [...bySubject.entries()].map(([nome,segundos]) => ({ nome,segundos })).sort((a,b) => b.segundos-a.segundos) } })
     }
     if (req.method === 'POST') {
-      const { operacaoId, sessaoId, objetivoId, materiaId, topicoId, contexto = 'livre', titulo, status, segundosAcumulados } = req.body || {}
+      const { operacaoId, sessaoId, objetivoId, materiaId, topicoId, contexto = 'livre', titulo, status, segundosAcumulados, duracaoAlvoSegundos } = req.body || {}
       if (!titulo || !['demanda','disciplina','questao','card','livre'].includes(contexto)) return res.status(400).json({ error: 'Contexto e titulo validos sao obrigatorios.' })
       if (operacaoId) { const prior = await supabase.from('tempo_estudo').select(fields).eq('operacao_id', operacaoId).maybeSingle(); if (prior.data) return res.status(200).json({ timer: prior.data, repetida: true }) }
       const existing = await supabase.from('tempo_estudo').select(fields).in('status', ['rodando','pausado']).maybeSingle()
       if (existing.error) throw existing.error
       if (existing.data && status !== 'concluido') return res.status(409).json({ error: 'Pause ou conclua o timer atual antes de iniciar outro.', timer: existing.data })
       const completedOffline = status === 'concluido'
-      const created = await supabase.from('tempo_estudo').insert({ operacao_id: operacaoId || null, sessao_id: sessaoId || null, objetivo_id: objetivoId || null, materia_id: materiaId || null, topico_id: topicoId || null, contexto, titulo: String(titulo).trim(), status: completedOffline ? 'concluido' : 'rodando', segundos_acumulados: completedOffline ? Math.max(0, Number(segundosAcumulados) || 0) : 0, retomado_em: completedOffline ? null : new Date().toISOString(), finalizado_em: completedOffline ? new Date().toISOString() : null }).select(fields).single()
+      const targetSeconds = Number(duracaoAlvoSegundos) || null
+      if (targetSeconds !== null && (!Number.isInteger(targetSeconds) || targetSeconds < 60 || targetSeconds > 43200)) return res.status(400).json({ error: 'O tempo de foco deve ficar entre 1 minuto e 12 horas.' })
+      const created = await supabase.from('tempo_estudo').insert({ operacao_id: operacaoId || null, sessao_id: sessaoId || null, objetivo_id: objetivoId || null, materia_id: materiaId || null, topico_id: topicoId || null, contexto, titulo: String(titulo).trim(), status: completedOffline ? 'concluido' : 'rodando', segundos_acumulados: completedOffline ? Math.max(0, Number(segundosAcumulados) || 0) : 0, duracao_alvo_segundos: targetSeconds, retomado_em: completedOffline ? null : new Date().toISOString(), finalizado_em: completedOffline ? new Date().toISOString() : null }).select(fields).single()
       if (created.error) throw created.error
       return res.status(201).json({ timer: created.data })
     }

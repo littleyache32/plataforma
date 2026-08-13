@@ -17,6 +17,13 @@ function pickDistributed(items, index) {
   return group ? pick(group, index) : null
 }
 
+function pickSequentiallyDistributed(items, index) {
+  const groups = [...items.reduce((map, item) => map.set(item.subjectId, [...(map.get(item.subjectId) || []), item]), new Map()).values()]
+  if (!groups.length) return null
+  const group = groups[index % groups.length]
+  return group[Math.floor(index / groups.length) % group.length]
+}
+
 function normalized(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 }
@@ -167,9 +174,9 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     const otherPracticeTarget = pick(practiceBacen.filter((item) => item.subjectId !== practiceTarget?.subjectId), rotationSeed + day + 2) || practiceTarget
 
     if (onboarding) {
-      const baseBacenA = pickDistributed(byContext.concurso, rotationSeed + day) || bacenTarget
-      const baseBacenB = pickDistributed(byContext.concurso.filter((item) => item.subjectId !== baseBacenA?.subjectId), rotationSeed + day + 1) || otherBacen
-      const baseBacenC = pickDistributed(byContext.concurso.filter((item) => ![baseBacenA?.subjectId, baseBacenB?.subjectId].includes(item.subjectId)), rotationSeed + day + 2) || bacenTarget
+      const baseBacenA = pickSequentiallyDistributed(byContext.concurso, day * 3) || bacenTarget
+      const baseBacenB = pickSequentiallyDistributed(byContext.concurso, day * 3 + 1) || otherBacen
+      const baseBacenC = pickSequentiallyDistributed(byContext.concurso, day * 3 + 2) || bacenTarget
       if (day <= 3) rows.push(demand({ weekStart, day, slot: 'base-faculdade', target: facultyTarget, title: `Aula dada, aula estudada: ${facultyTarget?.subject || ''}`, type: 'estudo', duration: policy.fase_inicial.faculdade_minutos_segunda_quinta, priority: 2 }))
       rows.push(demand({ weekStart, day, slot: 'base-bacen-a', target: baseBacenA, title: `Construir base BACEN: ${baseBacenA.topic || baseBacenA.subject}`, type: 'estudo', duration: 60, priority: 1 }))
       rows.push(demand({ weekStart, day, slot: 'base-bacen-b', target: baseBacenB, title: `Construir base BACEN: ${baseBacenB.topic || baseBacenB.subject}`, type: 'estudo', duration: 60, priority: 1 }))

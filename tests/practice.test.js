@@ -37,4 +37,9 @@ describe('exibicao do gabarito comentado', () => {
     expect(shouldShowExplanation({ resultado: 'acerto', classificacao: 'certeza' })).toBe(false)
     expect(shouldShowExplanation({ resultado: 'acerto', classificacao: 'eliminacao' })).toBe(false)
   })
+
+  it('nao envia acerto por eliminacao para a fila especial de revisao', () => {
+    const result = practiceTransition({ resultado: 'acerto', classificacao: 'eliminacao', now: 0 })
+    expect(result).toMatchObject({ estado: 'aprendendo', motivo: null, prioridade: null })
+  })
 })

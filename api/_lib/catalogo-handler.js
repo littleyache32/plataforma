@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from './supabase.js'
 import { allowMethods, fail, queryParam, requireAccess } from './http.js'
 import studyHandler from './estudo-handler.js'
+import { isBacenPracticeOpen } from '../../shared/study-access.js'
 
 const countPageSize = 1000
 
@@ -41,8 +42,11 @@ export default async function handler(req, res) {
       const somenteCaderno = queryParam(req, 'caderno') === '1'
       if (!objetivoId) return res.status(400).json({ error: 'Objetivo obrigatorio.' })
       const supabase = getSupabaseAdmin()
-      const { data: subjects, error: subjectsError } = await supabase.from('materia').select('topicos:topico(id)').eq('objetivo_id', objetivoId)
-      if (subjectsError) throw subjectsError
+      const [{ data: subjects, error: subjectsError }, { data: objective, error: objectiveError }] = await Promise.all([
+        supabase.from('materia').select('topicos:topico(id)').eq('objetivo_id', objetivoId),
+        supabase.from('objetivo').select('tipo').eq('id', objetivoId).maybeSingle(),
+      ])
+      if (subjectsError || objectiveError) throw subjectsError || objectiveError
       const topicIds = (subjects || []).flatMap((subject) => (subject.topicos || []).map((topic) => topic.id))
       if (!topicIds.length) return res.status(200).json({ topicos: {}, totais: { questoes: 0, cards: 0 } })
       let notebookQuestionIds = null
@@ -59,9 +63,13 @@ export default async function handler(req, res) {
         })
       const cardPromise = somenteCaderno ? Promise.resolve([]) : fetchAllTopicReferences(() => supabase.from('question_card').select('topico_id').in('topico_id', topicIds).eq('ativa', true))
       const [questions, cards] = await Promise.all([questionPromise, cardPromise])
+      const completed = objective?.tipo === 'concurso' ? await supabase.from('sessao').select('topico_id').eq('tipo', 'estudo').eq('status', 'feita').in('topico_id', topicIds) : { data: [], error: null }
+      if (completed.error) throw completed.error
+      const studied = new Set((completed.data || []).map((item) => item.topico_id))
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
       const questionCounts = groupCounts(questions)
       const cardCounts = groupCounts(cards)
-      const topics = Object.fromEntries(topicIds.map((id) => [id, { questoes: questionCounts[id] || 0, cards: cardCounts[id] || 0 }]))
+      const topics = Object.fromEntries(topicIds.map((id) => [id, { questoes: questionCounts[id] || 0, cards: cardCounts[id] || 0, bloqueado: objective?.tipo === 'concurso' && (!isBacenPracticeOpen(today) || !studied.has(id)) }]))
       return res.status(200).json({ topicos: topics, totais: { questoes: questions.length, cards: cards.length } })
     }
     const { data, error } = await getSupabaseAdmin().from('objetivo')

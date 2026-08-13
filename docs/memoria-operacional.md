@@ -1,6 +1,6 @@
 # Memória operacional da plataforma
 
-Última atualização: 11 de agosto de 2026.
+Última atualização: 13 de agosto de 2026.
 
 ## Finalidade
 
@@ -46,7 +46,7 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - Arrastar demanda significa reorganizar a ordem dentro do mesmo dia. Não mover entre dias por arraste.
 - Demanda não concluída deve ser redistribuída pelo mentor para um dia posterior possível.
 - De 17 a 30 de agosto de 2026: três horas diárias de BACEN; de segunda a quinta soma-se uma hora de Faculdade no modelo aula dada, aula estudada. Sábado e domingo recebem 30 minutos de Question Cards da Faculdade. Questões e Question Cards do BACEN e simulados permanecem bloqueados nessa fase.
-- A semana é preparada automaticamente no domingo às 23h30, horário de Brasília. Abrir o aplicativo na segunda-feira funciona como contingência caso a execução agendada não ocorra.
+- A semana é preparada automaticamente no domingo às 00h00, horário de Brasília, na virada de sábado para domingo. Abrir o aplicativo no domingo ou na segunda-feira funciona como contingência caso a execução agendada não ocorra.
 - Faculdade segue aula dada, aula estudada: Pessoas e Negócios na segunda, Teoria do Crime na terça, Teorias da Justiça na quarta e Teoria da Constituição na quinta.
 - Após a fase inicial, BACEN tem prioridade de carga. Question Cards BACEN são diários quando liberados; Faculdade, duas vezes por semana.
 - A partir de 31 de agosto de 2026, Questões e Question Cards do BACEN são liberados tópico a tópico somente depois da conclusão de uma demanda de estudo daquele tópico. Conteúdo avançado ainda não estudado permanece bloqueado; itens já respondidos continuam acessíveis para revisão espaçada.
@@ -88,6 +88,9 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - A implantação gratuita usa sete funções serverless: Autenticação, Estudos, Planejamento, Desempenho, Mentor, Administração e Cron. Os handlers permanecem separados em `api/_lib`; consolidar a porta de entrada não autoriza misturar responsabilidades no código nem remover funcionalidades.
 - O timer de estudo é progressivo e persistente, pode ser iniciado em demanda, disciplina, Questões e Question Cards, permite pausa e retomada e oferece modo foco. O tempo real não divide automaticamente uma demanda concluída.
 - O Yoda é a porta da central de alertas: revisões vencidas, pendências, risco de acúmulo, prazos e mudança de carga. Semana e próxima demanda continuam acessíveis pelos módulos próprios.
+- O painel do Yoda não repete Próxima demanda, Fase atual ou Abrir minha semana. Ele mostra exclusivamente alertas, estatísticas resumidas, falsas certezas, riscos de preparação para a prova e ações ligadas ao aviso.
+- O timer permite escolher uma duração de foco. Ao atingir essa duração, emite aviso sonoro e continua contando até o usuário pausar ou concluir. O Tempo de estudo apresenta a distribuição por disciplina em gráfico de pizza com legenda e cores distintas.
+- Questões e Question Cards mostram cadeado ao lado de disciplinas e tópicos bloqueados; o cadeado desaparece quando o tópico se torna elegível para prática.
 - A Central de Revisão unifica questões erradas, Dúvida, Sem conhecimento, cards vencidos e revisões do mentor, ordenadas por urgência.
 - A plataforma é instalável como PWA. Semana e cards previamente carregados ficam disponíveis em conexão instável; mutações offline usam identificadores únicos e sincronizam quando a internet retorna.
 - O Administrador possui comparador de edital BACEN e backups automáticos semanais com retenção de 90 dias. Restaurar exige confirmação explícita e substitui os dados de progresso cobertos pelo snapshot.
@@ -170,5 +173,6 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - 2026-08-12, nova autorização de cobertura: o usuário autorizou completar os tópicos sem fonte específica usando o mesmo processo local, o conhecimento consolidado das disciplinas e a base curricular registrada. O Gemini permaneceu desautorizado. O acervo passou a 11.300 questões, exatamente 100 por cada um dos 113 tópicos aplicáveis, com distribuição 60 fáceis, 30 médias e 10 difíceis, e 2.260 Question Cards, exatamente 20 por tópico. A auditoria aprovou todos os itens estruturalmente, mas essa validação determinística não substitui curadoria semântica humana.
 - 2026-08-12, correção encontrada em produção: ocultar cards somente na Central de revisão não bastava, pois o Yoda ainda mostrava prioridade e ação de cards vencidos. Até 17 de agosto de 2026, a restrição também se aplica aos alertas, prioridades, contador e botões do Mentor relacionados a Question Cards.
 - 2026-08-13, correção de carga e aprendizagem: a carga inicial passou a três horas diárias de BACEN, mais uma hora de Faculdade de segunda a quinta e 30 minutos de Question Cards da Faculdade no sábado e domingo. Questões e cards do BACEN seguem bloqueados até 30 de agosto; a partir de 31 de agosto, a prática é liberada somente para tópicos com estudo concluído, preservando revisões de itens já respondidos. O mentor passou a registrar como política o ciclo de aquisição, recuperação, aplicação, correção, reteste e transferência para a prova.
+- 2026-08-13, correção do Yoda e do foco: o Yoda foi reafirmado como central de alertas, estatísticas e riscos de prova, sem repetir Semana, Fase atual ou Próxima demanda. O timer recebeu duração escolhida e aviso sonoro sem encerramento automático; Tempo de estudo recebeu gráfico por disciplina; Questões e Question Cards passaram a sinalizar bloqueios com cadeado. A criação semanal mudou para domingo às 00h00, e a fase de base passou a maximizar tópicos BACEN diferentes na semana.
 - 2026-08-12, correção visual: o modelo editorial minimalista foi rejeitado. A direção aprovada volta a ser sketchbook minimalista, mas as fontes usadas anteriormente também não agradaram. Não aplicar nova tipografia antes da escolha explícita entre os previews apresentados.
 - 2026-08-12, exploração visual: além da tipografia, a paleta também permanece em decisão. Foram apresentados previews independentes em azul caderno, verde sálvia, índigo com mostarda, ameixa suave e grafite com azul. Não aplicar nenhuma paleta antes da escolha explícita do usuário.

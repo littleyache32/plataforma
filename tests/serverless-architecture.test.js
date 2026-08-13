@@ -24,4 +24,9 @@ describe('arquitetura serverless gratuita', () => {
     const sources = new Set(config.rewrites.map((item) => item.source))
     for (const route of ['/api/catalogo', '/api/questoes', '/api/pratica', '/api/objetivos', '/api/sessoes', '/api/placar', '/api/simulados', '/api/admin/materiais', '/api/admin/seed', '/api/admin/painel']) expect(sources.has(route)).toBe(true)
   })
+
+  it('prepara a semana no domingo a meia-noite de Brasilia', () => {
+    const config = JSON.parse(readFileSync('vercel.json', 'utf8'))
+    expect(config.crons).toContainEqual({ path: '/api/cron/mentor', schedule: '0 3 * * 0' })
+  })
 })

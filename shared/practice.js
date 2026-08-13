@@ -30,7 +30,7 @@ export function practiceTransition({ resultado, classificacao, tentativas = 0, i
 
   if (falseCertainty) return { ...schedule, estado: 'revisao', proximaRevisao: new Date(now).toISOString(), motivo: 'falsa_certeza', prioridade: 1 }
   if (resultado === 'erro') return { ...schedule, estado: 'revisao', proximaRevisao: new Date(now + interval * day).toISOString(), motivo: classificacao === 'sem_conhecimento' ? 'baixa_confianca' : 'erro', prioridade: 2 }
-  if (classificacao !== 'certeza') return { ...schedule, estado: 'revisao', proximaRevisao: new Date(now + interval * day).toISOString(), motivo: 'checagem', prioridade: 3 }
+  if (classificacao === 'duvida' || classificacao === 'sem_conhecimento') return { ...schedule, estado: 'revisao', proximaRevisao: new Date(now + interval * day).toISOString(), motivo: 'checagem', prioridade: 3 }
   return {
     ...schedule,
     estado: mastered ? 'dominada' : 'aprendendo',

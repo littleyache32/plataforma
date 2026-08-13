@@ -168,6 +168,14 @@ describe('buildMentorWeek', () => {
     expect(practice.every((item) => item.topico_id === 'estudado')).toBe(true)
   })
 
+  it('maximiza tópicos BACEN diferentes durante a construção inicial da base', () => {
+    const subjects = Array.from({ length: 7 }, (_, subject) => ({ id: `m${subject}`, nome: `Matéria ${subject}`, topicos: Array.from({ length: 3 }, (_, topic) => ({ id: `m${subject}-t${topic}`, nome: `Tópico ${topic}` })) }))
+    const result = buildMentorWeek({ weekStart: '2026-08-17', catalog: [{ id: 'bacen', tipo: 'concurso', materias: subjects }, catalog[1]] })
+    const bacenStudy = result.filter((item) => item.objetivo_id === 'bacen' && item.tipo === 'estudo')
+    expect(bacenStudy).toHaveLength(21)
+    expect(new Set(bacenStudy.map((item) => item.topico_id)).size).toBe(21)
+  })
+
   it('limita a tres pendencias transferidas e nao estoura a capacidade diaria', () => {
     const overdue = Array.from({ length: 6 }, (_, index) => ({ id: `p${index}`, data: '2026-08-10', status: 'planejada', prioridade: 1, duracao_estimada: 30 }))
     const moves = planOverdueMoves(overdue, '2026-08-12', '2026-08-16')
