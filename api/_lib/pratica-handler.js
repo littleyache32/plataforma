@@ -2,6 +2,7 @@ import { getSupabaseAdmin } from './supabase.js'
 import { allowMethods, fail, queryParam, requireAccess } from './http.js'
 import { practiceTransition, selectPracticeQuestion, shouldShowExplanation } from '../../shared/practice.js'
 import { cardKey, cardTransition } from '../../shared/cards.js'
+import { BACEN_PRACTICE_START, canAccessBacenItem } from '../../shared/study-access.js'
 
 const classifications = ['certeza', 'duvida', 'eliminacao', 'sem_conhecimento']
 
@@ -18,7 +19,7 @@ export default async function handler(req, res) {
       if (!topicoId && !materiaId && !questaoId) return res.status(400).json({ error: 'Materia, topico ou questao obrigatorio.' })
 
       let query = supabase.from('questao')
-        .select('id,tipo,enunciado,alternativas,origem,estado,quantidade_tentativas,ultima_resolucao,proxima_revisao,topico:topico_id(id,nome,materia_id)', { count: 'exact' })
+        .select('id,tipo,enunciado,alternativas,origem,estado,quantidade_tentativas,ultima_resolucao,proxima_revisao,topico:topico_id(id,nome,materia_id,materia:materia_id(id,objetivo:objetivo_id(tipo)))', { count: 'exact' })
         .eq('marcada_errada', false)
         .eq('ativa', true)
         .neq('estado', 'arquivada')
@@ -39,11 +40,26 @@ export default async function handler(req, res) {
         if (!topicIds.length) return res.status(404).json({ error: 'Esta disciplina ainda nao possui topicos.' })
         query = query.in('topico_id', topicIds).limit(1000)
       }
-      const { data: questions, count, error } = await query
+      const { data: questions, error } = await query
       if (error) throw error
-      const question = questaoId ? questions?.[0] : selectPracticeQuestion(questions || [])
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+      const completed = await supabase.from('sessao').select('topico_id').eq('tipo', 'estudo').eq('status', 'feita').not('topico_id', 'is', null)
+      if (completed.error) throw completed.error
+      const completedTopicIds = (completed.data || []).map((item) => item.topico_id)
+      const eligibleQuestions = (questions || []).filter((item) => {
+        if (item.topico?.materia?.objetivo?.tipo !== 'concurso') return true
+        return canAccessBacenItem({ today, topicId: item.topico?.id, completedTopicIds, previouslyAttempted: item.quantidade_tentativas > 0 })
+      })
+      const question = questaoId ? eligibleQuestions[0] : selectPracticeQuestion(eligibleQuestions)
+      const containsBacen = (questions || []).some((item) => item.topico?.materia?.objetivo?.tipo === 'concurso')
+      if (!question && containsBacen && today < BACEN_PRACTICE_START) {
+        return res.status(423).json({ error: 'As questões do BACEN serão liberadas em 31 de agosto, depois das duas semanas de construção de base.', bloqueado_ate: BACEN_PRACTICE_START })
+      }
+      if (!question && containsBacen) {
+        return res.status(423).json({ error: 'Conclua primeiro uma demanda de estudo deste tópico. A prática será liberada automaticamente depois disso.' })
+      }
       if (!question) return res.status(404).json({ error: somenteRevisao ? 'As revisões programadas deste foco foram concluídas.' : 'Nao ha questoes disponiveis. Gere um lote em Administracao.' })
-      return res.status(200).json({ questao: question, disponiveis: count || questions?.length || 0 })
+      return res.status(200).json({ questao: question, disponiveis: eligibleQuestions.length })
     }
 
     const { questaoId, resposta, classificacao, tempo, operacaoId } = req.body || {}
@@ -56,9 +72,18 @@ export default async function handler(req, res) {
       if (prior.data) return res.status(200).json({ ...prior.data, repetida: true })
     }
     const { data: question, error } = await supabase.from('questao')
-      .select('id,tipo,gabarito,enunciado,explicacao,comentarios_alternativas,fonte,trecho_fonte,quantidade_tentativas,intervalo_dias,fator_facilidade,lapsos,acertos_seguidos,topico:topico_id(id,materia:materia_id(id,objetivo_id))')
+      .select('id,tipo,gabarito,enunciado,explicacao,comentarios_alternativas,fonte,trecho_fonte,quantidade_tentativas,intervalo_dias,fator_facilidade,lapsos,acertos_seguidos,topico:topico_id(id,materia:materia_id(id,objetivo_id,objetivo:objetivo_id(tipo)))')
       .eq('id', questaoId).eq('marcada_errada', false).eq('ativa', true).single()
     if (error) throw error
+
+    if (question.topico?.materia?.objetivo?.tipo === 'concurso') {
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+      const completed = await supabase.from('sessao').select('topico_id').eq('tipo', 'estudo').eq('status', 'feita').eq('topico_id', question.topico.id)
+      if (completed.error) throw completed.error
+      if (!canAccessBacenItem({ today, topicId: question.topico.id, completedTopicIds: (completed.data || []).map((item) => item.topico_id), previouslyAttempted: question.quantidade_tentativas > 0 })) {
+        return res.status(423).json({ error: today < BACEN_PRACTICE_START ? 'As questões do BACEN ainda estão na fase de construção de base.' : 'Conclua primeiro uma demanda de estudo deste tópico.' })
+      }
+    }
 
     const answer = String(resposta || '').toUpperCase()
     const validAnswers = question.tipo === 'CE' ? ['C', 'E'] : ['A', 'B', 'C', 'D', 'E']

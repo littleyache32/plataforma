@@ -74,7 +74,7 @@ export function planOverdueMoves(sessions, today, weekEnd) {
   for (const item of movable.sort((a, b) => (a.prioridade || 2) - (b.prioridade || 2))) {
     if (moves.length >= 3) break
     const duration = item.duracao_estimada || 30
-    const fitting = candidates.filter((date) => load[date] + duration <= ([0, 6].includes(new Date(`${date}T12:00:00Z`).getUTCDay()) ? 180 : 270))
+    const fitting = candidates.filter((date) => load[date] + duration <= ([0, 6].includes(new Date(`${date}T12:00:00Z`).getUTCDay()) ? 240 : 300))
     if (!fitting.length) continue
     const destination = fitting.sort((a, b) => load[a] - load[b])[0]
     load[destination] += duration
@@ -125,7 +125,7 @@ function facultyTargetForDay(targets, priorities, day, rotationSeed, policy) {
  * Cria uma semana por demandas. O bloco de 30 minutos e uma unidade de calculo,
  * mas cada atividade aparece como um unico cartao de 30, 60 ou 90 minutos.
  */
-export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingReviews = 0, scheduledQuestionReviews = [], commitments = [], adherenceHistory = [], policy: customPolicy = {} }) {
+export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingReviews = 0, scheduledQuestionReviews = [], commitments = [], adherenceHistory = [], studiedTopicIds = null, policy: customPolicy = {} }) {
   const policy = resolveMentorPolicy(customPolicy)
   const targets = catalog.flatMap((objective) => (objective.materias || []).flatMap((subject) => {
     const topics = subject.topicos?.length ? subject.topicos : [{ id: null, nome: '' }]
@@ -147,6 +147,8 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     concurso: targets.filter((item) => item.context === 'concurso'),
     faculdade: targets.filter((item) => item.context === 'faculdade' && !normalized(item.subject).includes('analise e producao de texto')),
   }
+  const studied = studiedTopicIds ? new Set(studiedTopicIds) : null
+  const practiceBacen = studied ? byContext.concurso.filter((item) => studied.has(item.topicId)) : byContext.concurso
   const rotationSeed = Math.floor(new Date(`${weekStart}T12:00:00Z`).getTime() / (DAY_MS * 7))
   const onboarding = weekStart >= MENTORSHIP_START && weekStart < '2026-08-31'
   const adherence = adherenceAdjustment(adherenceHistory)
@@ -160,20 +162,26 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     const otherBacen = pick(byContext.concurso.filter((item) => item.subjectId !== bacenTarget?.subjectId), rotationSeed + day + 2) || bacenTarget
     const facultyTarget = facultyTargetForDay(targets, priorities, day, rotationSeed, policy) || pick(byContext.faculdade, rotationSeed + day)
     const facultyCardTarget = pick(byContext.faculdade.filter(allowsQuestionCards), rotationSeed + day)
+    const practiceTarget = pick(practiceBacen.filter((item) => priorityIds.has(item.topicId)), rotationSeed + day)
+      || pickDistributed(practiceBacen, rotationSeed + day)
+    const otherPracticeTarget = pick(practiceBacen.filter((item) => item.subjectId !== practiceTarget?.subjectId), rotationSeed + day + 2) || practiceTarget
 
     if (onboarding) {
       const baseBacenA = pickDistributed(byContext.concurso, rotationSeed + day) || bacenTarget
       const baseBacenB = pickDistributed(byContext.concurso.filter((item) => item.subjectId !== baseBacenA?.subjectId), rotationSeed + day + 1) || otherBacen
       const baseBacenC = pickDistributed(byContext.concurso.filter((item) => ![baseBacenA?.subjectId, baseBacenB?.subjectId].includes(item.subjectId)), rotationSeed + day + 2) || bacenTarget
-      if (day <= 3) rows.push(demand({ weekStart, day, slot: 'base-faculdade', target: facultyTarget, title: `Aula dada, aula estudada: ${facultyTarget?.subject || ''}`, type: 'estudo', duration: 60, priority: 2 }))
-      else rows.push(demand({ weekStart, day, slot: 'base-bacen-c', target: baseBacenC, title: `Construir base BACEN: ${baseBacenC.topic || baseBacenC.subject}`, type: 'estudo', duration: 60, priority: 1 }))
+      if (day <= 3) rows.push(demand({ weekStart, day, slot: 'base-faculdade', target: facultyTarget, title: `Aula dada, aula estudada: ${facultyTarget?.subject || ''}`, type: 'estudo', duration: policy.fase_inicial.faculdade_minutos_segunda_quinta, priority: 2 }))
       rows.push(demand({ weekStart, day, slot: 'base-bacen-a', target: baseBacenA, title: `Construir base BACEN: ${baseBacenA.topic || baseBacenA.subject}`, type: 'estudo', duration: 60, priority: 1 }))
       rows.push(demand({ weekStart, day, slot: 'base-bacen-b', target: baseBacenB, title: `Construir base BACEN: ${baseBacenB.topic || baseBacenB.subject}`, type: 'estudo', duration: 60, priority: 1 }))
+      rows.push(demand({ weekStart, day, slot: 'base-bacen-c', target: baseBacenC, title: `Construir base BACEN: ${baseBacenC.topic || baseBacenC.subject}`, type: 'estudo', duration: 60, priority: 1 }))
+      if (policy.fase_inicial.question_cards_faculdade_dias.includes(day)) {
+        rows.push(demand({ weekStart, day, slot: 'base-cards-faculdade', target: facultyCardTarget, title: 'Revisar Question Cards da faculdade', type: 'especial', duration: policy.fase_inicial.question_cards_faculdade_minutos, priority: 2 }))
+      }
       continue
     }
 
-    rows.push(demand({ weekStart, day, slot: 'cards-bacen', target: bacenTarget, title: 'Revisar Question Cards BACEN', type: 'especial', duration: 30, priority: 1 }))
-    rows.push(demand({ weekStart, day, slot: 'questoes-bacen', target: otherBacen, title: `Resolver questões: ${otherBacen.subject}`, type: 'exercicio', duration: day === 4 ? 60 : 30, priority: 1 }))
+    rows.push(demand({ weekStart, day, slot: 'cards-bacen', target: practiceTarget, title: 'Revisar Question Cards BACEN', type: 'especial', duration: 30, priority: 1 }))
+    rows.push(demand({ weekStart, day, slot: 'questoes-bacen', target: otherPracticeTarget, title: `Resolver questões: ${otherPracticeTarget?.subject || ''}`, type: 'exercicio', duration: day === 4 ? 60 : 30, priority: 1 }))
 
     const reviewForDay = scheduledQuestionReviews
       .filter((item) => Math.max(0, Math.min(6, dayIndex(weekStart, item.dueDate))) === day)
@@ -188,13 +196,13 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
       if (facultyTarget) rows.push(demand({ weekStart, day, slot: 'estudo', target: facultyTarget, title: `Aula dada, aula estudada: ${facultyTarget.subject}`, type: 'estudo', duration: facultyDuration, priority: 2 }))
       rows.push(demand({ weekStart, day, slot: 'estudo-bacen', target: bacenTarget, title: `Estudar BACEN: ${bacenTarget.topic || bacenTarget.subject}`, type: 'estudo', duration: bacenStudyDuration, priority: 1 }))
     } else if (day === 4) {
-      rows.push(demand({ weekStart, day, slot: 'cards-faculdade', target: facultyCardTarget, title: 'Revisar Question Cards da faculdade', type: 'especial', duration: 30, priority: 2 }))
       rows.push(demand({ weekStart, day, slot: 'estudo-bacen', target: bacenTarget, title: `Estudar BACEN: ${bacenTarget.topic || bacenTarget.subject}`, type: 'estudo', duration: bacenStudyDuration, priority: 1 }))
     } else if (day === 5) {
       rows.push(demand({ weekStart, day, slot: 'cards-faculdade', target: facultyCardTarget, title: 'Revisar Question Cards da faculdade', type: 'especial', duration: 30, priority: 2 }))
       rows.push(demand({ weekStart, day, slot: 'estudo-bacen', target: bacenTarget, title: `Estudar BACEN: ${bacenTarget.topic || bacenTarget.subject}`, type: 'estudo', duration: bacenStudyDuration, priority: 1 }))
       rows.push(demand({ weekStart, day, slot: 'revisao-bacen', target: bacenTarget, title: 'Revisar erros do BACEN', type: 'revisao', duration: 30, priority: 1 }))
     } else {
+      rows.push(demand({ weekStart, day, slot: 'cards-faculdade', target: facultyCardTarget, title: 'Revisar Question Cards da faculdade', type: 'especial', duration: 30, priority: 2 }))
       rows.push(demand({ weekStart, day, slot: 'estudo-bacen', target: bacenTarget, title: `Estudar BACEN: ${bacenTarget.topic || bacenTarget.subject}`, type: 'estudo', duration: bacenStudyDuration, priority: 1 }))
       rows.push(demand({ weekStart, day, slot: 'correcao', target: bacenTarget, title: pendingReviews > 0 ? 'Corrigir erros e falsas certezas da semana' : 'Revisar e corrigir a semana', type: 'revisao', duration: 60, priority: 1 }))
     }
