@@ -150,6 +150,13 @@ describe('buildMentorWeek', () => {
     expect(monday).toBe(180)
   })
 
+  it('usa o encontro semanal apenas como freio conservador de carga', () => {
+    const sustainable = [{ planejadas: 10, concluidas: 9 }, { planejadas: 10, concluidas: 9 }]
+    expect(adherenceAdjustment([], { carga_percebida: 'leve' }).nivel).toBe('manter')
+    expect(adherenceAdjustment(sustainable, { carga_percebida: 'leve' }).nivel).toBe('aumentar')
+    expect(adherenceAdjustment(sustainable, { carga_percebida: 'pesada' })).toMatchObject({ nivel: 'reduzir', motivo: 'encontro_semanal_indica_sobrecarga' })
+  })
+
   it('a segunda semana sobe para tres horas, mantendo duas no domingo', () => {
     const result = buildMentorWeek({
       weekStart: '2026-08-24',

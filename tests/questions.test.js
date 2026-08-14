@@ -6,17 +6,17 @@ const base = { topicoId: 'topic', origem: 'ia', evidencias: [{ id: 1, texto: 'Tr
 
 describe('normalizeQuestion', () => {
   it('aceita CE sem alternativas', () => {
-    const result = normalizeQuestion({ tipo: 'CE', enunciado: 'Item.', alternativas: null, gabarito: 'C', explicacao: 'Correto.', evidencia_id: 1 }, base)
+    const result = normalizeQuestion({ tipo: 'CE', enunciado: 'Item.', alternativas: null, gabarito: 'C', explicacao: 'Correto.', evidencia_id: 1, dificuldade: 2 }, base)
     expect(result.alternativas).toBeNull()
     expect(result.fonte).toContain('gov.br')
   })
 
   it('recusa ME sem as cinco alternativas', () => {
-    expect(() => normalizeQuestion({ tipo: 'ME', enunciado: 'Item.', alternativas: { A: 'a' }, gabarito: 'A', explicacao: 'Explica.', evidencia_id: 1 }, base)).toThrow('cinco alternativas')
+    expect(() => normalizeQuestion({ tipo: 'ME', enunciado: 'Item.', alternativas: { A: 'a' }, gabarito: 'A', explicacao: 'Explica.', evidencia_id: 1, dificuldade: 3 }, base)).toThrow('cinco alternativas')
   })
 
   it('recusa evidencia inexistente', () => {
-    expect(() => normalizeQuestion({ tipo: 'CE', enunciado: 'Item.', alternativas: null, gabarito: 'E', explicacao: 'Explica.', evidencia_id: 99 }, base)).toThrow('evidencia individual')
+    expect(() => normalizeQuestion({ tipo: 'CE', enunciado: 'Item.', alternativas: null, gabarito: 'E', explicacao: 'Explica.', evidencia_id: 99, dificuldade: 3 }, base)).toThrow('evidencia individual')
   })
 })
 

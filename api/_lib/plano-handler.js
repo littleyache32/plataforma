@@ -66,7 +66,7 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
   const commitmentEnd = addDays(inicio, 13)
   const adherenceStart = addDays(inicio, -14)
   const results = await Promise.all([
-    supabase.from('objetivo').select('id,tipo,materias:materia(id,nome,topicos:topico(id,nome))').eq('ativo', true).order('criado_em'),
+    supabase.from('objetivo').select('id,tipo,materias:materia(id,nome,peso_prova,topicos:topico(id,nome,incidencia))').eq('ativo', true).order('criado_em'),
     supabase.from('registro').select('resultado,classificacao,criado_em,questao!inner(topico_id)').order('criado_em', { ascending: false }),
     supabase.from('revisao_item').select('id', { count: 'exact', head: true }).eq('status', 'pendente'),
     supabase.from('compromisso').select('id,objetivo_id,materia_id,titulo,tipo,data,peso,duracao_minutos,concluido').eq('concluido', false).lte('data', commitmentEnd).gte('data', inicio),
@@ -77,10 +77,11 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
     supabase.from('acervo_meta').select('topico_id').eq('expansao_bloqueada', false),
     supabase.from('sessao').select('data_planejada_original,status,concluida_em,duracao_estimada').eq('origem', 'mentor').gte('data_planejada_original', adherenceStart).lt('data_planejada_original', inicio),
     supabase.from('sessao').select('topico_id').eq('tipo', 'estudo').eq('status', 'feita').not('topico_id', 'is', null),
+    supabase.from('mentor_encontro_semanal').select('semana_inicio,carga_percebida,observacoes').eq('semana_inicio', addDays(inicio, -7)).maybeSingle(),
   ])
   const error = results.find((item) => item.error)?.error
   if (error) throw error
-  const [catalogResult, recordsResult, reviewResult, commitmentsResult, existingResult, carryoverResult, knowledgeResult, spacedQuestionResult, availableTopicsResult, adherenceResult, studiedTopicsResult] = results
+  const [catalogResult, recordsResult, reviewResult, commitmentsResult, existingResult, carryoverResult, knowledgeResult, spacedQuestionResult, availableTopicsResult, adherenceResult, studiedTopicsResult, meetingResult] = results
   const availableTopicIds = new Set((availableTopicsResult.data || []).map((item) => item.topico_id))
   const mentorCatalog = (catalogResult.data || []).map((objective) => objective.tipo !== 'concurso' ? objective : ({
     ...objective,
@@ -111,9 +112,9 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
   const history = adherenceHistory(adherenceResult.data || [], inicio)
   const adjustment = inicio >= '2026-08-17' && inicio < '2026-08-31'
     ? { nivel: 'carga_inicial_fixa', motivo: 'fase_de_construcao_de_base', semanas: history }
-    : adherenceAdjustment(history)
+    : adherenceAdjustment(history, meetingResult.data)
   const studiedTopicIds = [...new Set((studiedTopicsResult.data || []).map((item) => item.topico_id))]
-  const demands = buildMentorWeek({ weekStart: inicio, catalog: mentorCatalog, priorities, pendingReviews: reviewResult.count || 0, scheduledQuestionReviews, commitments: commitmentsResult.data || [], adherenceHistory: history, studiedTopicIds, policy })
+  const demands = buildMentorWeek({ weekStart: inicio, catalog: mentorCatalog, priorities, pendingReviews: reviewResult.count || 0, scheduledQuestionReviews, commitments: commitmentsResult.data || [], adherenceHistory: history, studiedTopicIds, weeklyMeeting: meetingResult.data, policy })
   if (!demands.length) return { status: 200, body: { criadas: 0, motivo: 'Nenhuma disciplina disponivel.' } }
   const validation = validateMentorPlan(demands)
   if (!validation.valid) throw new Error(`Planejamento incoerente bloqueado: ${validation.reason}.`)

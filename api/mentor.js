@@ -15,15 +15,31 @@ function addDays(date, days) {
 const brazilDate = (value) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value))
 
 export default async function handler(req, res) {
-  if (!allowMethods(req, res, ['GET']) || !requireAccess(req, res)) return
+  if (!allowMethods(req, res, ['GET', 'POST']) || !requireAccess(req, res)) return
   try {
     const supabase = getSupabaseAdmin()
+    if (req.method === 'POST') {
+      const semanaInicio = String(req.body?.semanaInicio || '')
+      const cargaPercebida = String(req.body?.cargaPercebida || '')
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(semanaInicio) || new Date(`${semanaInicio}T12:00:00Z`).getUTCDay() !== 1) return res.status(400).json({ error: 'Informe a segunda-feira da semana do encontro.' })
+      if (!['leve', 'adequada', 'pesada'].includes(cargaPercebida)) return res.status(400).json({ error: 'Classifique a carga como leve, adequada ou pesada.' })
+      const payload = {
+        semana_inicio: semanaInicio,
+        carga_percebida: cargaPercebida,
+        observacoes: String(req.body?.observacoes || '').trim().slice(0, 1200) || null,
+        realizado_em: new Date().toISOString(),
+        atualizado_em: new Date().toISOString(),
+      }
+      const { data, error } = await supabase.from('mentor_encontro_semanal').upsert(payload, { onConflict: 'semana_inicio' }).select('*').single()
+      if (error) throw error
+      return res.status(200).json({ encontro_semanal: data })
+    }
     const objetivoId = queryParam(req, 'objetivoId')
     const compact = queryParam(req, 'compacto') === '1'
     const currentWeek = monday()
     const previousStart = addDays(currentWeek, -7)
     const previousEnd = addDays(currentWeek, -1)
-    const [{ data: topics, error: topicsError }, { data: records, error: recordsError }, { data: reviewItems, error: reviewError }, { data: inventory, error: inventoryError }, modularKnowledge, { data: legacyPolicy }, { data: objective }, { data: weeklySessions, error: sessionsError }, { data: pendingSessions, error: pendingError }, { data: commitments, error: commitmentsError }] = await Promise.all([
+    const [{ data: topics, error: topicsError }, { data: records, error: recordsError }, { data: reviewItems, error: reviewError }, { data: inventory, error: inventoryError }, modularKnowledge, { data: legacyPolicy }, { data: objective }, { data: weeklySessions, error: sessionsError }, { data: pendingSessions, error: pendingError }, { data: commitments, error: commitmentsError }, { data: weeklyMeeting, error: meetingError }] = await Promise.all([
       supabase.from('topico').select('id,nome,materia:materia_id(id,nome,objetivo:objetivo_id(id,nome))'),
       supabase.from('registro').select('resultado,classificacao,tempo,criado_em,questao!inner(topico_id,topico:topico_id(materia:materia_id(objetivo_id)))').order('criado_em', { ascending: false }),
       supabase.from('revisao_item').select('id,motivo,prioridade,agendada_para,questao:questao_id(id,enunciado,topico_id,topico:topico_id(materia:materia_id(objetivo_id)))').eq('status', 'pendente').order('prioridade').order('agendada_para').limit(20),
@@ -34,8 +50,9 @@ export default async function handler(req, res) {
       supabase.from('sessao').select('id,status,data,data_planejada_original,duracao_estimada,topico_id,objetivo_id,concluida_em').eq('origem', 'mentor').gte('data_planejada_original', previousStart).lte('data_planejada_original', previousEnd),
       supabase.from('sessao').select('id,titulo,data,prioridade,objetivo_id').neq('status','feita').lte('data',addDays(currentWeek,6)).order('data').limit(30),
       supabase.from('compromisso').select('id,titulo,data,tipo,objetivo_id').eq('concluido',false).gte('data',new Date().toISOString().slice(0,10)).lte('data',addDays(new Date().toISOString().slice(0,10),14)).order('data').limit(20),
+      supabase.from('mentor_encontro_semanal').select('id,semana_inicio,carga_percebida,observacoes,realizado_em,atualizado_em').eq('semana_inicio', currentWeek).maybeSingle(),
     ])
-    if (topicsError || recordsError || reviewError || inventoryError || sessionsError || pendingError || commitmentsError) throw topicsError || recordsError || reviewError || inventoryError || sessionsError || pendingError || commitmentsError
+    if (topicsError || recordsError || reviewError || inventoryError || sessionsError || pendingError || commitmentsError || meetingError) throw topicsError || recordsError || reviewError || inventoryError || sessionsError || pendingError || commitmentsError || meetingError
 
     const policy = modularKnowledge?.conteudo?.politica || legacyPolicy?.politica || {}
     const topicMap = new Map()
@@ -98,7 +115,7 @@ export default async function handler(req, res) {
     const completed = completedSessions.length
     const completedMinutes = completedSessions.reduce((sum, item) => sum + (item.duracao_estimada || 0), 0)
     const adherence = planned ? completed / planned : 0
-    const adjustment = adherenceAdjustment(planned ? [{ inicio: previousStart, planejadas: planned, concluidas: completed }] : [])
+    const adjustment = adherenceAdjustment(planned ? [{ inicio: previousStart, planejadas: planned, concluidas: completed }] : [], weeklyMeeting)
     const probable = cenarios.find((item) => item.cenario === 'provavel')
     const remainingTopics = Math.max(0, diagnoses.length - coveredTopics)
     const trajectory = { conteudo_restante: remainingTopics, topicos_totais: diagnoses.length, ritmo_atual: planned ? `${completed} de ${planned} demandas` : 'coletando dados', capacidade_projetada: hasTargetDate ? probable?.cobertura_estimada || 0 : null, risco_nao_concluir: hasTargetDate && probable ? Math.round(probable.risco_atraso * 100) : null, data_alvo_definida: hasTargetDate }
@@ -122,6 +139,8 @@ export default async function handler(req, res) {
       trajetoria: trajectory,
       fechamento_semanal: weeklyClose,
       alertas: alerts,
+      semana_atual: currentWeek,
+      encontro_semanal: weeklyMeeting,
     }
     if (!compact) Object.assign(body, { topicos: diagnoses, revisao_imediata: revisaoImediata })
     return res.status(200).json(body)

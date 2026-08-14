@@ -43,7 +43,7 @@ export function canGenerateMentorWeek({ weekStart, today }) {
   return current.getUTCDay() === 0 && isoDate(tomorrow) === weekStart
 }
 
-export function adherenceAdjustment(history = []) {
+export function adherenceAdjustment(history = [], weeklyMeeting = null) {
   const measured = history
     .filter((week) => Number(week.planejadas) >= 5)
     .map((week) => ({
@@ -53,20 +53,26 @@ export function adherenceAdjustment(history = []) {
         : Number(week.concluidas || 0) / Number(week.planejadas),
     }))
     .slice(-2)
-  if (!measured.length) return { nivel: 'manter', motivo: 'coletando_aderencia', semanas: [] }
+  if (!measured.length) {
+    if (weeklyMeeting?.carga_percebida === 'pesada') return { nivel: 'reduzir', motivo: 'encontro_semanal_indica_sobrecarga', semanas: [] }
+    return { nivel: 'manter', motivo: 'coletando_aderencia', semanas: [] }
+  }
   const recent = measured[measured.length - 1]
   if (recent.taxa < 0.7) return { nivel: 'reduzir', motivo: 'aderencia_abaixo_de_70', semanas: measured }
+  if (weeklyMeeting?.carga_percebida === 'pesada') return { nivel: 'reduzir', motivo: 'encontro_semanal_indica_sobrecarga', semanas: measured }
   if (Number(recent.pendencias || 0) > 3) return { nivel: 'manter', motivo: 'acumulo_impede_aumento', semanas: measured }
-  if (measured.length === 2 && measured.every((week) => week.taxa >= 0.85)) return { nivel: 'aumentar', motivo: 'aderencia_acima_de_85_por_duas_semanas', semanas: measured }
+  if (measured.length === 2 && measured.every((week) => week.taxa >= 0.85)) {
+    return { nivel: 'aumentar', motivo: 'aderencia_acima_de_85_por_duas_semanas', semanas: measured }
+  }
   return { nivel: 'manter', motivo: 'aderencia_sustentavel', semanas: measured }
 }
 
-export function weeklyLoadProfile(weekStart, history = [], customPolicy = {}) {
+export function weeklyLoadProfile(weekStart, history = [], customPolicy = {}, weeklyMeeting = null) {
   const policy = resolveMentorPolicy(customPolicy)
   const initial = policy.fase_inicial.semanas?.find((week) => weekStart >= week.inicio && weekStart <= week.fim)
   if (initial) return { ...initial, nivel: 'carga_inicial', motivo: 'retorno_gradual_ao_ritmo' }
 
-  const adjustment = adherenceAdjustment(history)
+  const adjustment = adherenceAdjustment(history, weeklyMeeting)
   const recent = adjustment.semanas.at(-1)
   const progression = policy.progressao_carga
   const previousWeekday = Number(recent?.media_segunda_sexta || progression.minimo_segunda_sexta)
@@ -158,7 +164,7 @@ function facultyTargetForDay(targets, priorities, day, rotationSeed, policy) {
  * Cria uma semana por demandas. O bloco de 30 minutos e uma unidade de calculo,
  * mas cada atividade aparece como um unico cartao de 30, 60 ou 90 minutos.
  */
-export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingReviews = 0, scheduledQuestionReviews = [], commitments = [], adherenceHistory = [], studiedTopicIds = null, policy: customPolicy = {} }) {
+export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingReviews = 0, scheduledQuestionReviews = [], commitments = [], adherenceHistory = [], studiedTopicIds = null, weeklyMeeting = null, policy: customPolicy = {} }) {
   const policy = resolveMentorPolicy(customPolicy)
   const targets = catalog.flatMap((objective) => (objective.materias || []).flatMap((subject) => {
     const topics = subject.topicos?.length ? subject.topicos : [{ id: null, nome: '' }]
@@ -184,7 +190,7 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
   const practiceBacen = studied ? byContext.concurso.filter((item) => studied.has(item.topicId)) : byContext.concurso
   const rotationSeed = Math.floor(new Date(`${weekStart}T12:00:00Z`).getTime() / (DAY_MS * 7))
   const onboarding = weekStart >= MENTORSHIP_START && weekStart < '2026-08-31'
-  const loadProfile = weeklyLoadProfile(weekStart, adherenceHistory, policy)
+  const loadProfile = weeklyLoadProfile(weekStart, adherenceHistory, policy, weeklyMeeting)
   const rows = []
 
   for (let day = 0; day < 7; day += 1) {

@@ -1,6 +1,6 @@
 # Memória operacional da plataforma
 
-Última atualização: 13 de agosto de 2026.
+Última atualização: 14 de agosto de 2026.
 
 ## Finalidade
 
@@ -53,6 +53,7 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - O ciclo interno do mentor é aquisição da base, recuperação ativa, aplicação em questões, correção com feedback, reteste espaçado e transferência para a prova. A decisão semanal usa aderência, acerto, confiança, falsa certeza, recência, revisões vencidas, compromissos acadêmicos e conteúdo já estudado.
 - Após a fase inicial, a carga total se adapta pela conclusão ponderada pelos minutos planejados: abaixo de 70% na semana mais recente, reduz uma hora; entre 70% e 85%, mantém; a partir de 85% por duas semanas consecutivas e com no máximo três pendências, aumenta uma hora. Os limites são sete horas de segunda a sexta, quatro no sábado e três no domingo. A hora de Faculdade permanece fixa de segunda a quinta e a carga adicional prioriza o BACEN. Ultrapassar o tempo estimado não reduz aderência quando a demanda foi concluída.
 - O mentor usa um ciclo de decisão conservador: revisões vencidas e falsa certeza antecedem conteúdo novo; desempenho só influencia prioridade com pelo menos 20 respostas; confiança é confrontada com resultado; tópicos são intercalados apenas após base mínima; sem dados suficientes, a carga é mantida. O mentor não infere estado pessoal e altera no máximo uma variável estrutural por semana.
+- Existe um encontro semanal explícito com o mentor para registrar a avaliação da carga e as questões relevantes da semana. A carga declarada orienta a próxima semana de forma conservadora: sobrecarga pode reduzir a carga seguinte, mas nunca provoca aumento sozinha. Sono, energia e humor não entram no mentor. Não criar monitoramento diário nem inferir estado pessoal.
 - Simulados só podem ser considerados a partir da semana de 7 de setembro de 2026.
 - A matéria Análise e Produção de Texto não recebe questões nem Question Cards.
 - O fechamento semanal compara demandas planejadas e concluídas, pendências, revisões e aderência. Esse resultado alimenta o ajuste da semana seguinte.
@@ -62,6 +63,7 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 ### Questões e Question Cards
 
 - Em 13 de agosto de 2026, o usuário determinou a exclusão integral de todas as questões e todos os Question Cards de Faculdade e BACEN. O acervo ativo deve permanecer vazio até nova solicitação explícita de reconstrução ou importação.
+- A solicitação de geração de questões é feita exclusivamente por disciplina. O usuário não escolhe tópico para gerar. O mentor distribui cada lote entre os tópicos com base em incidência, cobertura atual e necessidade de equilibrar o acervo. A inserção do lote deve ser atômica e respeitar fonte, formato e dificuldade.
 
 - Cada um dos 113 tópicos aplicáveis de BACEN e Faculdade deve ter exatamente 100 questões ativas e 20 Question Cards ativos. O acervo-alvo atual é de 11.300 questões e 2.260 cards. Tópicos sem fonte específica usam o conhecimento consolidado da disciplina ou a base curricular local, conforme autorização explícita de 12 de agosto de 2026.
 - Cada tópico deve ter exatamente 60 questões fáceis, 30 médias e 10 difíceis. Para cumprir a regra exata, itens excedentes podem ser arquivados de forma recuperável, priorizando a preservação de itens já respondidos e de melhor qualidade.
@@ -124,6 +126,9 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 7. Tratar a cota do Gemini como bloqueio externo, sem inserção parcial ou substituição por conteúdo artificial.
 
 ## Histórico de aprendizado
+
+- 2026-08-14, geração por disciplina: o usuário rejeitou a escolha manual de tópico na geração. Cada lote passa a ser solicitado por disciplina e o mentor decide a distribuição interna por tópico usando incidência e cobertura existente.
+- 2026-08-14, encontro semanal: a proibição de usar sono, energia e humor foi preservada. O usuário autorizou registrar somente a avaliação da carga e as questões da semana. Sobrecarga declarada funciona como proteção conservadora e não justifica aumento sem aderência real sustentada.
 
 - 2026-08-13, exclusão explícita do acervo: foram removidas todas as 11.300 questões e todos os 2.287 Question Cards, abrangendo Faculdade e BACEN. Objetivos, matérias, tópicos, materiais, conhecimentos do mentor e planejamento foram preservados.
 
