@@ -14,6 +14,8 @@ export default async function handler(req, res) {
   const supabase = getSupabaseAdmin()
   const today = brazilToday()
   const isSunday = new Date(`${today}T12:00:00Z`).getUTCDay() === 0
+  const expansionDays = Math.floor((new Date(`${today}T12:00:00Z`) - new Date('2026-08-16T12:00:00Z')) / 86_400_000)
+  const isExpansionSunday = isSunday && expansionDays >= 0 && expansionDays % 14 === 0
   const weekStart = mondayFor(today, isSunday)
   const type = isSunday ? 'semanal' : 'diaria'
   const existing = await supabase.from('mentor_execucao').select('id,resultado').eq('tipo', type).eq('semana_inicio', weekStart).eq('data_execucao', today).eq('status', 'concluida').maybeSingle()
@@ -24,10 +26,18 @@ export default async function handler(req, res) {
   try {
     const backup = await supabase.rpc('criar_backup_snapshot', { p_tipo: 'automatico' })
     if (backup.error) throw backup.error
+    let expansionCycle = null
+    if (isExpansionSunday) {
+      const expansion = await supabase.rpc('planejar_expansao_questoes_bacen', { p_inicio: today, p_alvo: 2250 })
+      if (expansion.error) {
+        await supabase.from('sistema_falha').insert({ origem: 'cron_expansao_questoes', mensagem: String(expansion.error.message || expansion.error).slice(0, 500) })
+      } else expansionCycle = expansion.data
+    }
     const result = await prepareMentorWeek({ inicio: weekStart, today, force: true })
-    await supabase.from('mentor_decisao').insert({ execucao_id: run.data.id, tipo: 'planejamento_semanal', decisao: isSunday ? 'Criar a próxima semana' : 'Recalibrar a semana em curso', justificativa: 'Decisão baseada em prazos, pendências, aderência e evidências de desempenho disponíveis no momento da execução.', confianca: isSunday ? 0.82 : 0.72, dados: { today, weekStart, itens: result.body.total_planejado || 0, ajuste_carga: result.body.ajuste_carga, remanejadas: result.body.remanejadas || 0 } })
-    await supabase.from('mentor_execucao').update({ status: 'concluida', politica_versao: result.body.politica_mentor, resultado: result.body, concluido_em: new Date().toISOString() }).eq('id', run.data.id)
-    return res.status(200).json({ ok: true, semana: weekStart, backup_id: backup.data, ...result.body })
+    const executionResult = { ...result.body, ciclo_expansao_questoes: expansionCycle }
+    await supabase.from('mentor_decisao').insert({ execucao_id: run.data.id, tipo: 'planejamento_semanal', decisao: isSunday ? 'Criar a próxima semana' : 'Recalibrar a semana em curso', justificativa: 'Decisão baseada em prazos, pendências, aderência e evidências de desempenho disponíveis no momento da execução.', confianca: isSunday ? 0.82 : 0.72, dados: { today, weekStart, itens: result.body.total_planejado || 0, ajuste_carga: result.body.ajuste_carga, remanejadas: result.body.remanejadas || 0, ciclo_expansao_questoes: expansionCycle } })
+    await supabase.from('mentor_execucao').update({ status: 'concluida', politica_versao: result.body.politica_mentor, resultado: executionResult, concluido_em: new Date().toISOString() }).eq('id', run.data.id)
+    return res.status(200).json({ ok: true, semana: weekStart, backup_id: backup.data, ...executionResult })
   } catch (error) {
     await supabase.from('mentor_execucao').update({ status: 'falhou', erro: String(error.message || error), concluido_em: new Date().toISOString() }).eq('id', run.data.id)
     await supabase.from('sistema_falha').insert({ origem: 'cron_mentor', mensagem: String(error.message || error).slice(0, 500) })

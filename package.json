@@ -27,6 +27,7 @@
     "audit:producao": "node --env-file=.env.local scripts/audit-production.js",
     "audit:cobertura": "node --env-file=.env.local scripts/audit-coverage.js",
     "audit:questoes": "node --env-file=.env.local scripts/audit-and-adapt-library.js",
+    "audit:expansao": "node --env-file=.env.local scripts/audit-question-expansion.js",
     "audit:cards": "node --env-file=.env.local scripts/audit-and-adapt-cards.js",
     "audit:secrets": "node scripts/audit-git-secrets.js",
     "mentor:simular": "node scripts/simulate-mentor-trajectory.js",

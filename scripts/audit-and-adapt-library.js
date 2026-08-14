@@ -7,7 +7,7 @@ const includeDetails = process.argv.includes('--details')
 const pageSize = 750
 const questions = []
 for (let from = 0; ; from += pageSize) {
-  const { data, error } = await supabase.from('questao').select('id,topico_id,tipo,enunciado,alternativas,gabarito,explicacao,fonte,trecho_fonte,dificuldade,quantidade_tentativas,criado_em,ativa').eq('ativa', true).range(from, from + pageSize - 1)
+  const { data, error } = await supabase.from('questao').select('id,topico_id,tipo,enunciado,alternativas,gabarito,explicacao,fonte,trecho_fonte,dificuldade,comentarios_alternativas,quantidade_tentativas,criado_em,ativa').eq('ativa', true).range(from, from + pageSize - 1)
   if (error) throw error
   questions.push(...(data || []))
   if ((data || []).length < pageSize) break
@@ -39,8 +39,17 @@ if (!dryRun) {
 }
 
 const reasons = audits.filter((item) => item.status === 'arquivada').flatMap((item) => item.motivos).reduce((map, reason) => ({ ...map, [reason]: (map[reason] || 0) + 1 }), {})
+const warnings = audits.flatMap((item) => item.criterios.alertas || []).reduce((map, warning) => ({ ...map, [warning]: (map[warning] || 0) + 1 }), {})
+const distribution = {
+  tipos: Object.fromEntries(['CE', 'ME'].map((type) => [type, questions.filter((item) => item.tipo === type).length])),
+  dificuldade: {
+    faceis: questions.filter((item) => Number(item.dificuldade) <= 2).length,
+    medias: questions.filter((item) => Number(item.dificuldade) === 3).length,
+    dificeis: questions.filter((item) => Number(item.dificuldade) >= 4).length,
+  },
+}
 const archivedDetails = includeDetails ? audits.filter((item) => item.status === 'arquivada').map((audit) => {
   const question = questions.find((item) => item.id === audit.questao_id)
   return { id: audit.questao_id, topico_id: question?.topico_id, enunciado: question?.enunciado, motivos: audit.motivos }
 }) : undefined
-process.stdout.write(`${JSON.stringify({ modo: dryRun ? 'simulacao' : 'aplicado', auditadas: audits.length, aprovadas: audits.length - archiveIds.length, arquivadas: archiveIds.length, motivos: reasons, ...(archivedDetails ? { detalhes: archivedDetails } : {}) }, null, 2)}\n`)
+process.stdout.write(`${JSON.stringify({ modo: dryRun ? 'simulacao' : 'aplicado', auditadas: audits.length, aprovadas: audits.length - archiveIds.length, arquivadas: archiveIds.length, motivos: reasons, alertas: warnings, distribuicao: distribution, ...(archivedDetails ? { detalhes: archivedDetails } : {}) }, null, 2)}\n`)

@@ -26,6 +26,7 @@ export function auditQuestion(question, duplicate = false) {
   const evidence = String(question.trecho_fonte || '').trim()
   if (duplicate) reasons.push('duplicada_no_topico')
   if (statement.length < 25 || statement.length > 1400) reasons.push('enunciado_inadequado')
+  if (/\b(professor|gabarito|questão anterior|alternativa [a-e]|letra [a-e])\b/i.test(statement)) reasons.push('ruido_editorial_no_enunciado')
   if (explanation.length < 25 || explanation.length > 5000) reasons.push('explicacao_inadequada')
   if (source.length < 10) reasons.push('fonte_ausente')
   if (evidence.length < 40) reasons.push('evidencia_insuficiente')
@@ -40,6 +41,8 @@ export function auditQuestion(question, duplicate = false) {
   } else reasons.push('tipo_invalido')
   if (evidence.length >= 40 && !hasEvidenceOverlap(question)) warnings.push('vinculo_textual_fraco_com_evidencia')
   if (/evid[eê]ncia\s+\d+/i.test(explanation)) warnings.push('explicacao_menciona_id_interno')
+  if (/\b(conjunto|formulação)\s+\d+\b/i.test(statement)) warnings.push('numeracao_artificial_no_enunciado')
+  if (/^\s*(esse|essa|estes|estas|isso|isto|ele|ela|eles|elas)\b/i.test(statement.replace(/^A respeito de[^:]*:\s*/i, ''))) warnings.push('referencia_possivelmente_descontextualizada')
   if (question.tipo === 'ME' && !question.comentarios_alternativas) warnings.push('comentarios_individuais_pendentes')
   return { approved: reasons.length === 0, reasons, warnings, checks: { formato: !reasons.some((item) => item.includes('formato') || item === 'tipo_invalido'), fonte: !reasons.includes('fonte_ausente'), evidencia: !reasons.includes('evidencia_insuficiente'), vinculo_textual: !warnings.includes('vinculo_textual_fraco_com_evidencia'), unicidade: !duplicate } }
 }
