@@ -29,6 +29,7 @@
     "audit:questoes": "node --env-file=.env.local scripts/audit-and-adapt-library.js",
     "audit:cards": "node --env-file=.env.local scripts/audit-and-adapt-cards.js",
     "audit:secrets": "node scripts/audit-git-secrets.js",
+    "mentor:simular": "node scripts/simulate-mentor-trajectory.js",
     "estrategia:auditar": "node --env-file=.env.local scripts/import-strategy-library.js",
     "estrategia:importar": "node --env-file=.env.local scripts/import-strategy-library.js --apply",
     "estrategia:cards": "node --env-file=.env.local scripts/import-strategy-library.js --apply --cards-only",

@@ -9,7 +9,7 @@ const addDays = (date, days) => { const value = new Date(`${date}T12:00:00Z`); v
 const brazilDate = (value) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value))
 export const brazilToday = () => brazilDate(new Date())
 
-function adherenceHistory(sessions, weekStart) {
+function adherenceHistory(sessions, timers, weekStart) {
   return [-14, -7].map((offset) => {
     const inicio = addDays(weekStart, offset)
     const fim = addDays(inicio, 6)
@@ -21,6 +21,12 @@ function adherenceHistory(sessions, weekStart) {
       return day >= 1 && day <= 5
     })
     const weekdayDates = new Set(weekdays.map((item) => item.data_planejada_original))
+    const completedTimers = timers.filter((item) => item.status === 'concluido' && item.finalizado_em && brazilDate(item.finalizado_em) >= inicio && brazilDate(item.finalizado_em) <= fim)
+    const weekdayTimerDates = new Set(completedTimers.map((item) => brazilDate(item.finalizado_em)).filter((date) => {
+      const day = new Date(`${date}T12:00:00Z`).getUTCDay()
+      return day >= 1 && day <= 5
+    }))
+    const weekdayRealSeconds = completedTimers.filter((item) => weekdayTimerDates.has(brazilDate(item.finalizado_em))).reduce((sum, item) => sum + Number(item.segundos_acumulados || 0), 0)
     return {
       inicio,
       planejadas: week.length,
@@ -29,6 +35,8 @@ function adherenceHistory(sessions, weekStart) {
       minutos_planejados: week.reduce((sum, item) => sum + Number(item.duracao_estimada || 0), 0),
       minutos_concluidos: completed.reduce((sum, item) => sum + Number(item.duracao_estimada || 0), 0),
       media_segunda_sexta: weekdayDates.size ? Math.round(weekdays.reduce((sum, item) => sum + Number(item.duracao_estimada || 0), 0) / weekdayDates.size) : 0,
+      minutos_reais: Math.round(completedTimers.reduce((sum, item) => sum + Number(item.segundos_acumulados || 0), 0) / 60),
+      media_real_segunda_sexta: weekdayTimerDates.size ? Math.round(weekdayRealSeconds / 60 / weekdayTimerDates.size) : 0,
     }
   })
 }
@@ -78,10 +86,11 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
     supabase.from('sessao').select('data_planejada_original,status,concluida_em,duracao_estimada').eq('origem', 'mentor').gte('data_planejada_original', adherenceStart).lt('data_planejada_original', inicio),
     supabase.from('sessao').select('topico_id').eq('tipo', 'estudo').eq('status', 'feita').not('topico_id', 'is', null),
     supabase.from('mentor_encontro_semanal').select('semana_inicio,carga_percebida,observacoes').eq('semana_inicio', addDays(inicio, -7)).maybeSingle(),
+    supabase.from('tempo_estudo').select('status,finalizado_em,segundos_acumulados').eq('status', 'concluido').gte('finalizado_em', `${adherenceStart}T00:00:00-03:00`).lt('finalizado_em', `${inicio}T00:00:00-03:00`),
   ])
   const error = results.find((item) => item.error)?.error
   if (error) throw error
-  const [catalogResult, recordsResult, reviewResult, commitmentsResult, existingResult, carryoverResult, knowledgeResult, spacedQuestionResult, availableTopicsResult, adherenceResult, studiedTopicsResult, meetingResult] = results
+  const [catalogResult, recordsResult, reviewResult, commitmentsResult, existingResult, carryoverResult, knowledgeResult, spacedQuestionResult, availableTopicsResult, adherenceResult, studiedTopicsResult, meetingResult, timersResult] = results
   const availableTopicIds = new Set((availableTopicsResult.data || []).map((item) => item.topico_id))
   const mentorCatalog = (catalogResult.data || []).map((objective) => objective.tipo !== 'concurso' ? objective : ({
     ...objective,
@@ -109,8 +118,8 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
     reviewGroups.set(key, current)
   }
   const scheduledQuestionReviews = allocateQuestionReviews(reviewGroups.values(), inicio, weekEnd)
-  const history = adherenceHistory(adherenceResult.data || [], inicio)
-  const adjustment = inicio >= '2026-08-17' && inicio < '2026-08-31'
+  const history = adherenceHistory(adherenceResult.data || [], timersResult.data || [], inicio)
+  const adjustment = inicio >= '2026-08-17' && inicio < '2026-09-07'
     ? { nivel: 'carga_inicial_fixa', motivo: 'fase_de_construcao_de_base', semanas: history }
     : adherenceAdjustment(history, meetingResult.data)
   const studiedTopicIds = [...new Set((studiedTopicsResult.data || []).map((item) => item.topico_id))]

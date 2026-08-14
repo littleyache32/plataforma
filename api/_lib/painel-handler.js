@@ -78,7 +78,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       saude: { ultima_execucao: lastRun, proxima_execucao: nextCron(), falhas_abertas: (failures.data || []).length, semana_gerada: lastRun?.semana_inicio || null, politica: lastRun?.politica_versao || knowledge.data?.versao || null },
       execucoes: runs.data || [], falhas: failures.data || [], relatos_questoes: questionReports.data || [], relatos_cards: cardReports.data || [], cobertura: coverage,
-      protecoes: { limite_diario_minutos: 480, limite_pendencias_transferidas: 3, topicos_bloqueados: coverage.filter((item) => item.expansao_bloqueada).length, chave_unica_demandas: true },
+      protecoes: { carga_minima_segunda_sexta: 180, carga_minima_fim_semana: 120, tempo_real_sem_teto: true, limite_pendencias_transferidas: 3, topicos_bloqueados: coverage.filter((item) => item.expansao_bloqueada).length, chave_unica_demandas: true },
     })
   } catch (error) {
     return fail(res, error, 'Nao foi possivel carregar o controle operacional.')

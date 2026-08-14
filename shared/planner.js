@@ -62,6 +62,8 @@ export function adherenceAdjustment(history = [], weeklyMeeting = null) {
   if (weeklyMeeting?.carga_percebida === 'pesada') return { nivel: 'reduzir', motivo: 'encontro_semanal_indica_sobrecarga', semanas: measured }
   if (Number(recent.pendencias || 0) > 3) return { nivel: 'manter', motivo: 'acumulo_impede_aumento', semanas: measured }
   if (measured.length === 2 && measured.every((week) => week.taxa >= 0.85)) {
+    const capacityDemonstrated = measured.every((week) => Number(week.media_real_segunda_sexta || 0) >= Number(week.media_segunda_sexta || 0) + 30)
+    if (!capacityDemonstrated) return { nivel: 'manter', motivo: 'tempo_real_nao_sustenta_aumento', semanas: measured }
     return { nivel: 'aumentar', motivo: 'aderencia_acima_de_85_por_duas_semanas', semanas: measured }
   }
   return { nivel: 'manter', motivo: 'aderencia_sustentavel', semanas: measured }
@@ -77,17 +79,17 @@ export function weeklyLoadProfile(weekStart, history = [], customPolicy = {}, we
   const progression = policy.progressao_carga
   const previousWeekday = Number(recent?.media_segunda_sexta || progression.minimo_segunda_sexta)
   const delta = adjustment.nivel === 'aumentar' ? progression.incremento_minutos : adjustment.nivel === 'reduzir' ? -progression.incremento_minutos : 0
-  const weekday = Math.max(progression.minimo_segunda_sexta, Math.min(progression.maximo_segunda_sexta, previousWeekday + delta))
+  const weekday = Math.max(progression.minimo_segunda_sexta, previousWeekday + delta)
   return {
     segunda_sexta: weekday,
-    sabado: Math.min(weekday, progression.maximo_sabado),
-    domingo: Math.min(weekday, progression.maximo_domingo),
+    sabado: Math.max(progression.minimo_sabado, Math.round(weekday * 2 / 3 / 30) * 30),
+    domingo: Math.max(progression.minimo_domingo, Math.round(weekday * 2 / 3 / 30) * 30),
     nivel: adjustment.nivel,
     motivo: adjustment.motivo,
   }
 }
 
-export function validateMentorPlan(demands, { dailyLimit = 480 } = {}) {
+export function validateMentorPlan(demands, { dailyLimit = null } = {}) {
   const keys = new Set()
   const load = new Map()
   for (const item of demands) {
@@ -95,7 +97,7 @@ export function validateMentorPlan(demands, { dailyLimit = 480 } = {}) {
     keys.add(item.chave_mentor)
     load.set(item.data, (load.get(item.data) || 0) + Number(item.duracao_estimada || 0))
   }
-  const overloaded = [...load.entries()].find(([, minutes]) => minutes > dailyLimit)
+  const overloaded = Number.isFinite(dailyLimit) && dailyLimit > 0 ? [...load.entries()].find(([, minutes]) => minutes > dailyLimit) : null
   return overloaded ? { valid: false, reason: 'limite_diario_excedido', data: overloaded[0], minutos: overloaded[1] } : { valid: true }
 }
 
@@ -113,9 +115,7 @@ export function planOverdueMoves(sessions, today, weekEnd) {
   for (const item of movable.sort((a, b) => (a.prioridade || 2) - (b.prioridade || 2))) {
     if (moves.length >= 3) break
     const duration = item.duracao_estimada || 30
-    const fitting = candidates.filter((date) => load[date] + duration <= ([0, 6].includes(new Date(`${date}T12:00:00Z`).getUTCDay()) ? 240 : 300))
-    if (!fitting.length) continue
-    const destination = fitting.sort((a, b) => load[a] - load[b])[0]
+    const destination = [...candidates].sort((a, b) => load[a] - load[b] || a.localeCompare(b))[0]
     load[destination] += duration
     moves.push({ id: item.id, data: destination })
   }
@@ -189,7 +189,7 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
   const studied = studiedTopicIds ? new Set(studiedTopicIds) : null
   const practiceBacen = studied ? byContext.concurso.filter((item) => studied.has(item.topicId)) : byContext.concurso
   const rotationSeed = Math.floor(new Date(`${weekStart}T12:00:00Z`).getTime() / (DAY_MS * 7))
-  const onboarding = weekStart >= MENTORSHIP_START && weekStart < '2026-08-31'
+  const baseOnly = weekStart >= MENTORSHIP_START && weekStart < policy.fase_inicial.question_cards_inicio
   const loadProfile = weeklyLoadProfile(weekStart, adherenceHistory, policy, weeklyMeeting)
   const rows = []
 
@@ -204,9 +204,9 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
       || pickDistributed(practiceBacen, rotationSeed + day)
     const otherPracticeTarget = pick(practiceBacen.filter((item) => item.subjectId !== practiceTarget?.subjectId), rotationSeed + day + 2) || practiceTarget
 
-    if (onboarding) {
+    if (baseOnly) {
       const dailyTarget = day <= 4 ? loadProfile.segunda_sexta : day === 5 ? loadProfile.sabado : loadProfile.domingo
-      const facultyMinutes = day <= 3 ? policy.fase_inicial.faculdade_minutos_segunda_quinta : 0
+      const facultyMinutes = day <= 4 ? policy.fase_inicial.faculdade_minutos_segunda_sexta : 0
       if (facultyMinutes) rows.push(demand({ weekStart, day, slot: 'base-faculdade', target: facultyTarget, title: `Aula dada, aula estudada: ${facultyTarget?.subject || ''}`, type: 'estudo', duration: facultyMinutes, priority: 2 }))
       const bacenBlocks = Math.max(0, Math.floor((dailyTarget - facultyMinutes) / 60))
       for (let block = 0; block < bacenBlocks; block += 1) {
@@ -216,7 +216,8 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
       continue
     }
 
-    rows.push(demand({ weekStart, day, slot: 'cards-bacen', target: practiceTarget, title: 'Revisar Question Cards BACEN', type: 'especial', duration: 30, priority: 1 }))
+    const cardTarget = day >= 5 ? facultyCardTarget : practiceTarget
+    rows.push(demand({ weekStart, day, slot: 'cards-diarios', target: cardTarget, title: day >= 5 ? 'Revisar Question Cards da faculdade' : 'Revisar Question Cards BACEN', type: 'especial', duration: policy.fase_inicial.question_cards_diarios_minutos, priority: 1 }))
     rows.push(demand({ weekStart, day, slot: 'questoes-bacen', target: otherPracticeTarget, title: `Resolver questões: ${otherPracticeTarget?.subject || ''}`, type: 'exercicio', duration: day === 4 ? 60 : 30, priority: 1 }))
 
     const reviewForDay = scheduledQuestionReviews
@@ -227,20 +228,18 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
       rows.push(demand({ weekStart, day, slot: `revisao-questoes:${reviewForDay.topicId}`, target: reviewTarget, title: `Revisão espaçada: ${reviewForDay.count} questões de ${reviewTarget?.topic || reviewTarget?.subject || 'conteúdo'}`, type: 'revisao', duration: 30, priority: 1 }))
     }
 
-    if (day <= 3) {
+    if (day <= 4) {
       const facultyDuration = policy.agenda_faculdade.find((item) => item.dia === day)?.duracao || 60
       if (facultyTarget) rows.push(demand({ weekStart, day, slot: 'estudo', target: facultyTarget, title: `Aula dada, aula estudada: ${facultyTarget.subject}`, type: 'estudo', duration: facultyDuration, priority: 2 }))
     } else if (day === 5) {
-      rows.push(demand({ weekStart, day, slot: 'cards-faculdade', target: facultyCardTarget, title: 'Revisar Question Cards da faculdade', type: 'especial', duration: 30, priority: 2 }))
       rows.push(demand({ weekStart, day, slot: 'revisao-bacen', target: bacenTarget, title: 'Revisar erros do BACEN', type: 'revisao', duration: 30, priority: 1 }))
     } else if (day === 6) {
-      rows.push(demand({ weekStart, day, slot: 'cards-faculdade', target: facultyCardTarget, title: 'Revisar Question Cards da faculdade', type: 'especial', duration: 30, priority: 2 }))
       rows.push(demand({ weekStart, day, slot: 'correcao', target: bacenTarget, title: pendingReviews > 0 ? 'Corrigir erros e falsas certezas da semana' : 'Revisar e corrigir a semana', type: 'revisao', duration: 60, priority: 1 }))
     }
 
     const date = isoDate(new Date(new Date(`${weekStart}T12:00:00Z`).getTime() + day * DAY_MS))
     const dailyTarget = day <= 4 ? loadProfile.segunda_sexta : day === 5 ? loadProfile.sabado : loadProfile.domingo
-    let remainingStudy = Math.max(0, dailyTarget - rows.filter((item) => item?.data === date).reduce((sum, item) => sum + Number(item.duracao_estimada || 0), 0))
+    let remainingStudy = Math.max(0, dailyTarget - rows.filter((item) => item?.data === date && item.tipo !== 'especial').reduce((sum, item) => sum + Number(item.duracao_estimada || 0), 0))
     for (let block = 0; remainingStudy >= 30; block += 1) {
       const duration = remainingStudy >= 90 ? 90 : remainingStudy >= 60 ? 60 : 30
       const studyTarget = pickSequentiallyDistributed(byContext.concurso, rotationSeed + day * 4 + block) || bacenTarget
