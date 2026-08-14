@@ -27,12 +27,10 @@ function TimeAnalysis({ entries, average }) {
   return <article className="panel performance-panel"><div className="panel-heading"><h2>Análise de tempo</h2><span>média {timeLabel(average)}</span></div><div className="time-analysis">{entries.map((item) => <div key={item.id}><span>{item.label}</span><b>{item.total}</b><small>{item.total ? `${item.taxa}% de acerto` : 'sem respostas'}</small></div>)}</div></article>
 }
 
-export default function Performance({ objective, mode, onReview }) {
+export default function Performance({ objective, onReview }) {
   const [data, setData] = useState(null)
   const [mentor, setMentor] = useState(null)
   const [error, setError] = useState('')
-  const [confirmReset, setConfirmReset] = useState(false)
-  const [resetting, setResetting] = useState(false)
 
   function load() {
     const suffix = objective?.id ? `?objetivoId=${objective.id}` : ''
@@ -41,30 +39,13 @@ export default function Performance({ objective, mode, onReview }) {
 
   useEffect(() => { load() }, [objective?.id])
 
-  async function resetPerformance() {
-    setResetting(true)
-    try {
-      await api('/api/placar', { method: 'DELETE' })
-      setConfirmReset(false)
-      await load()
-    } catch (resetError) {
-      setError(resetError.message)
-    } finally {
-      setResetting(false)
-    }
-  }
-
   if (error) return <div className="alert error">{error}</div>
   if (!data || !mentor) return <div className="panel question-empty"><h2>Calculando desempenho...</h2></div>
   const score = data.questoes
   const certainty = score.confianca.find((item) => item.id === 'certeza')
-  const collecting = mentor.topicos.filter((item) => item.status === 'coletando_dados')
-
-  return <section><header className="page-title"><div><p className="eyebrow">DESEMPENHO</p><h1>Desempenho</h1><p>Leitura completa das questões respondidas no contexto selecionado.</p></div>{mode === 'administrador' && <button className="danger-button" onClick={() => setConfirmReset(true)}>Zerar estatísticas</button>}</header><div className="performance-tabs" role="tablist"><button className="active">Questões</button><button disabled title="Simulados temporariamente indisponíveis">🔒 Simulados</button></div>
+  return <section><header className="page-title"><div><p className="eyebrow">DESEMPENHO</p><h1>Desempenho</h1><p>Leitura completa das questões respondidas no contexto selecionado.</p></div></header><div className="performance-tabs" role="tablist"><button className="active">Questões</button><button disabled title="Simulados temporariamente indisponíveis">🔒 Simulados</button></div>
     <div className="metric-grid"><Metric label="Desempenho geral" value={`${score.acertos}/${score.total}`} detail={`${score.acerto_bruto}% de acerto`} /><Metric label="Taxa com certeza" value={`${certainty?.taxa || 0}%`} detail={`${certainty?.acertos || 0}/${certainty?.total || 0} acertos`} tone="good" /><Metric label="Domínio real" value={`${score.acerto_com_certeza}%`} detail="acertos marcados com certeza" tone="good" /><Metric label="Falsa certeza" value={`${score.falsa_certeza}%`} detail="erros marcados com certeza" tone="danger" /><Metric label="Tempo por questão" value={timeLabel(score.tempo_medio)} detail="média das respostas" /></div>
     <div className="performance-detail-grid"><Confidence entries={score.confianca} /><Evolution entries={score.evolucao} /></div><div className="performance-detail-grid"><Subjects entries={score.materias} /><TimeAnalysis entries={score.ritmo || []} average={score.tempo_medio} /></div><Topics entries={score.topicos || []} />
     <div className="performance-grid"><article className="panel list-panel"><div className="panel-heading"><h2>Prioridades de estudo</h2><span>{mentor.prioridades.length}/3</span></div>{mentor.prioridades.length ? mentor.prioridades.map((item, index) => <div className="priority-row" key={item.id}><span>0{index + 1}</span><div><small>{item.materia}</small><b>{item.nome}</b></div><div><b>{item.falsa_certeza}%</b><small>falsa certeza</small></div></div>) : <div className="empty-inline">O mentor ainda não identificou uma prioridade crítica.</div>}</article><article className="panel list-panel"><div className="panel-heading"><h2>Revisão imediata</h2><span>{mentor.revisao_imediata.length}</span></div>{mentor.revisao_imediata.length ? mentor.revisao_imediata.map((item) => <div className="review-row" key={item.id}><div><span className={`priority-badge p${item.prioridade}`}>P{item.prioridade}</span><p>{item.enunciado}</p><small>{item.motivo.replaceAll('_', ' ')}</small></div><button className="secondary" onClick={() => onReview(item.questao_id)}>Refazer agora</button></div>) : <div className="empty-inline">Fila de revisão vazia.</div>}</article></div>
-    {mode === 'administrador' && <article className="panel collecting"><div className="panel-heading"><h2>Coletando dados</h2><span>{collecting.length}</span></div><p>Diagnóstico técnico visível somente no modo Administrador.</p><div>{collecting.slice(0, 12).map((item) => <span key={item.id}>{item.nome}<b>{item.amostra}/20</b></span>)}</div></article>}
-    {confirmReset && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setConfirmReset(false) }}><div className="modal panel" role="dialog" aria-modal="true" aria-labelledby="reset-title"><span className="eyebrow">ADMINISTRADOR</span><h2 id="reset-title">Zerar todo o desempenho?</h2><p>Respostas, revisões, progresso dos Question Cards e resultados de simulados serão apagados. O banco de questões será mantido.</p><div className="modal-actions"><button className="secondary" onClick={() => setConfirmReset(false)} disabled={resetting}>Cancelar</button><button className="danger-button" onClick={resetPerformance} disabled={resetting}>{resetting ? 'Zerando...' : 'Confirmar e zerar'}</button></div></div></div>}
   </section>
 }

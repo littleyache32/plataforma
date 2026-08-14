@@ -18,19 +18,19 @@ describe('scoreboard', () => {
 })
 
 describe('calculateTopicDiagnosis', () => {
-  it('nao recomenda antes de 20 respostas', () => {
-    const result = calculateTopicDiagnosis(Array.from({ length: 19 }, (_, i) => record('erro', 'certeza', i)))
+  it('nao recomenda antes de 10 respostas', () => {
+    const result = calculateTopicDiagnosis(Array.from({ length: 9 }, (_, i) => record('erro', 'certeza', i)))
     expect(result.status).toBe('coletando_dados')
     expect(result.faltam).toBe(1)
   })
 
   it('prioriza falsa certeza em amostra suficiente', () => {
-    const records = Array.from({ length: 20 }, (_, i) => i < 8 ? record('erro', 'certeza', i) : record('acerto', 'duvida', i))
+    const records = Array.from({ length: 10 }, (_, i) => i < 4 ? record('erro', 'certeza', i) : record('acerto', 'duvida', i))
     const result = calculateTopicDiagnosis(records)
     expect(result.status).toBe('prioridade')
     expect(result.falsa_certeza).toBeGreaterThan(30)
     expect(result.probabilidade_dominio).toBeLessThan(50)
-    expect(result.versao_politica).toBe('2026.08.5')
+    expect(result.versao_politica).toBe('2026.08.6')
   })
 
   it('reduz prioridade quando as respostas recentes mostram melhora real', () => {

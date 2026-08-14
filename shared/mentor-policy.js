@@ -1,6 +1,6 @@
 export const DEFAULT_MENTOR_POLICY = Object.freeze({
-  versao: '2026.08.5',
-  amostra_minima: 20,
+  versao: '2026.08.6',
+  amostra_minima: 10,
   janela_maxima: 60,
   meia_vida_recencia_dias: 21,
   prior_beta: { acertos: 2, erros: 2 },
@@ -48,7 +48,7 @@ export const DEFAULT_MENTOR_POLICY = Object.freeze({
   },
   decisao_semanal: {
     fontes: ['aderencia_ponderada', 'pendencias', 'revisoes_vencidas', 'dominio', 'falsa_certeza', 'recencia', 'provas_faculdade', 'conteudo_estudado'],
-    amostra_minima_desempenho: 20,
+    amostra_minima_desempenho: 10,
     maximo_prioridades: 3,
     alterar_uma_variavel_estrutural_por_semana: true,
     fallback_sem_dados: 'manter_carga',

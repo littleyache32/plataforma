@@ -32,6 +32,7 @@
     "mentor:simular": "node scripts/simulate-mentor-trajectory.js",
     "estrategia:auditar": "node --env-file=.env.local scripts/import-strategy-library.js",
     "estrategia:importar": "node --env-file=.env.local scripts/import-strategy-library.js --apply",
+    "estrategia:questoes:inicial": "node --env-file=.env.local scripts/import-strategy-library.js --apply --questions-only --target-questions=50",
     "estrategia:cards": "node --env-file=.env.local scripts/import-strategy-library.js --apply --cards-only",
     "estrategia:validar": "node --env-file=.env.local scripts/audit-strategy-production.js"
   },

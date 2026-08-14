@@ -21,8 +21,8 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 
 ### Escopo e interface
 
-- A plataforma é pessoal, com Modo Aluno e Administrador.
-- A divisão Aluno e Administrador precisa ser respeitada na interface. Ações de cadastro, geração, importação, auditoria e reset ficam no Administrador.
+- A plataforma pessoal apresenta somente a experiência de estudo. Não existe Modo Administrador, alternância de modo nem módulos administrativos na interface.
+- Cadastro, geração, importação, auditoria, reset, calendário técnico e demais alterações operacionais são realizados somente por manutenção no código e no backend, a partir de solicitação explícita do usuário nesta conversa.
 - Faculdade e BACEN são filtros dentro dos módulos. Não criar duas interfaces independentes.
 - A Semana é unificada e usa Faculdade e BACEN como identificação visual.
 - As legendas permitidas na Semana são Estudo, Revisão, Exercício e Especial. Não criar a legenda Todas.
@@ -32,6 +32,7 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - A área de Questões apresenta disciplinas e tópicos em um catálogo hierárquico expansível. A disciplina continua inicialmente vazia. Selecionar uma disciplina abre a primeira questão de todos os seus tópicos; selecionar um tópico troca imediatamente para a primeira questão dele.
 - Os números exibidos ao lado de disciplinas e tópicos representam contagens reais de itens ativos daquela área. Não usar numeração meramente ordinal nesses locais.
 - O timer de Questões e Question Cards é opcional, progressivo e começa em zero somente ao acionar o botão próximo ao indicador de tempo. O conteúdo pode ser respondido sem iniciar o timer.
+- Abrir uma demanda na Semana não apresenta timer. O controle de tempo continua disponível no módulo Tempo de estudo e nos módulos específicos autorizados.
 - Question Cards usam a mesma estrutura visual hierárquica das Questões, mantendo frente, resposta e avaliação de revisão espaçada próprias.
 - O Mentor pode usar composição visual de conversa e balões, mas não deve simular campo de chat, anexos, reações ou funções que ainda não existam.
 - Simulados e questões discursivas permanecem bloqueados até nova autorização.
@@ -52,7 +53,7 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - A partir de 31 de agosto de 2026, Questões e Question Cards do BACEN são liberados tópico a tópico somente depois da conclusão de uma demanda de estudo daquele tópico. Conteúdo avançado ainda não estudado permanece bloqueado; itens já respondidos continuam acessíveis para revisão espaçada.
 - O ciclo interno do mentor é aquisição da base, recuperação ativa, aplicação em questões, correção com feedback, reteste espaçado e transferência para a prova. A decisão semanal usa aderência, acerto, confiança, falsa certeza, recência, revisões vencidas, compromissos acadêmicos e conteúdo já estudado.
 - Após a terceira semana, o mentor decide a carga seguinte sem reduzir os pisos de três horas nos dias úteis e duas horas no fim de semana. Aumento exige pelo menos 85% de aderência por duas semanas, no máximo três pendências e tempo real que demonstre capacidade acima do planejado. Não existe teto para o tempo efetivamente estudado; todo tempo excedente registrado pelo timer é contabilizado. A hora de Faculdade permanece de segunda a sexta e a carga adicional prioriza o BACEN.
-- O mentor usa um ciclo de decisão conservador: revisões vencidas e falsa certeza antecedem conteúdo novo; desempenho só influencia prioridade com pelo menos 20 respostas; confiança é confrontada com resultado; tópicos são intercalados apenas após base mínima; sem dados suficientes, a carga é mantida. O mentor não infere estado pessoal e altera no máximo uma variável estrutural por semana.
+- O mentor usa um ciclo de decisão conservador: revisões vencidas e falsa certeza antecedem conteúdo novo; desempenho passa a influenciar prioridade com pelo menos 10 respostas no tópico; confiança é confrontada com resultado; tópicos são intercalados apenas após base mínima; sem dados suficientes, a carga é mantida. O mentor não infere estado pessoal e altera no máximo uma variável estrutural por semana.
 - Existe um encontro semanal explícito com o mentor para registrar a avaliação da carga e as questões relevantes da semana. A carga declarada orienta a próxima semana de forma conservadora: sobrecarga pode reduzir a carga seguinte, mas nunca provoca aumento sozinha. Sono, energia e humor não entram no mentor. Não criar monitoramento diário nem inferir estado pessoal.
 - Simulados só podem ser considerados a partir da semana de 7 de setembro de 2026.
 - A matéria Análise e Produção de Texto não recebe questões nem Question Cards.
@@ -62,11 +63,11 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 
 ### Questões e Question Cards
 
-- Em 13 de agosto de 2026, o usuário determinou a exclusão integral de todas as questões e todos os Question Cards de Faculdade e BACEN. O acervo ativo deve permanecer vazio até nova solicitação explícita de reconstrução ou importação.
+- Em 13 de agosto de 2026, o usuário determinou a exclusão integral de todas as questões e todos os Question Cards de Faculdade e BACEN. Em 14 de agosto, autorizou reconstruir agora somente as questões BACEN. Question Cards e questões da Faculdade permanecem vazios até solicitação explícita.
 - A solicitação de geração de questões é feita exclusivamente por disciplina. O usuário não escolhe tópico para gerar. O mentor distribui cada lote entre os tópicos com base em incidência, cobertura atual e necessidade de equilibrar o acervo. A inserção do lote deve ser atômica e respeitar fonte, formato e dificuldade.
 
-- Cada um dos 113 tópicos aplicáveis de BACEN e Faculdade deve ter exatamente 100 questões ativas e 20 Question Cards ativos. O acervo-alvo atual é de 11.300 questões e 2.260 cards. Tópicos sem fonte específica usam o conhecimento consolidado da disciplina ou a base curricular local, conforme autorização explícita de 12 de agosto de 2026.
-- Cada tópico deve ter exatamente 60 questões fáceis, 30 médias e 10 difíceis. Para cumprir a regra exata, itens excedentes podem ser arquivados de forma recuperável, priorizando a preservação de itens já respondidos e de melhor qualidade.
+- O acervo inicial BACEN autorizado em 14 de agosto tem 50 questões por tópico com fonte específica suficiente. Nos 63 tópicos cobertos pelos PDFs do Estratégia, a meta é 3.150 questões. Os oito tópicos sem fonte específica permanecem bloqueados. Ampliar para 100 por tópico somente após medir consumo, repetição e desempenho ou depois da publicação do novo edital.
+- Cada tópico coberto deve ter 30 questões fáceis, 15 médias e 5 difíceis, preservando a proporção 60/30/10. Itens excedentes podem ser arquivados de forma recuperável, priorizando itens já respondidos e os de melhor qualidade.
 - Toda questão exige fonte, trecho de evidência, gabarito e explicação.
 - BACEN usa CE e ME, com predominância compatível com Cebraspe. Faculdade pode mesclar CE e ME.
 - Na prática, a disciplina começa vazia. Tópico vazio significa todos os tópicos.
@@ -80,16 +81,16 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - Em 11 de agosto de 2026, o usuário autorizou reconstruir o acervo BACEN exclusivamente a partir dos PDFs do Estratégia fornecidos por ele, sem Gemini. Só tópicos com fonte específica suficiente podem receber questões e cards; tópicos sem fonte ficam bloqueados.
 - Os PDFs pagos do Estratégia não podem ser enviados ao GitHub. O texto integral fica apenas no Supabase protegido, e o repositório guarda importadores, mapeamentos e auditorias.
 - Revisões vencidas de Question Cards vêm antes de cards novos. O limite inicial é de dez cards novos por objetivo ao dia.
-- O aluno pode denunciar Question Card ambíguo, incompleto ou incorreto. O item denunciado sai da fila até auditoria administrativa.
+- O aluno pode denunciar Question Card ambíguo, incompleto ou incorreto. O item denunciado sai da fila até manutenção técnica.
 
 ### Administração e confiabilidade
 
-- O Administrador possui um controle operacional com saúde do mentor, execuções, próxima execução, falhas, política, semana gerada, auditoria de questões e cards, cobertura e backup.
+- Saúde do mentor, execuções, falhas, política, auditoria, cobertura e backup permanecem como recursos internos de manutenção, sem exposição na interface de estudo.
 - O calendário acadêmico registra prova ou entrega, disciplina, data, peso, duração e conteúdo previsto.
 - O backup exporta progresso, respostas, planejamento, compromissos e configurações do mentor em JSON, sem segredos nem PDFs pagos.
 - Demandas e execuções do mentor usam chaves únicas. O plano bloqueia duplicidade, mas não impõe teto diário fixo. Os valores definidos são cargas mínimas planejadas; o timer pode ultrapassá-los e registra todo o tempo real.
 - O fechamento transfere no máximo três pendências e somente quando elas couberem na capacidade do dia. Tópicos sem fonte específica não entram no planejamento.
-- Falhas de funções e do cron são registradas para resolução no painel administrativo.
+- Falhas de funções e do cron são registradas no backend para resolução técnica.
 - A implantação gratuita usa sete funções serverless: Autenticação, Estudos, Planejamento, Desempenho, Mentor, Administração e Cron. Os handlers permanecem separados em `api/_lib`; consolidar a porta de entrada não autoriza misturar responsabilidades no código nem remover funcionalidades.
 - O timer de estudo é progressivo e persistente, pode ser iniciado em demanda, disciplina, Questões e Question Cards, permite pausa e retomada e oferece modo foco. O tempo real não divide automaticamente uma demanda concluída.
 - O Yoda é a porta da central de alertas: revisões vencidas, pendências, risco de acúmulo, prazos e mudança de carga. Semana e próxima demanda continuam acessíveis pelos módulos próprios.
@@ -98,7 +99,7 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - Questões e Question Cards mostram cadeado ao lado de disciplinas e tópicos bloqueados; o cadeado desaparece quando o tópico se torna elegível para prática.
 - A Central de Revisão unifica questões erradas, Dúvida, Sem conhecimento, cards vencidos e revisões do mentor, ordenadas por urgência.
 - A plataforma é instalável como PWA. Semana e cards previamente carregados ficam disponíveis em conexão instável; mutações offline usam identificadores únicos e sincronizam quando a internet retorna.
-- O Administrador possui comparador de edital BACEN e backups automáticos semanais com retenção de 90 dias. Restaurar exige confirmação explícita e substitui os dados de progresso cobertos pelo snapshot.
+- O comparador de edital BACEN e os backups automáticos semanais permanecem disponíveis somente na manutenção técnica. Restaurar exige confirmação explícita e substitui os dados de progresso cobertos pelo snapshot.
 
 ## Erros anteriores e prevenção
 
@@ -126,6 +127,13 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 7. Tratar a cota do Gemini como bloqueio externo, sem inserção parcial ou substituição por conteúdo artificial.
 
 ## Histórico de aprendizado
+
+- 2026-08-14, reconstrução inicial de questões BACEN: o usuário autorizou criar questões agora e pediu uma recomendação de volume até a prova. A primeira etapa foi definida em 50 questões por cada um dos 63 tópicos sustentados diretamente pelos PDFs do Estratégia, total de 3.150, na proporção 60/30/10. Question Cards, Faculdade e oito tópicos BACEN sem fonte continuam vazios ou bloqueados.
+- 2026-08-14, correção semântica do lote BACEN: a amostragem identificou múltipla escolha com trecho da resposta no enunciado, alternativas visualmente distinguíveis, negação atingindo parte de palavra e linguagem de aula. O importador passou a excluir esses ruídos, aplicar negação somente em verbos isolados e construir ME com quatro afirmações fiéis e uma afirmação alterada, pedindo a alternativa incorreta. Não aprovar lote apenas pela validação estrutural.
+
+- 2026-08-14, simplificação da Semana e diagnóstico: clicar em uma demanda semanal não exibe timer. A amostra mínima para o diagnóstico por tópico caiu de 20 para 10 respostas. O bloco técnico Coletando dados não volta à interface, pois o Modo Administrador foi removido.
+
+- 2026-08-14, remoção do Modo Administrador: o usuário identificou que controles administrativos visíveis aumentam a ansiedade e estimulam alterações frequentes. A interface passa a oferecer somente os módulos de estudo. Ferramentas operacionais permanecem no backend e no código, acessíveis apenas por manutenção solicitada nesta conversa.
 
 - 2026-08-14, correção de carga mínima: de 17 de agosto até a terceira semana, segunda a sexta têm uma hora de Faculdade e duas horas de BACEN; sábado e domingo têm duas horas. Esses valores são pisos de planejamento, não limites de tempo real. A partir de 31 de agosto entra uma única demanda diária de 30 minutos de Question Cards. Depois da terceira semana, o mentor adapta a carga sem reduzir os pisos e só aumenta quando aderência e tempo real sustentam a mudança.
 - 2026-08-14, simulação de trajetória: como o BACEN não possui data-alvo cadastrada, foi adotado somente para teste um horizonte hipotético de 52 semanas, de 17 de agosto de 2026 a 15 de agosto de 2027. A simulação não grava uma data de prova e deve ser repetida quando a data real existir.
