@@ -61,6 +61,8 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 
 ### Questões e Question Cards
 
+- Em 13 de agosto de 2026, o usuário determinou a exclusão integral de todas as questões e todos os Question Cards de Faculdade e BACEN. O acervo ativo deve permanecer vazio até nova solicitação explícita de reconstrução ou importação.
+
 - Cada um dos 113 tópicos aplicáveis de BACEN e Faculdade deve ter exatamente 100 questões ativas e 20 Question Cards ativos. O acervo-alvo atual é de 11.300 questões e 2.260 cards. Tópicos sem fonte específica usam o conhecimento consolidado da disciplina ou a base curricular local, conforme autorização explícita de 12 de agosto de 2026.
 - Cada tópico deve ter exatamente 60 questões fáceis, 30 médias e 10 difíceis. Para cumprir a regra exata, itens excedentes podem ser arquivados de forma recuperável, priorizando a preservação de itens já respondidos e de melhor qualidade.
 - Toda questão exige fonte, trecho de evidência, gabarito e explicação.
@@ -121,6 +123,8 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 7. Tratar a cota do Gemini como bloqueio externo, sem inserção parcial ou substituição por conteúdo artificial.
 
 ## Histórico de aprendizado
+
+- 2026-08-13, exclusão explícita do acervo: foram removidas todas as 11.300 questões e todos os 2.287 Question Cards, abrangendo Faculdade e BACEN. Objetivos, matérias, tópicos, materiais, conhecimentos do mentor e planejamento foram preservados.
 
 - 2026-08-13, correção de progressão: a carga inicial anterior era alta para o retorno ao ritmo. A primeira semana passou a duas horas diárias e a segunda a três horas de segunda a sábado e duas no domingo. Depois disso, a carga varia em passos de uma hora conforme aderência ponderada e acúmulo, respeitando máximos de sete horas nos dias úteis, quatro no sábado e três no domingo.
 - 2026-08-13, aprimoramento do mentor: o conhecimento operacional passou a separar aquisição, recuperação, feedback, espaçamento, intercalamento, calibração metacognitiva, trajetória e auditoria. As regras são sustentadas por fontes registradas no banco e funcionam sem Gemini.
