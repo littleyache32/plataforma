@@ -2,12 +2,19 @@ import { useEffect, useState } from 'react'
 import { api } from '../api.js'
 import avatar from '../assets/mentor-avatar.svg'
 
+const panels = [
+  ['resumo', 'Resumo'],
+  ['alertas', 'Alertas'],
+  ['progresso', 'Progresso'],
+  ['encontro', 'Encontro'],
+]
+
 export default function MentorWidget({ objectiveId, onOpenAlerts, onOpenQuestions, onOpenCards }) {
   const [open, setOpen] = useState(false)
   const [mentor, setMentor] = useState(null)
   const [loading, setLoading] = useState(false)
   const [loadedFor, setLoadedFor] = useState('')
-  const [meetingOpen, setMeetingOpen] = useState(false)
+  const [activePanel, setActivePanel] = useState('resumo')
   const [meetingMessage, setMeetingMessage] = useState('')
   const [meeting, setMeeting] = useState({ cargaPercebida: 'adequada', observacoes: '' })
 
@@ -34,12 +41,15 @@ export default function MentorWidget({ objectiveId, onOpenAlerts, onOpenQuestion
   }, [mentor?.encontro_semanal])
 
   async function saveMeeting(event) {
-    event.preventDefault(); setMeetingMessage('Salvando encontro...')
+    event.preventDefault()
+    setMeetingMessage('Salvando encontro...')
     try {
       const result = await api('/api/mentor', { method: 'POST', body: JSON.stringify({ semanaInicio: mentor?.semana_atual, ...meeting }) })
       setMentor((current) => ({ ...current, encontro_semanal: result.encontro_semanal }))
       setMeetingMessage('Encontro registrado. O mentor considerará estas informações na próxima semana.')
-    } catch (error) { setMeetingMessage(error.message) }
+    } catch (error) {
+      setMeetingMessage(error.message)
+    }
   }
 
   const priority = mentor?.prioridades?.[0]
@@ -51,21 +61,59 @@ export default function MentorWidget({ objectiveId, onOpenAlerts, onOpenQuestion
   const trajectory = mentor?.trajetoria
   const alerts = mentor?.alertas || []
   const visibleAlerts = cardsReleased ? alerts : alerts.filter((alert) => !/card/i.test(`${alert.tipo} ${alert.titulo} ${alert.mensagem}`))
+  const summary = mentor?.resumo || {}
+  const adherence = close?.planejado > 0 ? Math.round((close.realizado / close.planejado) * 100) : null
 
   return <aside className={`mentor-widget ${open ? 'open' : ''}`}>
-    {open && <section className={`mentor-popover sketch-chat ${meetingOpen ? 'meeting-open' : ''}`} aria-live="polite">
-      <header className="sketch-chat-head"><div className="sketch-avatar"><img src={avatar} alt="Avatar do mentor"/><i aria-hidden="true"/></div><div><b>Mentor de estudos</b><small><span className="online-dot"/> online · {mentor?.fase?.titulo || 'direcionamento diário'}</small></div></header>
-      <div className="sketch-chat-flow">
-        {visibleAlerts.slice(0, 4).map((alert, index) => <div className="chat-message received follow-up" key={`${alert.tipo}-${index}`}><div className="chat-avatar-space"/><div className={`chat-bubble ${alert.gravidade === 'alta' ? 'priority-bubble' : ''}`}><small>ALERTA DO MENTOR</small><strong>{alert.titulo}</strong><span>{alert.mensagem}</span></div></div>)}
-        {loading ? <div className="typing-message"><img src={avatar} alt=""/><span><i/><i/><i/></span></div> : <>
-          <div className="chat-message received"><img src={avatar} alt=""/><div className="chat-bubble"><small>PAINEL DO MENTOR</small><strong>{visibleAlerts.length ? `${visibleAlerts.length} avisos para acompanhar` : 'Nenhum risco urgente agora'}</strong><span>{mentor?.resumo?.revisoes_imediatas || 0} revisões imediatas · {mentor?.resumo?.topicos_cobertos || 0} tópicos dominados</span></div></div>
-          {priority && !restrictedPhase && <div className="chat-message received follow-up"><div className="chat-avatar-space"/><div className="chat-bubble priority-bubble"><small>PRIORIDADE</small><strong>{priority.nome}</strong><span>{priority.motivo}</span></div></div>}
-          {probable && trajectory?.data_alvo_definida && <div className="chat-message sent"><div className="chat-bubble scenario-bubble"><small>CENÁRIO PROVÁVEL</small><strong>{probable.cobertura_estimada}% de cobertura</strong><span>estimativa até a data-alvo</span></div></div>}
-          {close?.planejado > 0 && <div className="chat-message received follow-up"><div className="chat-avatar-space"/><div className="chat-bubble"><small>FECHAMENTO SEMANAL</small><strong>{close.realizado} de {close.planejado} demandas</strong><span>{close.pendencias} pendências · ajuste: {close.ajuste_proxima_semana}</span></div></div>}
-        </>}
-      </div>
-      {!loading && <div className="mentor-actions sketch-replies"><button className="secondary" onClick={() => setMeetingOpen((value) => !value)}>{meetingOpen ? 'Fechar encontro semanal' : 'Encontro semanal'}</button>{visibleAlerts.length > 0 && <button className="primary" onClick={onOpenAlerts}>Abrir central de alertas</button>}{!restrictedPhase && priority?.questoes_para_revisar > 0 && <button className="secondary" onClick={() => onOpenQuestions(priority)}>Revisar questões</button>}{!restrictedPhase && priority?.cards_vencidos > 0 && <button className="secondary" onClick={() => onOpenCards(priority)}>Revisar Question Cards</button>}</div>}
-      {meetingOpen && <form className="mentor-weekly-meeting" onSubmit={saveMeeting}><div><h3>Encontro semanal</h3><p>Registre as questões da semana. Sono, energia e humor não entram no cálculo do mentor.</p></div><label>Como ficou a carga planejada?<select value={meeting.cargaPercebida} onChange={(event) => setMeeting((current) => ({ ...current, cargaPercebida: event.target.value }))}><option value="leve">Leve</option><option value="adequada">Adequada</option><option value="pesada">Pesada</option></select></label><label>Questões da semana<textarea rows="4" maxLength="1200" value={meeting.observacoes} onChange={(event) => setMeeting((current) => ({ ...current, observacoes: event.target.value }))} placeholder="O que funcionou, quais dificuldades surgiram e o que precisa de atenção?"/></label><button className="primary" type="submit">Registrar encontro</button>{meetingMessage && <small>{meetingMessage}</small>}</form>}
+    {open && <section className={`mentor-popover sketch-chat ${activePanel === 'encontro' ? 'meeting-open' : ''}`} aria-live="polite">
+      <header className="sketch-chat-head">
+        <div className="sketch-avatar"><img src={avatar} alt="Avatar do mentor"/><i aria-hidden="true"/></div>
+        <div><b>Mentor de estudos</b><small><span className="online-dot"/> orientação disponível</small></div>
+      </header>
+
+      <nav className="mentor-panel-tabs" aria-label="Opções do mentor">
+        {panels.map(([id, label]) => <button key={id} type="button" className={activePanel === id ? 'active' : ''} aria-pressed={activePanel === id} onClick={() => setActivePanel(id)}>
+          {label}{id === 'alertas' && visibleAlerts.length > 0 ? <b>{visibleAlerts.length}</b> : null}
+        </button>)}
+      </nav>
+
+      {loading ? <div className="sketch-chat-flow"><div className="typing-message"><img src={avatar} alt=""/><span><i/><i/><i/></span></div></div> : <>
+        {activePanel === 'resumo' && <div className="mentor-panel-content">
+          <div className="mentor-summary-grid">
+            <article><small>AVISOS</small><strong>{visibleAlerts.length}</strong><span>{visibleAlerts.length === 1 ? 'item para acompanhar' : 'itens para acompanhar'}</span></article>
+            <article><small>REVISÕES</small><strong>{summary.revisoes_imediatas || 0}</strong><span>prioridade imediata</span></article>
+            <article><small>DOMÍNIO</small><strong>{summary.topicos_cobertos || 0}<i>/{summary.topicos_totais || 0}</i></strong><span>tópicos consolidados</span></article>
+            <article><small>ADERÊNCIA</small><strong>{adherence === null ? '...' : `${adherence}%`}</strong><span>último fechamento</span></article>
+          </div>
+          <div className="chat-message received"><img src={avatar} alt=""/><div className="chat-bubble"><small>LEITURA DO MENTOR</small><strong>{visibleAlerts.length ? 'Há pontos que merecem atenção' : 'Nenhum risco urgente agora'}</strong><span>{visibleAlerts[0]?.mensagem || 'Continue executando as demandas planejadas. O mentor atualizará a leitura com seus resultados.'}</span></div></div>
+        </div>}
+
+        {activePanel === 'alertas' && <div className="mentor-panel-content">
+          <div className="sketch-chat-flow mentor-alert-flow">
+            {visibleAlerts.length === 0 && <div className="chat-message received"><img src={avatar} alt=""/><div className="chat-bubble"><small>CENTRAL DE ALERTAS</small><strong>Nenhum alerta ativo</strong><span>Revisões, pendências, prazos, falsa certeza e riscos aparecerão aqui.</span></div></div>}
+            {visibleAlerts.map((alert, index) => <div className="chat-message received follow-up" key={`${alert.tipo}-${index}`}><div className="chat-avatar-space"/><div className={`chat-bubble ${alert.gravidade === 'alta' ? 'priority-bubble' : ''}`}><small>{alert.gravidade === 'alta' ? 'ATENÇÃO' : 'ALERTA DO MENTOR'}</small><strong>{alert.titulo}</strong><span>{alert.mensagem}</span></div></div>)}
+          </div>
+          <div className="mentor-actions sketch-replies">
+            {visibleAlerts.length > 0 && <button className="primary" onClick={onOpenAlerts}>Abrir central de revisão</button>}
+            {!restrictedPhase && priority?.questoes_para_revisar > 0 && <button className="secondary" onClick={() => onOpenQuestions(priority)}>Revisar questões</button>}
+            {!restrictedPhase && priority?.cards_vencidos > 0 && <button className="secondary" onClick={() => onOpenCards(priority)}>Revisar Question Cards</button>}
+          </div>
+        </div>}
+
+        {activePanel === 'progresso' && <div className="mentor-panel-content mentor-progress">
+          <section><small>FECHAMENTO SEMANAL</small><strong>{close?.planejado > 0 ? `${close.realizado} de ${close.planejado} demandas` : 'Ainda sem fechamento'}</strong><span>{close?.planejado > 0 ? `${close.pendencias} pendências · ${close.minutos_realizados || 0} minutos realizados` : 'O primeiro resultado aparecerá após uma semana de uso.'}</span></section>
+          <section><small>PRIORIDADE DE CORREÇÃO</small><strong>{priority && !restrictedPhase ? priority.nome : 'Nenhuma prioridade liberada'}</strong><span>{priority && !restrictedPhase ? priority.motivo : 'O mentor aguardará dados suficientes e conteúdos liberados.'}</span></section>
+          <section><small>TRAJETÓRIA ATÉ A PROVA</small><strong>{trajectory?.data_alvo_definida && probable ? `${probable.cobertura_estimada}% de cobertura provável` : 'Data da prova ainda não definida'}</strong><span>{trajectory?.data_alvo_definida ? `${trajectory.conteudo_restante} tópicos restantes` : 'A projeção de risco será calculada somente após existir uma data-alvo oficial.'}</span></section>
+        </div>}
+
+        {activePanel === 'encontro' && <form className="mentor-weekly-meeting" onSubmit={saveMeeting}>
+          <div><h3>Encontro semanal</h3><p>Registre as questões da semana. Sono, energia e humor não entram no cálculo do mentor.</p></div>
+          <label>Como ficou a carga planejada?<select value={meeting.cargaPercebida} onChange={(event) => setMeeting((current) => ({ ...current, cargaPercebida: event.target.value }))}><option value="leve">Leve</option><option value="adequada">Adequada</option><option value="pesada">Pesada</option></select></label>
+          <label>Questões da semana<textarea rows="4" maxLength="1200" value={meeting.observacoes} onChange={(event) => setMeeting((current) => ({ ...current, observacoes: event.target.value }))} placeholder="O que funcionou, quais dificuldades surgiram e o que precisa de atenção?"/></label>
+          <button className="primary" type="submit">Registrar encontro</button>{meetingMessage && <small>{meetingMessage}</small>}
+        </form>}
+      </>}
+
       <footer><span>Direcionamento baseado em rotina, desempenho e recência.</span><i aria-label="Gemini desativado">IA desativada</i></footer>
     </section>}
     <button className="mentor-trigger" onClick={() => setOpen((value) => !value)} aria-label={open ? 'Fechar mentor' : 'Abrir mentor'} aria-expanded={open}><img src={avatar} alt=""/><span aria-hidden="true"/>{visibleAlerts.length > 0 && <b className="mentor-alert-count">{visibleAlerts.length}</b>}</button>
