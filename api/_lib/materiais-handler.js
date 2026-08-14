@@ -1,4 +1,3 @@
-import { PDFParse } from 'pdf-parse'
 import { randomUUID } from 'node:crypto'
 import { getSupabaseAdmin } from './supabase.js'
 import { generateJson } from './gemini.js'
@@ -39,6 +38,11 @@ async function extractContent({ tipo, conteudo, arquivoBase64, storagePath }, su
     buffer = Buffer.from(await data.arrayBuffer())
   } else buffer = Buffer.from(arquivoBase64, 'base64')
   if (buffer.length > PDF_LIMIT) throw new Error('PDF maior que 20 MB.')
+  const canvas = await import('@napi-rs/canvas')
+  globalThis.DOMMatrix ||= canvas.DOMMatrix
+  globalThis.ImageData ||= canvas.ImageData
+  globalThis.Path2D ||= canvas.Path2D
+  const { PDFParse } = await import('pdf-parse')
   const parser = new PDFParse({ data: buffer })
   try {
     const result = await parser.getText()

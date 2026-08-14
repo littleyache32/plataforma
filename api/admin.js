@@ -1,4 +1,4 @@
-import { queryParam } from './_lib/http.js'
+import { fail, queryParam } from './_lib/http.js'
 
 const handlers = {
   materiais: () => import('./_lib/materiais-handler.js'),
@@ -10,6 +10,10 @@ const handlers = {
 export default async function handler(req, res) {
   const load = handlers[queryParam(req, 'modulo')]
   if (!load) return res.status(404).json({ error: 'Modulo administrativo nao encontrado.' })
-  const selected = await load()
-  return selected.default(req, res)
+  try {
+    const selected = await load()
+    return selected.default(req, res)
+  } catch (error) {
+    return fail(res, error, 'Nao foi possivel carregar o modulo administrativo.')
+  }
 }

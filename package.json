@@ -28,6 +28,7 @@
     "audit:cobertura": "node --env-file=.env.local scripts/audit-coverage.js",
     "audit:questoes": "node --env-file=.env.local scripts/audit-and-adapt-library.js",
     "audit:cards": "node --env-file=.env.local scripts/audit-and-adapt-cards.js",
+    "audit:secrets": "node scripts/audit-git-secrets.js",
     "estrategia:auditar": "node --env-file=.env.local scripts/import-strategy-library.js",
     "estrategia:importar": "node --env-file=.env.local scripts/import-strategy-library.js --apply",
     "estrategia:cards": "node --env-file=.env.local scripts/import-strategy-library.js --apply --cards-only",
@@ -35,6 +36,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.28.0",
+    "@napi-rs/canvas": "^0.1.80",
     "@supabase/supabase-js": "^2.57.4",
     "pdf-parse": "^2.4.5",
     "pg": "^8.16.3",

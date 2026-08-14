@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import { getSupabaseAdmin } from './supabase.js'
 
 const COOKIE_NAME = 'mentor_session'
@@ -52,6 +52,12 @@ function cookieValue(req, name) {
 
 export function authenticate(password) {
   return safeEqual(password, process.env.APP_ACCESS_KEY)
+}
+
+export function requestFingerprint(req) {
+  const forwarded = String(req.headers?.['x-forwarded-for'] || '').split(',')[0].trim()
+  const address = forwarded || String(req.socket?.remoteAddress || 'unknown')
+  return createHash('sha256').update(address).digest('hex').slice(0, 16)
 }
 
 export function setSessionCookie(res) {

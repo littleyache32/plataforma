@@ -12,6 +12,11 @@ function entrypoints(directory = 'api') {
 }
 
 describe('arquitetura serverless gratuita', () => {
+  it('carrega o modulo de materiais sem inicializar o leitor de PDF', async () => {
+    const module = await import('../api/_lib/materiais-handler.js')
+    expect(module.default).toBeTypeOf('function')
+  })
+
   it('mantem exatamente sete funcoes de entrada', () => {
     expect(entrypoints().sort()).toEqual([
       'api/admin.js', 'api/auth.js', 'api/cron/mentor.js', 'api/desempenho.js',
