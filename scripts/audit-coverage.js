@@ -3,8 +3,8 @@ import { createClient } from '@supabase/supabase-js'
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY
 if (!process.env.SUPABASE_URL || !key) throw new Error('Supabase não configurado.')
 const supabase = createClient(process.env.SUPABASE_URL, key, { auth: { persistSession: false } })
-const questionTarget = 100
-const cardTarget = 20
+const fallbackQuestionTarget = 1
+const fallbackCardTarget = 20
 
 async function allRows(table, columns) {
   const rows = []
@@ -16,13 +16,15 @@ async function allRows(table, columns) {
   }
 }
 
-const [{ data: topics, error }, questions, cards] = await Promise.all([
+const [{ data: topics, error }, questions, cards, metas] = await Promise.all([
   supabase.from('topico').select('id,nome,materia:materia_id(nome,objetivo:objetivo_id(id,nome,tipo))'),
   allRows('questao', 'id,topico_id,marcada_errada,ativa,dificuldade'),
   allRows('question_card', 'id,topico_id,ativa,ativo'),
+  allRows('acervo_meta', 'topico_id,questoes_alvo,cards_alvo'),
 ])
 if (error) throw error
 const relevant = (topics || []).filter((topic) => !['análise e produção de texto', 'analise e producao de texto'].includes(String(topic.materia?.nome || '').toLocaleLowerCase('pt-BR')))
+const metaByTopic = new Map(metas.map((item) => [item.topico_id, item]))
 const coverage = relevant.map((topic) => {
   const activeQuestions = questions.filter((item) => item.topico_id === topic.id && item.ativa !== false && !item.marcada_errada)
   const activeCards = cards.filter((item) => item.topico_id === topic.id && item.ativa !== false && item.ativo !== false)
@@ -31,15 +33,17 @@ const coverage = relevant.map((topic) => {
     medias: activeQuestions.filter((item) => Number(item.dificuldade) === 3).length,
     dificeis: activeQuestions.filter((item) => Number(item.dificuldade) >= 4).length,
   }
-  return { contexto: topic.materia?.objetivo?.tipo, materia: topic.materia?.nome, topico: topic.nome, questoes: activeQuestions.length, questoes_faltantes: Math.max(0, questionTarget - activeQuestions.length), dificuldade, cards: activeCards.length, cards_faltantes: Math.max(0, cardTarget - activeCards.length) }
+  const questionTarget = Number(metaByTopic.get(topic.id)?.questoes_alvo || fallbackQuestionTarget)
+  const cardTarget = Number(metaByTopic.get(topic.id)?.cards_alvo || fallbackCardTarget)
+  return { contexto: topic.materia?.objetivo?.tipo, materia: topic.materia?.nome, topico: topic.nome, questoes: activeQuestions.length, questoes_alvo: questionTarget, questoes_faltantes: Math.max(0, questionTarget - activeQuestions.length), dificuldade, cards: activeCards.length, cards_alvo: cardTarget, cards_faltantes: Math.max(0, cardTarget - activeCards.length) }
 })
 const summary = coverage.reduce((result, item) => ({
   topicos: result.topicos + 1,
   questoes: result.questoes + item.questoes,
-  questoes_alvo: result.questoes_alvo + questionTarget,
+  questoes_alvo: result.questoes_alvo + item.questoes_alvo,
   questoes_faltantes: result.questoes_faltantes + item.questoes_faltantes,
   cards: result.cards + item.cards,
-  cards_alvo: result.cards_alvo + cardTarget,
+  cards_alvo: result.cards_alvo + item.cards_alvo,
   cards_faltantes: result.cards_faltantes + item.cards_faltantes,
 }), { topicos: 0, questoes: 0, questoes_alvo: 0, questoes_faltantes: 0, cards: 0, cards_alvo: 0, cards_faltantes: 0 })
 summary.por_contexto = Object.fromEntries(['concurso', 'faculdade'].map((context) => {
@@ -48,6 +52,7 @@ summary.por_contexto = Object.fromEntries(['concurso', 'faculdade'].map((context
   const cardsCount = items.reduce((sum, item) => sum + item.cards, 0)
   return [context, {
     topicos: items.length,
+    topicos_zerados_questoes: items.filter((item) => item.questoes === 0).length,
     topicos_com_meta_questoes: items.filter((item) => item.questoes_faltantes === 0).length,
     topicos_com_meta_cards: items.filter((item) => item.cards_faltantes === 0).length,
     questoes: questions,
