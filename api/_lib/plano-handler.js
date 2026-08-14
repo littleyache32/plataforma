@@ -15,7 +15,21 @@ function adherenceHistory(sessions, weekStart) {
     const fim = addDays(inicio, 6)
     const week = sessions.filter((item) => item.data_planejada_original >= inicio && item.data_planejada_original <= fim)
     const concludedByEnd = (item) => item.status === 'feita' && item.concluida_em && brazilDate(item.concluida_em) <= fim
-    return { inicio, planejadas: week.length, concluidas: week.filter(concludedByEnd).length }
+    const completed = week.filter(concludedByEnd)
+    const weekdays = week.filter((item) => {
+      const day = new Date(`${item.data_planejada_original}T12:00:00Z`).getUTCDay()
+      return day >= 1 && day <= 5
+    })
+    const weekdayDates = new Set(weekdays.map((item) => item.data_planejada_original))
+    return {
+      inicio,
+      planejadas: week.length,
+      concluidas: completed.length,
+      pendencias: week.length - completed.length,
+      minutos_planejados: week.reduce((sum, item) => sum + Number(item.duracao_estimada || 0), 0),
+      minutos_concluidos: completed.reduce((sum, item) => sum + Number(item.duracao_estimada || 0), 0),
+      media_segunda_sexta: weekdayDates.size ? Math.round(weekdays.reduce((sum, item) => sum + Number(item.duracao_estimada || 0), 0) / weekdayDates.size) : 0,
+    }
   })
 }
 
@@ -61,7 +75,7 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
     loadModuleKnowledge(supabase, 'mentor').then((data) => ({ data })).catch(() => supabase.from('mentor_conhecimento').select('versao,politica').eq('ativo', true).order('criado_em', { ascending: false }).limit(1).maybeSingle()),
     supabase.from('questao').select('id,topico_id,proxima_revisao').eq('ativa', true).eq('marcada_errada', false).not('proxima_revisao', 'is', null).lte('proxima_revisao', `${weekEnd}T23:59:59-03:00`),
     supabase.from('acervo_meta').select('topico_id').eq('expansao_bloqueada', false),
-    supabase.from('sessao').select('data_planejada_original,status,concluida_em').eq('origem', 'mentor').gte('data_planejada_original', adherenceStart).lt('data_planejada_original', inicio),
+    supabase.from('sessao').select('data_planejada_original,status,concluida_em,duracao_estimada').eq('origem', 'mentor').gte('data_planejada_original', adherenceStart).lt('data_planejada_original', inicio),
     supabase.from('sessao').select('topico_id').eq('tipo', 'estudo').eq('status', 'feita').not('topico_id', 'is', null),
   ])
   const error = results.find((item) => item.error)?.error

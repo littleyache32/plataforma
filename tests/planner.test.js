@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { adherenceAdjustment, buildMentorWeek, canGenerateMentorWeek, planOverdueMoves, validateMentorPlan } from '../shared/planner.js'
+import { adherenceAdjustment, buildMentorWeek, canGenerateMentorWeek, planOverdueMoves, validateMentorPlan, weeklyLoadProfile } from '../shared/planner.js'
 
 const catalog = [
   { id: 'bacen', tipo: 'concurso', materias: [{ id: 'cont', nome: 'Contabilidade', topicos: [{ id: 'cont-1', nome: 'Balanço' }] }] },
@@ -7,29 +7,28 @@ const catalog = [
 ]
 
 describe('buildMentorWeek', () => {
-  it('usa três horas de BACEN por dia e somente os cards de faculdade autorizados na fase inicial', () => {
+  it('inicia com duas horas diarias e sem pratica na primeira semana', () => {
     const result = buildMentorWeek({ weekStart: '2026-08-17', catalog, pendingReviews: 3 })
-    expect(result).toHaveLength(27)
-    expect(result.filter((item) => item.tipo === 'estudo')).toHaveLength(25)
-    expect(result.filter((item) => item.tipo === 'especial' && item.objetivo_id === 'facul')).toHaveLength(2)
+    expect(result).toHaveLength(14)
+    expect(result.every((item) => item.tipo === 'estudo')).toBe(true)
     expect(result.some((item) => item.tipo === 'exercicio' || item.objetivo_id === 'bacen' && item.tipo === 'especial')).toBe(false)
     expect(Math.max(...result.map((item) => item.duracao_estimada))).toBe(60)
   })
 
-  it('mantem três horas de BACEN e trinta minutos de cards da faculdade no sábado e domingo', () => {
+  it('limita sabado e domingo a duas horas na primeira semana', () => {
     const result = buildMentorWeek({ weekStart: '2026-08-17', catalog, pendingReviews: 1 })
     const weekend = result.filter((item) => item.data >= '2026-08-22')
     const totals = weekend.reduce((map, item) => map.set(item.data, (map.get(item.data) || 0) + item.duracao_estimada), new Map())
-    expect([...totals.values()]).toEqual([210, 210])
-    expect(weekend.filter((item) => item.tipo === 'especial' && item.objetivo_id === 'facul')).toHaveLength(2)
+    expect([...totals.values()]).toEqual([120, 120])
+    expect(weekend.every((item) => item.objetivo_id === 'bacen')).toBe(true)
   })
 
-  it('soma uma hora de faculdade de segunda a quinta sem reduzir as três horas do BACEN', () => {
+  it('reserva uma hora para faculdade e uma para BACEN de segunda a quinta na primeira semana', () => {
     const result = buildMentorWeek({ weekStart: '2026-08-17', catalog })
     const total = (day) => result.filter((item) => item.data === day).reduce((sum, item) => sum + item.duracao_estimada, 0)
-    expect(total('2026-08-17')).toBe(240)
-    expect(total('2026-08-21')).toBe(180)
-    expect(total('2026-08-23')).toBe(210)
+    expect(total('2026-08-17')).toBe(120)
+    expect(total('2026-08-21')).toBe(120)
+    expect(total('2026-08-23')).toBe(120)
   })
 
   it('mantem chaves estaveis para impedir duplicidade ao recarregar', () => {
@@ -59,8 +58,8 @@ describe('buildMentorWeek', () => {
     const result = buildMentorWeek({ weekStart: '2026-08-17', catalog })
     for (let day = 17; day <= 23; day += 1) {
       const items = result.filter((item) => item.data === `2026-08-${day}`)
-      expect(items.filter((item) => item.objetivo_id === 'facul').map((item) => item.duracao_estimada)).toEqual(day <= 20 ? [60] : day >= 22 ? [30] : [])
-      expect(items.filter((item) => item.objetivo_id === 'bacen').map((item) => item.duracao_estimada)).toEqual([60, 60, 60])
+      expect(items.filter((item) => item.objetivo_id === 'facul').map((item) => item.duracao_estimada)).toEqual(day <= 20 ? [60] : [])
+      expect(items.filter((item) => item.objetivo_id === 'bacen').map((item) => item.duracao_estimada)).toEqual(day <= 20 ? [60] : [60, 60])
     }
   })
 
@@ -119,7 +118,7 @@ describe('buildMentorWeek', () => {
   it('atribui uma ordem estavel para cada demanda dentro do dia', () => {
     const result = buildMentorWeek({ weekStart: '2026-08-17', catalog })
     const monday = result.filter((item) => item.data === '2026-08-17')
-    expect(monday.map((item) => item.ordem)).toEqual([0, 1, 2, 3])
+    expect(monday.map((item) => item.ordem)).toEqual([0, 1])
   })
 
   it('prioriza topico fraco na recalibracao diaria', () => {
@@ -135,7 +134,8 @@ describe('buildMentorWeek', () => {
       adherenceHistory: [{ inicio: '2026-08-24', planejadas: 10, concluidas: 6 }],
     })
     expect(adherenceAdjustment([{ planejadas: 10, concluidas: 6 }]).nivel).toBe('reduzir')
-    expect(result.filter((item) => item.chave_mentor.includes('estudo-bacen')).every((item) => item.duracao_estimada === 30)).toBe(true)
+    const totals = result.reduce((map, item) => map.set(item.data, (map.get(item.data) || 0) + item.duracao_estimada), new Map())
+    expect(Math.max(...totals.values())).toBeLessThanOrEqual(180)
     expect(result.filter((item) => item.tipo === 'especial' && item.objetivo_id === 'bacen')).toHaveLength(7)
     expect(result.filter((item) => item.chave_mentor.includes('questoes-bacen'))).toHaveLength(7)
   })
@@ -146,18 +146,19 @@ describe('buildMentorWeek', () => {
     const result = buildMentorWeek({ weekStart: '2026-08-31', catalog, adherenceHistory: twoWeeks })
     expect(oneWeek.nivel).toBe('manter')
     expect(adherenceAdjustment(twoWeeks).nivel).toBe('aumentar')
-    expect(result.filter((item) => item.chave_mentor.includes('estudo-bacen')).every((item) => item.duracao_estimada === 90)).toBe(true)
+    const monday = result.filter((item) => item.data === '2026-08-31').reduce((sum, item) => sum + item.duracao_estimada, 0)
+    expect(monday).toBe(180)
   })
 
-  it('nao altera a carga fixa das duas semanas iniciais por causa da aderencia', () => {
+  it('a segunda semana sobe para tres horas, mantendo duas no domingo', () => {
     const result = buildMentorWeek({
       weekStart: '2026-08-24',
       catalog,
       adherenceHistory: [{ planejadas: 21, concluidas: 2 }],
     })
     const totals = result.reduce((map, item) => map.set(item.data, (map.get(item.data) || 0) + item.duracao_estimada), new Map())
-    expect([...totals.values()]).toEqual([240, 240, 240, 240, 180, 210, 210])
-    expect(result.filter((item) => item.tipo === 'especial').every((item) => item.objetivo_id === 'facul')).toBe(true)
+    expect([...totals.values()]).toEqual([180, 180, 180, 180, 180, 180, 120])
+    expect(result.every((item) => item.tipo === 'estudo')).toBe(true)
   })
 
   it('planeja questões e cards BACEN somente para tópicos já estudados', () => {
@@ -172,8 +173,24 @@ describe('buildMentorWeek', () => {
     const subjects = Array.from({ length: 7 }, (_, subject) => ({ id: `m${subject}`, nome: `Matéria ${subject}`, topicos: Array.from({ length: 3 }, (_, topic) => ({ id: `m${subject}-t${topic}`, nome: `Tópico ${topic}` })) }))
     const result = buildMentorWeek({ weekStart: '2026-08-17', catalog: [{ id: 'bacen', tipo: 'concurso', materias: subjects }, catalog[1]] })
     const bacenStudy = result.filter((item) => item.objetivo_id === 'bacen' && item.tipo === 'estudo')
-    expect(bacenStudy).toHaveLength(21)
-    expect(new Set(bacenStudy.map((item) => item.topico_id)).size).toBe(21)
+    expect(bacenStudy).toHaveLength(10)
+    expect(new Set(bacenStudy.map((item) => item.topico_id)).size).toBe(10)
+  })
+
+  it('aumenta a carga total em uma hora somente com duas semanas sustentaveis', () => {
+    const history = [
+      { planejadas: 10, concluidas: 9, minutos_planejados: 600, minutos_concluidos: 540, media_segunda_sexta: 180, pendencias: 1 },
+      { planejadas: 10, concluidas: 9, minutos_planejados: 600, minutos_concluidos: 540, media_segunda_sexta: 180, pendencias: 1 },
+    ]
+    expect(weeklyLoadProfile('2026-08-31', history)).toMatchObject({ segunda_sexta: 240, sabado: 240, domingo: 180, nivel: 'aumentar' })
+  })
+
+  it('nao aumenta carga com acumulo e respeita os tetos diarios', () => {
+    const backlog = [
+      { planejadas: 10, concluidas: 9, media_segunda_sexta: 420, pendencias: 1 },
+      { planejadas: 10, concluidas: 9, media_segunda_sexta: 420, pendencias: 4 },
+    ]
+    expect(weeklyLoadProfile('2026-09-07', backlog)).toMatchObject({ segunda_sexta: 420, sabado: 240, domingo: 180, nivel: 'manter' })
   })
 
   it('limita a tres pendencias transferidas e nao estoura a capacidade diaria', () => {

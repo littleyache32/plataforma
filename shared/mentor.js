@@ -5,7 +5,7 @@ export function mentorPhase(date = new Date().toISOString().slice(0, 10)) {
     return { id: 'aguardando_inicio', titulo: 'Preparação para o início', descricao: 'A mentoria começa em 17 de agosto. Nenhuma carga anterior será criada.' }
   }
   if (date >= '2026-08-17' && date <= '2026-08-30') {
-    return { id: 'construcao_base', titulo: 'Construção da base', descricao: 'Três horas de estudo por dia: uma hora de Faculdade e duas horas de BACEN, sem questões ou Question Cards.' }
+    return { id: 'construcao_base', titulo: 'Construção da base', descricao: 'Retorno gradual ao ritmo: duas horas na primeira semana e até três na segunda, sem questões ou Question Cards.' }
   }
   if (date < '2026-09-07') {
     return { id: 'pratica_progressiva', titulo: 'Prática progressiva', descricao: 'Estudo, questões e revisões espaçadas entram gradualmente conforme o desempenho.' }

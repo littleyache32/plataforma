@@ -45,13 +45,14 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - Atividades normais duram 30, 60 ou no máximo 90 minutos. Provas e simulados podem exceder.
 - Arrastar demanda significa reorganizar a ordem dentro do mesmo dia. Não mover entre dias por arraste.
 - Demanda não concluída deve ser redistribuída pelo mentor para um dia posterior possível.
-- De 17 a 30 de agosto de 2026: três horas diárias de BACEN; de segunda a quinta soma-se uma hora de Faculdade no modelo aula dada, aula estudada. Sábado e domingo recebem 30 minutos de Question Cards da Faculdade. Questões e Question Cards do BACEN e simulados permanecem bloqueados nessa fase.
+- De 17 a 23 de agosto de 2026: duas horas totais por dia. De segunda a quinta, uma hora de Faculdade e uma hora de BACEN; sexta, sábado e domingo recebem duas horas de BACEN. De 24 a 30 de agosto: três horas de segunda a sábado, com uma hora de Faculdade e duas de BACEN de segunda a quinta; domingo permanece com duas horas. A fase inicial não contém Questões, Question Cards ou simulados.
 - A semana é preparada automaticamente no domingo às 00h00, horário de Brasília, na virada de sábado para domingo. Abrir o aplicativo no domingo ou na segunda-feira funciona como contingência caso a execução agendada não ocorra.
 - Faculdade segue aula dada, aula estudada: Pessoas e Negócios na segunda, Teoria do Crime na terça, Teorias da Justiça na quarta e Teoria da Constituição na quinta.
 - Após a fase inicial, BACEN tem prioridade de carga. Question Cards BACEN são diários quando liberados; Faculdade, duas vezes por semana.
 - A partir de 31 de agosto de 2026, Questões e Question Cards do BACEN são liberados tópico a tópico somente depois da conclusão de uma demanda de estudo daquele tópico. Conteúdo avançado ainda não estudado permanece bloqueado; itens já respondidos continuam acessíveis para revisão espaçada.
 - O ciclo interno do mentor é aquisição da base, recuperação ativa, aplicação em questões, correção com feedback, reteste espaçado e transferência para a prova. A decisão semanal usa aderência, acerto, confiança, falsa certeza, recência, revisões vencidas, compromissos acadêmicos e conteúdo já estudado.
-- Após a fase inicial, a carga de estudo BACEN se adapta pela conclusão das demandas: abaixo de 70% na semana mais recente, o bloco cai de 60 para 30 minutos; entre 70% e 85%, permanece em 60 minutos; a partir de 85% por duas semanas consecutivas, sobe para 90 minutos. Faculdade, revisões vencidas, Questões e Question Cards não são removidos por esse ajuste.
+- Após a fase inicial, a carga total se adapta pela conclusão ponderada pelos minutos planejados: abaixo de 70% na semana mais recente, reduz uma hora; entre 70% e 85%, mantém; a partir de 85% por duas semanas consecutivas e com no máximo três pendências, aumenta uma hora. Os limites são sete horas de segunda a sexta, quatro no sábado e três no domingo. A hora de Faculdade permanece fixa de segunda a quinta e a carga adicional prioriza o BACEN. Ultrapassar o tempo estimado não reduz aderência quando a demanda foi concluída.
+- O mentor usa um ciclo de decisão conservador: revisões vencidas e falsa certeza antecedem conteúdo novo; desempenho só influencia prioridade com pelo menos 20 respostas; confiança é confrontada com resultado; tópicos são intercalados apenas após base mínima; sem dados suficientes, a carga é mantida. O mentor não infere estado pessoal e altera no máximo uma variável estrutural por semana.
 - Simulados só podem ser considerados a partir da semana de 7 de setembro de 2026.
 - A matéria Análise e Produção de Texto não recebe questões nem Question Cards.
 - O fechamento semanal compara demandas planejadas e concluídas, pendências, revisões e aderência. Esse resultado alimenta o ajuste da semana seguinte.
@@ -120,6 +121,9 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 7. Tratar a cota do Gemini como bloqueio externo, sem inserção parcial ou substituição por conteúdo artificial.
 
 ## Histórico de aprendizado
+
+- 2026-08-13, correção de progressão: a carga inicial anterior era alta para o retorno ao ritmo. A primeira semana passou a duas horas diárias e a segunda a três horas de segunda a sábado e duas no domingo. Depois disso, a carga varia em passos de uma hora conforme aderência ponderada e acúmulo, respeitando máximos de sete horas nos dias úteis, quatro no sábado e três no domingo.
+- 2026-08-13, aprimoramento do mentor: o conhecimento operacional passou a separar aquisição, recuperação, feedback, espaçamento, intercalamento, calibração metacognitiva, trajetória e auditoria. As regras são sustentadas por fontes registradas no banco e funcionam sem Gemini.
 
 - 2026-08-09, acerto: auditoria conservadora preservou 2.426 de 2.433 questões e arquivou somente sete falhas impeditivas.
 - 2026-08-09, acerto: 2.260 de 2.261 Question Cards foram preservados; avisos estilísticos não foram tratados como motivo automático de exclusão.
