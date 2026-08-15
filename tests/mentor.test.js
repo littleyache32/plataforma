@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateTopicDiagnosis, mentorPhase, scoreboard } from '../shared/mentor.js'
+import { calculateCardRetention, calculateStudyEfficiency, calculateTopicDiagnosis, diversifyPriorities, mentorPhase, scoreboard, topicSignals } from '../shared/mentor.js'
 
 function record(resultado, classificacao, index = 0) {
   return { resultado, classificacao, criado_em: new Date(Date.now() - index * 60000).toISOString() }
@@ -30,7 +30,7 @@ describe('calculateTopicDiagnosis', () => {
     expect(result.status).toBe('prioridade')
     expect(result.falsa_certeza).toBeGreaterThan(30)
     expect(result.probabilidade_dominio).toBeLessThan(50)
-    expect(result.versao_politica).toBe('2026.08.6')
+    expect(result.versao_politica).toBe('2026.08.7')
   })
 
   it('reduz prioridade quando as respostas recentes mostram melhora real', () => {
@@ -40,6 +40,37 @@ describe('calculateTopicDiagnosis', () => {
       ...Array.from({ length: 10 }, (_, i) => record('erro', 'duvida', i + 10)),
     ]
     expect(calculateTopicDiagnosis(records).status).toBe('melhorando')
+  })
+})
+
+describe('evidencias integradas', () => {
+  it('nao conclui retencao nem reage a um unico card', () => {
+    const result = calculateCardRetention([{ resultado: 'novamente', criado_em: new Date().toISOString() }])
+    expect(result).toMatchObject({ status: 'coletando_dados', amostra: 1, faltam: 4 })
+  })
+
+  it('identifica retencao fraca apenas com amostra minima', () => {
+    const records = Array.from({ length: 5 }, (_, index) => ({ resultado: index < 2 ? 'novamente' : 'dificil', criado_em: new Date(Date.now() - index * 60000).toISOString() }))
+    expect(calculateCardRetention(records).status).toBe('retencao_fraca')
+  })
+
+  it('nao usa tempo isolado como sinal de baixa eficiencia', () => {
+    const timer = [{ status: 'concluido', segundos_acumulados: 7200 }]
+    expect(calculateStudyEfficiency(timer, { status: 'prioridade' }, { status: 'retencao_fraca' })).toMatchObject({ status: 'coletando_dados', sinal_confirmado: false })
+  })
+
+  it('cards fracos sem fraqueza em questoes recomendam revisao de cards', () => {
+    const signal = topicSignals({ diagnosis: { status: 'estavel', dominio: 80, probabilidade_dominio: 80, falsa_certeza: 0, incerteza_estimativa: 10 }, cardRetention: { status: 'retencao_fraca' } })
+    expect(signal.acao_recomendada).toBe('revisar_cards')
+  })
+
+  it('diversifica prioridades entre disciplinas', () => {
+    const result = diversifyPriorities([
+      { id: 'a', materia_id: 'm1', prioridade_calculada: 5 },
+      { id: 'b', materia_id: 'm1', prioridade_calculada: 4 },
+      { id: 'c', materia_id: 'm2', prioridade_calculada: 3 },
+    ], 3, 1)
+    expect(result.map((item) => item.id)).toEqual(['a', 'c'])
   })
 })
 

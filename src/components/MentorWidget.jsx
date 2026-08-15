@@ -9,6 +9,16 @@ const panels = [
   ['encontro', 'Encontro'],
 ]
 
+const meetingSignals = [
+  ['dificuldade_conteudo', 'Dificuldade com conteúdo'],
+  ['dificuldade_volume', 'Dificuldade com volume'],
+  ['dificuldade_questoes', 'Dificuldade com questões'],
+  ['dificuldade_revisao', 'Dificuldade com revisão'],
+  ['problema_material', 'Problema no material'],
+  ['estrategia_funcionou', 'Estratégia funcionou'],
+  ['prioridade_percebida', 'Prioridade para a próxima semana'],
+]
+
 export default function MentorWidget({ objectiveId, onOpenAlerts, onOpenQuestions, onOpenCards }) {
   const [open, setOpen] = useState(false)
   const [mentor, setMentor] = useState(null)
@@ -16,7 +26,7 @@ export default function MentorWidget({ objectiveId, onOpenAlerts, onOpenQuestion
   const [loadedFor, setLoadedFor] = useState('')
   const [activePanel, setActivePanel] = useState('resumo')
   const [meetingMessage, setMeetingMessage] = useState('')
-  const [meeting, setMeeting] = useState({ cargaPercebida: 'adequada', observacoes: '' })
+  const [meeting, setMeeting] = useState({ cargaPercebida: 'adequada', observacoes: '', classificacoes: [] })
 
   useEffect(() => {
     if (!open || !objectiveId || loadedFor === objectiveId) return
@@ -37,7 +47,7 @@ export default function MentorWidget({ objectiveId, onOpenAlerts, onOpenQuestion
   useEffect(() => {
     const saved = mentor?.encontro_semanal
     if (!saved) return
-    setMeeting({ cargaPercebida: saved.carga_percebida, observacoes: saved.observacoes || '' })
+    setMeeting({ cargaPercebida: saved.carga_percebida, observacoes: saved.observacoes || '', classificacoes: saved.classificacoes || [] })
   }, [mentor?.encontro_semanal])
 
   async function saveMeeting(event) {
@@ -55,7 +65,7 @@ export default function MentorWidget({ objectiveId, onOpenAlerts, onOpenQuestion
   const priority = mentor?.prioridades?.[0]
   const probable = mentor?.cenarios?.find((item) => item.cenario === 'provavel')
   const basePhase = mentor?.fase?.id === 'construcao_base'
-  const cardsReleased = Date.now() >= new Date('2026-08-17T00:00:00-03:00').getTime()
+  const cardsReleased = mentor?.cards_liberados === true
   const restrictedPhase = basePhase || !cardsReleased
   const close = mentor?.fechamento_semanal
   const trajectory = mentor?.trajetoria
@@ -109,6 +119,7 @@ export default function MentorWidget({ objectiveId, onOpenAlerts, onOpenQuestion
         {activePanel === 'encontro' && <form className="mentor-weekly-meeting" onSubmit={saveMeeting}>
           <div><h3>Encontro semanal</h3><p>Registre as questões da semana. Sono, energia e humor não entram no cálculo do mentor.</p></div>
           <label>Como ficou a carga planejada?<select value={meeting.cargaPercebida} onChange={(event) => setMeeting((current) => ({ ...current, cargaPercebida: event.target.value }))}><option value="leve">Leve</option><option value="adequada">Adequada</option><option value="pesada">Pesada</option></select></label>
+          <fieldset className="mentor-meeting-signals"><legend>O que marcou a semana? <small>Opcional</small></legend>{meetingSignals.map(([id, label]) => <label key={id}><input type="checkbox" checked={meeting.classificacoes.includes(id)} onChange={() => setMeeting((current) => ({ ...current, classificacoes: current.classificacoes.includes(id) ? current.classificacoes.filter((item) => item !== id) : [...current.classificacoes, id] }))}/><span>{label}</span></label>)}</fieldset>
           <label>Questões da semana<textarea rows="4" maxLength="1200" value={meeting.observacoes} onChange={(event) => setMeeting((current) => ({ ...current, observacoes: event.target.value }))} placeholder="O que funcionou, quais dificuldades surgiram e o que precisa de atenção?"/></label>
           <button className="primary" type="submit">Registrar encontro</button>{meetingMessage && <small>{meetingMessage}</small>}
         </form>}

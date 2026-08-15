@@ -1,21 +1,40 @@
 # Mentor de Estudos
 
-Plataforma pessoal para Faculdade de Direito e preparação para o BACEN. O produto conecta plano semanal, questões, Question Cards, simulados e diagnóstico de desempenho.
+Plataforma pessoal de estudo para Faculdade de Direito e preparação para o BACEN. O mentor cria e recalibra demandas semanais simples usando execução, questões, Question Cards, revisões, prazos e tempo agregado.
 
-## Funcionalidades
+## Estado atual
 
-- Seletor lado a lado entre Faculdade e BACEN.
-- Modos Aluno e Administrador.
-- Início com próxima ação, atalhos e resumo da semana.
-- Anamnese rápida e geração automática do plano.
-- Metas semanais flexíveis, sem horários fixos.
-- Questões por disciplina inteira ou tópico específico.
-- Certeza, Dúvida, Eliminação e Sem conhecimento em toda resposta.
-- Fila de revisão e detecção de falsa certeza.
-- Question Cards com repetição espaçada.
-- Simulados cronometrados, salvamento e retomada.
-- Fontes e materiais restritos ao modo Administrador.
-- Geração de questões com Gemini e fontes pesquisadas.
+- Aplicação Vite + React em JavaScript, publicada na Vercel.
+- Funções serverless em `/api` e persistência no Supabase.
+- Acesso pessoal por cookie de sessão assinado.
+- Um único modo de uso. Não existe painel Administrador na interface.
+- Semana unificada com demandas de Faculdade e BACEN.
+- Questões objetivas, caderno de revisão e Question Cards com repetição espaçada.
+- Questões discursivas e simulados permanecem bloqueados.
+- Timer associado a objetivo, disciplina, tópico e tipo de atividade.
+- Mentor com resumo, alertas, progresso e encontro semanal.
+- Gemini desativado. Nenhuma geração externa é executada.
+
+## Política canônica do mentor
+
+A política de fallback fica em `shared/mentor-policy.js` e a versão persistida fica no módulo `mentor` do Supabase. A versão atual é `2026.08.7`.
+
+- O diagnóstico por tópico começa com 10 respostas. Nove respostas continuam como `coletando_dados`.
+- Questões consideram resultado, confiança, falsa certeza e recência.
+- Question Cards consideram novamente, difícil, bom, fácil, lapsos, vencimento, atraso e tendência. Cards complementam questões e não estabelecem domínio sozinhos.
+- Tempo é analisado somente de forma agregada e comparável. Uma sessão isolada ou uma duração maior não causa punição nem encerra uma demanda.
+- Peso da disciplina, incidência do tópico, revisões vencidas e compromissos próximos entram na prioridade.
+- O encontro semanal aceita classificações opcionais. O texto livre serve como contexto humano e não altera o plano sozinho.
+- Experimentos estão apenas preparados no banco. Não podem ser ativados automaticamente.
+- Sono, energia e humor não existem na política nem no encontro.
+
+## Planejamento
+
+As demandas mostram somente o necessário para executar: atividade, disciplina ou tópico, tipo, duração estimada e prioridade. O mentor preserva a sequência dos conteúdos e decide carga, revisão, prática e retorno sem criar microtarefas.
+
+Na fase inicial já definida, a carga e os bloqueios permanecem inalterados. Depois dessa fase, a carga pode ser mantida, aumentada ou reduzida conforme aderência confirmada, pendências e evidências acumuladas.
+
+Compromissos acadêmicos podem ser ligados diretamente a tópicos. Quando não houver vínculo, `conteudo_previsto` funciona como fallback. Conteúdo novo gera estudo; conteúdo já estudado e fraco gera revisão ou questões; conteúdo dominado recebe manutenção.
 
 ## Instalação local
 
@@ -23,46 +42,32 @@ Requisitos: Node.js 24 ou superior e um projeto Supabase.
 
 ```bash
 npm install
-cp .env.example .env.local
+copy .env.example .env.local
 npm run migrate
 npm run dev:full
 ```
 
-O `vercel dev` executa o frontend e as funções da pasta `api` juntas.
-
 ## Variáveis de ambiente
-
-Configure localmente e na Vercel:
 
 ```text
 SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
-GEMINI_API_KEY
 APP_ACCESS_KEY
-GEMINI_MODEL
 POSTGRES_URL_NON_POOLING ou POSTGRES_URL
+CRON_SECRET
 ```
 
-Nunca use o prefixo `VITE_` para segredos e nunca envie `.env.local` ao GitHub.
+`GEMINI_API_KEY` pode permanecer configurada na infraestrutura, mas não é usada enquanto a proibição estiver ativa. Nunca use o prefixo `VITE_` para segredos e nunca envie `.env.local` ao GitHub.
 
-## Banco de dados
+## Banco e publicação
 
-As migrações ficam em `supabase/migrations` e são aplicadas em ordem pelo comando:
+As migrações ficam em `supabase/migrations` e não são aplicadas automaticamente pela Vercel.
 
 ```bash
 npm run migrate
-```
-
-A migração `0003_mentor_plano_cards_simulados.sql` cria a faculdade, a anamnese, o plano flexível, os Question Cards e os simulados. Migrações não são executadas automaticamente pela Vercel.
-
-## Validação
-
-```bash
-npm run lint
 npm test
+npm run lint
 npm run build
 ```
 
-## Publicação
-
-O projeto está preparado para Vercel. Quando o repositório estiver conectado, cada push na branch configurada gera uma nova publicação. Variáveis de ambiente e migrações devem estar configuradas separadamente.
+Depois da migração e das validações, o push na branch conectada publica a versão pela Vercel.

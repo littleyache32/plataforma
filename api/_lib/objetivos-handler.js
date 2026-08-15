@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   try {
     if (queryParam(req, 'recurso') === 'compromissos') {
       if (req.method === 'GET') {
-        const { data, error } = await supabase.from('compromisso').select('id,titulo,tipo,data,peso,duracao_minutos,conteudo_previsto,concluido,objetivo:objetivo_id(id,nome,tipo),materia:materia_id(id,nome)').order('data')
+        const { data, error } = await supabase.from('compromisso').select('id,titulo,tipo,data,peso,duracao_minutos,conteudo_previsto,concluido,objetivo:objetivo_id(id,nome,tipo),materia:materia_id(id,nome),topicos:compromisso_topico(topico:topico_id(id,nome))').order('data')
         if (error) throw error
         return res.status(200).json({ compromissos: data || [] })
       }
@@ -18,12 +18,17 @@ export default async function handler(req, res) {
         if (error) throw error
         return res.status(200).json({ ok: true })
       }
-      const { objetivoId, materiaId, titulo, tipo, data, peso = 3, duracaoMinutos = 90, conteudoPrevisto = '' } = req.body || {}
+      const { objetivoId, materiaId, topicoIds = [], titulo, tipo, data, peso = 3, duracaoMinutos = 90, conteudoPrevisto = '' } = req.body || {}
       if (!objetivoId || !titulo || !['prova', 'entrega'].includes(tipo) || !/^\d{4}-\d{2}-\d{2}$/.test(String(data || ''))) return res.status(400).json({ error: 'Preencha objetivo, titulo, tipo e data.' })
       const duration = tipo === 'prova' ? Math.max(30, Number(duracaoMinutos) || 90) : Math.min(90, Math.max(30, Number(duracaoMinutos) || 60))
       const { data: item, error } = await supabase.from('compromisso').insert({ objetivo_id: objetivoId, materia_id: materiaId || null, titulo: String(titulo).trim(), tipo, data, peso: Math.min(5, Math.max(1, Number(peso) || 3)), duracao_minutos: duration, conteudo_previsto: String(conteudoPrevisto).trim().slice(0, 4000) || null }).select('id').single()
       if (error) throw error
-      return res.status(201).json({ compromisso: item })
+      const links = [...new Set((Array.isArray(topicoIds) ? topicoIds : []).map(String).filter(Boolean))]
+      if (links.length) {
+        const { error: linkError } = await supabase.from('compromisso_topico').insert(links.map((topicoId) => ({ compromisso_id: item.id, topico_id: topicoId })))
+        if (linkError) throw linkError
+      }
+      return res.status(201).json({ compromisso: item, topicos_vinculados: links.length })
     }
     if (req.method === 'GET') {
       const { data, error } = await supabase.from('objetivo').select('id,tipo,nome,banca,situacao,data_alvo,config,ativo').order('criado_em')

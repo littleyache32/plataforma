@@ -103,7 +103,17 @@ describe('buildMentorWeek', () => {
     const exam = result.find((item) => item.chave_mentor.endsWith('compromisso:prova-1'))
     const preparation = result.find((item) => item.chave_mentor.endsWith('preparo:prova-1'))
     expect(exam).toMatchObject({ data: '2026-08-20', tipo: 'prova', duracao_estimada: 120, prioridade: 1 })
-    expect(preparation).toMatchObject({ data: '2026-08-18', tipo: 'revisao', duracao_estimada: 90, materia_id: 'civil' })
+    expect(preparation).toMatchObject({ data: '2026-08-18', tipo: 'estudo', duracao_estimada: 90, materia_id: 'civil' })
+  })
+
+  it('prepara compromisso pelo topico explicitamente vinculado', () => {
+    const expanded = [{ id: 'facul', tipo: 'faculdade', materias: [{ id: 'civil', nome: 'Direito Civil', topicos: [{ id: 'pessoas', nome: 'Pessoas' }, { id: 'negocios', nome: 'Negócios jurídicos' }] }] }]
+    const result = buildMentorWeek({
+      weekStart: '2026-09-07',
+      catalog: expanded,
+      commitments: [{ id: 'prova-2', objetivo_id: 'facul', materia_id: 'civil', titulo: 'Prova', tipo: 'prova', data: '2026-09-10', peso: 5, duracao_minutos: 120, concluido: false, topicos: [{ topico_id: 'negocios' }] }],
+    })
+    expect(result.find((item) => item.chave_mentor.endsWith('preparo:prova-2'))).toMatchObject({ topico_id: 'negocios' })
   })
 
   it('remaneja toda pendencia vencida, inclusive entre semanas', () => {
@@ -126,6 +136,14 @@ describe('buildMentorWeek', () => {
     const expanded = [{ id: 'bacen', tipo: 'concurso', materias: [{ id: 'cont', nome: 'Contabilidade', topicos: [{ id: 'forte', nome: 'Fortes' }, { id: 'fraco', nome: 'Fracos' }] }] }]
     const result = buildMentorWeek({ weekStart: '2026-08-17', catalog: expanded, priorities: [{ id: 'fraco' }] })
     expect(result.some((item) => item.topico_id === 'fraco')).toBe(true)
+  })
+
+  it('uma amostra ruim nao domina toda a agenda de pratica', () => {
+    const expanded = [{ id: 'bacen', tipo: 'concurso', materias: [{ id: 'cont', nome: 'Contabilidade', topicos: [{ id: 'fraco', nome: 'Fraco' }, { id: 'outro', nome: 'Outro' }] }] }]
+    const result = buildMentorWeek({ weekStart: '2026-09-07', catalog: expanded, priorities: [{ id: 'fraco', prioridade_calculada: 9 }] })
+    const practice = result.filter((item) => item.chave_mentor.includes('questoes-bacen'))
+    expect(practice.filter((item) => item.topico_id === 'fraco').length).toBeLessThan(practice.length)
+    expect(practice.some((item) => item.topico_id === 'outro')).toBe(true)
   })
 
   it('reduz apenas o estudo BACEN quando a aderencia fica abaixo de 70%', () => {

@@ -97,7 +97,7 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - O Yoda é a porta da central de alertas: revisões vencidas, pendências, risco de acúmulo, prazos e mudança de carga. Semana e próxima demanda continuam acessíveis pelos módulos próprios.
 - O painel do Yoda não repete Próxima demanda, Fase atual ou Abrir minha semana. Ele mostra exclusivamente alertas, estatísticas resumidas, falsas certezas, riscos de preparação para a prova e ações ligadas ao aviso.
 - O timer permite escolher uma duração de foco. Ao atingir essa duração, emite aviso sonoro e continua contando até o usuário pausar ou concluir. O Tempo de estudo apresenta a distribuição por disciplina em gráfico de pizza com legenda e cores distintas.
-- Questões e Question Cards mostram cadeado ao lado de disciplinas e tópicos bloqueados; o cadeado desaparece quando o tópico se torna elegível para prática.
+- Questões e Question Cards mostram cadeado ao lado de disciplinas e tópicos bloqueados; o cadeado desaparece quando o tópico se torna elegível para prática. Question Cards não geram demandas nem alertas visíveis antes de 31 de agosto de 2026.
 - A Central de Revisão unifica questões erradas, Dúvida, Sem conhecimento, cards vencidos e revisões do mentor, ordenadas por urgência.
 - A plataforma é instalável como PWA. Semana e cards previamente carregados ficam disponíveis em conexão instável; mutações offline usam identificadores únicos e sincronizam quando a internet retorna.
 - O comparador de edital BACEN e os backups automáticos semanais permanecem disponíveis somente na manutenção técnica. Restaurar exige confirmação explícita e substitui os dados de progresso cobertos pelo snapshot.
@@ -128,6 +128,9 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 7. Tratar a cota do Gemini como bloqueio externo, sem inserção parcial ou substituição por conteúdo artificial.
 
 ## Histórico de aprendizado
+
+- 2026-08-15, política canônica do mentor: a especificação aprovada consolidou a amostra mínima em 10 respostas e exige uma versão única posterior a `2026.08.6`. Question Cards passam a complementar o diagnóstico com amostra própria, sem estabelecer domínio sozinhos; tempo entra somente agregado e comparável; peso, incidência, compromisso e revisões compõem prioridade por coeficientes versionados. Texto livre do encontro é apenas contexto; classificações estruturadas podem influenciar o plano. Sono, energia, humor, Gemini, chat e experimentos automáticos permanecem fora do escopo.
+- 2026-08-15, compromissos e experimentos: compromissos acadêmicos podem vincular tópicos diretamente e usam `conteudo_previsto` somente como fallback. Experimentos ficam preparados, mas exigem autorização explícita, uma variável, carga constante, períodos comparáveis e ausência de prova importante; no máximo um pode ficar ativo.
 
 - 2026-08-14, ampliação do painel do mentor: o usuário considerou fraca a experiência ao abrir o ícone. O painel passa a organizar as funções já autorizadas em quatro opções internas: Resumo, Alertas, Progresso e Encontro. Resumo mostra avisos, revisões, domínio e aderência; Alertas reúne avisos e ações de revisão; Progresso apresenta fechamento, prioridade de correção e trajetória condicionada à data-alvo; Encontro mantém a avaliação semanal. Não reintroduzir Semana, Fase atual ou Próxima demanda dentro do Yoda.
 

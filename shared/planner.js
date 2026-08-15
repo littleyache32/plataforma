@@ -146,7 +146,12 @@ function dayIndex(weekStart, date) {
 
 function targetForCommitment(targets, commitment) {
   const sameSubject = targets.filter((item) => item.objectiveId === commitment.objetivo_id && (!commitment.materia_id || item.subjectId === commitment.materia_id))
-  return sameSubject[0] || targets.find((item) => item.objectiveId === commitment.objetivo_id) || null
+  const linked = new Set((commitment.topicos || []).map((item) => item.topico_id || item.topico?.id).filter(Boolean))
+  const exact = sameSubject.find((item) => linked.has(item.topicId))
+  if (exact) return exact
+  const expected = normalized(commitment.conteudo_previsto)
+  const textual = expected ? sameSubject.find((item) => expected.includes(normalized(item.topic)) || normalized(item.topic).includes(expected)) : null
+  return textual || sameSubject[0] || targets.find((item) => item.objectiveId === commitment.objetivo_id) || null
 }
 
 function facultyTargetForDay(targets, priorities, day, rotationSeed, policy) {
@@ -175,13 +180,16 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
       subject: subject.nome,
       topicId: topic.id,
       topic: topic.nome,
+      subjectWeight: Number(subject.peso_prova || 1),
+      incidence: Number(topic.incidencia || 0),
     }))
   }))
   if (!targets.length) return []
 
   const urgentSubjectIds = new Set(commitments.filter((item) => !item.concluido).map((item) => item.materia_id).filter(Boolean))
   const priorityIds = new Set(priorities.map((item) => item.id))
-  const prioritized = targets.filter((item) => priorityIds.has(item.topicId))
+  const priorityOrder = new Map(priorities.map((item, index) => [item.id, index]))
+  const prioritized = targets.filter((item) => priorityIds.has(item.topicId)).sort((a, b) => (priorityOrder.get(a.topicId) ?? 999) - (priorityOrder.get(b.topicId) ?? 999))
   const byContext = {
     concurso: targets.filter((item) => item.context === 'concurso'),
     faculdade: targets.filter((item) => item.context === 'faculdade' && !normalized(item.subject).includes('analise e producao de texto')),
@@ -200,7 +208,9 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     const otherBacen = pick(byContext.concurso.filter((item) => item.subjectId !== bacenTarget?.subjectId), rotationSeed + day + 2) || bacenTarget
     const facultyTarget = facultyTargetForDay(targets, priorities, day, rotationSeed, policy) || pick(byContext.faculdade, rotationSeed + day)
     const facultyCardTarget = pick(byContext.faculdade.filter(allowsQuestionCards), rotationSeed + day)
-    const practiceTarget = pick(practiceBacen.filter((item) => priorityIds.has(item.topicId)), rotationSeed + day)
+    const priorityPracticeSlots = Math.min(3, priorities.length * 2)
+    const practiceTarget = (day < priorityPracticeSlots ? pick(practiceBacen.filter((item) => priorityIds.has(item.topicId)), rotationSeed + day) : null)
+      || pickDistributed(practiceBacen.filter((item) => !priorityIds.has(item.topicId)), rotationSeed + day)
       || pickDistributed(practiceBacen, rotationSeed + day)
     const otherPracticeTarget = pick(practiceBacen.filter((item) => item.subjectId !== practiceTarget?.subjectId), rotationSeed + day + 2) || practiceTarget
 
@@ -274,8 +284,8 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
         day: prepDay,
         slot: `preparo:${commitment.id}`,
         target,
-        title: `Preparar: ${commitment.titulo}`,
-        type: 'revisao',
+        title: priorityIds.has(target.topicId) ? `Revisar: ${target.topic || target.subject}` : `Estudar: ${target.topic || target.subject}`,
+        type: priorityIds.has(target.topicId) ? 'revisao' : 'estudo',
         duration: commitment.peso >= 4 ? 90 : 60,
         priority: commitment.peso >= 4 ? 1 : 2,
       })

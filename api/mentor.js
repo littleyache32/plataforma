@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from './_lib/supabase.js'
 import { allowMethods, fail, queryParam, requireAccess } from './_lib/http.js'
 import { loadModuleKnowledge } from './_lib/module-knowledge.js'
-import { buildScenarios, calculateTopicDiagnosis, mentorPhase, topicSignals } from '../shared/mentor.js'
+import { buildScenarios, calculateCardRetention, calculateStudyEfficiency, calculateTopicDiagnosis, diversifyPriorities, mentorPhase, topicSignals } from '../shared/mentor.js'
 import { adherenceAdjustment } from '../shared/planner.js'
 
 function monday(date = new Date()) {
@@ -23,10 +23,13 @@ export default async function handler(req, res) {
       const cargaPercebida = String(req.body?.cargaPercebida || '')
       if (!/^\d{4}-\d{2}-\d{2}$/.test(semanaInicio) || new Date(`${semanaInicio}T12:00:00Z`).getUTCDay() !== 1) return res.status(400).json({ error: 'Informe a segunda-feira da semana do encontro.' })
       if (!['leve', 'adequada', 'pesada'].includes(cargaPercebida)) return res.status(400).json({ error: 'Classifique a carga como leve, adequada ou pesada.' })
+      const allowedClassifications = ['dificuldade_conteudo', 'dificuldade_volume', 'dificuldade_questoes', 'dificuldade_revisao', 'problema_material', 'estrategia_funcionou', 'prioridade_percebida']
+      const classifications = [...new Set((Array.isArray(req.body?.classificacoes) ? req.body.classificacoes : []).filter((item) => allowedClassifications.includes(item)))]
       const payload = {
         semana_inicio: semanaInicio,
         carga_percebida: cargaPercebida,
         observacoes: String(req.body?.observacoes || '').trim().slice(0, 1200) || null,
+        classificacoes: classifications,
         realizado_em: new Date().toISOString(),
         atualizado_em: new Date().toISOString(),
       }
@@ -39,8 +42,8 @@ export default async function handler(req, res) {
     const currentWeek = monday()
     const previousStart = addDays(currentWeek, -7)
     const previousEnd = addDays(currentWeek, -1)
-    const [{ data: topics, error: topicsError }, { data: records, error: recordsError }, { data: reviewItems, error: reviewError }, { data: inventory, error: inventoryError }, modularKnowledge, { data: legacyPolicy }, { data: objective }, { data: weeklySessions, error: sessionsError }, { data: pendingSessions, error: pendingError }, { data: commitments, error: commitmentsError }, { data: weeklyMeeting, error: meetingError }] = await Promise.all([
-      supabase.from('topico').select('id,nome,materia:materia_id(id,nome,objetivo:objetivo_id(id,nome))'),
+    const [{ data: topics, error: topicsError }, { data: records, error: recordsError }, { data: reviewItems, error: reviewError }, { data: inventory, error: inventoryError }, modularKnowledge, { data: legacyPolicy }, { data: objective }, { data: weeklySessions, error: sessionsError }, { data: pendingSessions, error: pendingError }, { data: commitments, error: commitmentsError }, { data: weeklyMeeting, error: meetingError }, { data: cards, error: cardsError }, { data: cardRecords, error: cardRecordsError }, { data: timers, error: timersError }] = await Promise.all([
+      supabase.from('topico').select('id,nome,incidencia,materia:materia_id(id,nome,peso_prova,objetivo:objetivo_id(id,nome))'),
       supabase.from('registro').select('resultado,classificacao,tempo,criado_em,questao!inner(topico_id,topico:topico_id(materia:materia_id(objetivo_id)))').order('criado_em', { ascending: false }),
       supabase.from('revisao_item').select('id,motivo,prioridade,agendada_para,questao:questao_id(id,enunciado,topico_id,topico:topico_id(materia:materia_id(objetivo_id)))').eq('status', 'pendente').order('prioridade').order('agendada_para').limit(20),
       supabase.from('mentor_acervo_topico').select('*'),
@@ -50,9 +53,12 @@ export default async function handler(req, res) {
       supabase.from('sessao').select('id,status,data,data_planejada_original,duracao_estimada,topico_id,objetivo_id,concluida_em').eq('origem', 'mentor').gte('data_planejada_original', previousStart).lte('data_planejada_original', previousEnd),
       supabase.from('sessao').select('id,titulo,data,prioridade,objetivo_id').neq('status','feita').lte('data',addDays(currentWeek,6)).order('data').limit(30),
       supabase.from('compromisso').select('id,titulo,data,tipo,objetivo_id').eq('concluido',false).gte('data',new Date().toISOString().slice(0,10)).lte('data',addDays(new Date().toISOString().slice(0,10),14)).order('data').limit(20),
-      supabase.from('mentor_encontro_semanal').select('id,semana_inicio,carga_percebida,observacoes,realizado_em,atualizado_em').eq('semana_inicio', currentWeek).maybeSingle(),
+      supabase.from('mentor_encontro_semanal').select('id,semana_inicio,carga_percebida,observacoes,classificacoes,realizado_em,atualizado_em').eq('semana_inicio', currentWeek).maybeSingle(),
+      supabase.from('question_card').select('id,topico_id,proxima_revisao,lapsos,ativo'),
+      supabase.from('question_card_registro').select('resultado,criado_em,question_card!inner(topico_id)').order('criado_em', { ascending: false }),
+      supabase.from('tempo_estudo').select('topico_id,status,segundos_acumulados,finalizado_em').eq('status','concluido').gte('finalizado_em', addDays(new Date().toISOString().slice(0,10), -28)),
     ])
-    if (topicsError || recordsError || reviewError || inventoryError || sessionsError || pendingError || commitmentsError || meetingError) throw topicsError || recordsError || reviewError || inventoryError || sessionsError || pendingError || commitmentsError || meetingError
+    if (topicsError || recordsError || reviewError || inventoryError || sessionsError || pendingError || commitmentsError || meetingError || cardsError || cardRecordsError || timersError) throw topicsError || recordsError || reviewError || inventoryError || sessionsError || pendingError || commitmentsError || meetingError || cardsError || cardRecordsError || timersError
 
     const policy = modularKnowledge?.conteudo?.politica || legacyPolicy?.politica || {}
     const topicMap = new Map()
@@ -75,10 +81,21 @@ export default async function handler(req, res) {
       reviewsByTopic.set(id, (reviewsByTopic.get(id) || 0) + 1)
     }
     const inventoryByTopic = new Map((inventory || []).map((item) => [item.topico_id, item]))
+    const cardsByTopic = new Map()
+    for (const card of cards || []) cardsByTopic.set(card.topico_id, [...(cardsByTopic.get(card.topico_id) || []), card])
+    const cardRecordsByTopic = new Map()
+    for (const record of cardRecords || []) {
+      const id = record.question_card?.topico_id
+      if (id) cardRecordsByTopic.set(id, [...(cardRecordsByTopic.get(id) || []), record])
+    }
+    const timersByTopic = new Map()
+    for (const timer of timers || []) if (timer.topico_id) timersByTopic.set(timer.topico_id, [...(timersByTopic.get(timer.topico_id) || []), timer])
     const diagnoses = [...topicMap.values()].map((topic) => {
       const topicRecords = recordsByTopic.get(topic.id) || []
       const stock = inventoryByTopic.get(topic.id) || {}
       const diagnosis = calculateTopicDiagnosis(topicRecords, policy)
+      const cardRetention = calculateCardRetention(cardRecordsByTopic.get(topic.id) || [], cardsByTopic.get(topic.id) || [], policy)
+      const studyEfficiency = calculateStudyEfficiency(timersByTopic.get(topic.id) || [], diagnosis, cardRetention, policy)
       const times = topicRecords.map((record) => Number(record.tempo) || 0).filter(Boolean)
       return {
         id: topic.id,
@@ -89,6 +106,8 @@ export default async function handler(req, res) {
         objetivo: topic.materia?.objetivo?.nome,
         ...topicSignals({
           diagnosis,
+          cardRetention,
+          studyEfficiency,
           totalQuestions: stock.total_questoes || 0,
           unusedQuestions: stock.questoes_ineditas || 0,
           dueQuestions: stock.questoes_vencidas || 0,
@@ -96,16 +115,17 @@ export default async function handler(req, res) {
           lastSeenAt: topicRecords[0]?.criado_em,
           averageSeconds: times.length ? Math.round(times.reduce((sum, value) => sum + value, 0) / times.length) : 0,
           overdue: reviewsByTopic.get(topic.id) || 0,
+          subjectWeight: topic.materia?.peso_prova,
+          incidence: topic.incidencia,
+          customPolicy: policy,
         }),
       }
     })
-    const prioridades = diagnoses
+    const prioridades = diversifyPriorities(diagnoses
       .filter((item) => item.status === 'prioridade' || item.cards_vencidos || item.questoes_para_revisar || item.risco_esquecimento >= 60)
-      .sort((a, b) => b.prioridade_calculada - a.prioridade_calculada)
-      .slice(0, 3)
-      .map((item) => ({ ...item, motivo: item.falsa_certeza >= 10 ? 'Falsa certeza exige correção imediata.' : item.questoes_para_revisar ? 'Há questões programadas para revisão espaçada.' : item.cards_vencidos ? 'Há Question Cards vencidos.' : 'Risco de esquecimento ou domínio insuficiente.' }))
+      .map((item) => ({ ...item, motivo: item.falsa_certeza >= 10 ? 'Falsa certeza exige correção imediata.' : item.questoes_para_revisar ? 'Há questões programadas para revisão espaçada.' : item.retencao_cards?.status === 'retencao_fraca' ? 'A recuperação nos Question Cards precisa de revisão.' : item.cards_vencidos ? 'Há Question Cards vencidos.' : 'Risco de esquecimento ou domínio insuficiente.' })), policy.decisao_semanal?.maximo_prioridades || 3, policy.prioridade_topico?.maximo_mesma_disciplina || 2)
     const revisaoImediata = filteredReviews.map((item) => ({ id: item.id, questao_id: item.questao.id, topico_id: item.questao.topico_id, enunciado: item.questao.enunciado, motivo: item.motivo, prioridade: item.prioridade, agendada_para: item.agendada_para }))
-    const coveredTopics = diagnoses.filter((item) => item.amostra >= 20 && (item.dominio || 0) >= 68).length
+    const coveredTopics = diagnoses.filter((item) => item.amostra >= (policy.amostra_minima || 10) && (item.dominio || 0) >= 68).length
     const hasTargetDate = Boolean(objective?.data_alvo)
     const daysRemaining = hasTargetDate ? Math.max(1, Math.ceil((new Date(objective.data_alvo) - Date.now()) / 86_400_000)) : 180
     const cenarios = buildScenarios({ coveredTopics, totalTopics: diagnoses.length, daysRemaining })
@@ -124,6 +144,8 @@ export default async function handler(req, res) {
     const scopedPending=(pendingSessions||[]).filter((item)=>!objetivoId||item.objetivo_id===objetivoId)
     const scopedCommitments=(commitments||[]).filter((item)=>!objetivoId||item.objetivo_id===objetivoId)
     const alerts=[]
+    if(weeklyMeeting?.classificacoes?.includes('problema_material')) alerts.push({tipo:'material',gravidade:'alta',titulo:'Material precisa de verificação',mensagem:'O encontro semanal registrou um problema no material. Revise a fonte antes de avançar neste conteúdo.'})
+    const cardsReleased = today >= (policy.aprendizagem?.inicio_pratica_bacen || '2026-08-31')
     if(filteredReviews.length) alerts.push({tipo:'revisao',gravidade:'alta',titulo:`${filteredReviews.length} revisoes vencidas`,mensagem:'A central de revisao ordenou os itens mais urgentes.'})
     const overdue=scopedPending.filter((item)=>item.data<today); if(overdue.length) alerts.push({tipo:'pendencia',gravidade:'alta',titulo:`${overdue.length} demandas nao concluidas`,mensagem:'O mentor vai redistribuir no fechamento sem ultrapassar o limite.'})
     if(scopedPending.length>=8) alerts.push({tipo:'acumulo',gravidade:'media',titulo:'Risco de acumulo',mensagem:`Ha ${scopedPending.length} demandas abertas na semana.`})
@@ -134,13 +156,14 @@ export default async function handler(req, res) {
     if(planned) alerts.push({tipo:'carga',gravidade:'baixa',titulo:`Carga da proxima semana: ${adjustment.nivel}`,mensagem:adjustment.motivo})
     const body = {
       fase: mentorPhase(), prioridades, cenarios,
-      politica: { versao: modularKnowledge?.versao || legacyPolicy?.versao || '2026.08.2' },
+      politica: { versao: modularKnowledge?.versao || legacyPolicy?.versao || '2026.08.7' },
       resumo: { topicos_cobertos: coveredTopics, topicos_totais: diagnoses.length, dias_restantes: hasTargetDate ? daysRemaining : null, revisoes_imediatas: revisaoImediata.length },
       trajetoria: trajectory,
       fechamento_semanal: weeklyClose,
       alertas: alerts,
       semana_atual: currentWeek,
       encontro_semanal: weeklyMeeting,
+      cards_liberados: cardsReleased,
     }
     if (!compact) Object.assign(body, { topicos: diagnoses, revisao_imediata: revisaoImediata })
     return res.status(200).json(body)

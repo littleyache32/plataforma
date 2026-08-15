@@ -1,6 +1,6 @@
 import { getSupabaseAdmin } from './supabase.js'
 import { allowMethods, fail, requireAccess } from './http.js'
-import { calculateTopicDiagnosis } from '../../shared/mentor.js'
+import { calculateCardRetention, calculateStudyEfficiency, calculateTopicDiagnosis, diversifyPriorities, topicSignals } from '../../shared/mentor.js'
 import { adherenceAdjustment, buildMentorWeek, canGenerateMentorWeek, planOverdueMoves, validateMentorPlan } from '../../shared/planner.js'
 import { loadModuleKnowledge } from './module-knowledge.js'
 
@@ -77,7 +77,7 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
     supabase.from('objetivo').select('id,tipo,materias:materia(id,nome,peso_prova,topicos:topico(id,nome,incidencia))').eq('ativo', true).order('criado_em'),
     supabase.from('registro').select('resultado,classificacao,criado_em,questao!inner(topico_id)').order('criado_em', { ascending: false }),
     supabase.from('revisao_item').select('id', { count: 'exact', head: true }).eq('status', 'pendente'),
-    supabase.from('compromisso').select('id,objetivo_id,materia_id,titulo,tipo,data,peso,duracao_minutos,concluido').eq('concluido', false).lte('data', commitmentEnd).gte('data', inicio),
+    supabase.from('compromisso').select('id,objetivo_id,materia_id,titulo,tipo,data,peso,duracao_minutos,conteudo_previsto,concluido,topicos:compromisso_topico(topico_id)').eq('concluido', false).lte('data', commitmentEnd).gte('data', inicio),
     supabase.from('sessao').select('id,chave_mentor,titulo,tipo,data,status,movida_em,movida_pelo_mentor_em,ordenada_em,ordem,duracao_estimada,prioridade').gte('data', inicio).lte('data', weekEnd),
     supabase.from('sessao').select('id,data,status,movida_em,movida_pelo_mentor_em,ordem,duracao_estimada,prioridade').eq('status', 'planejada').lt('data', inicio).order('data').limit(100),
     loadModuleKnowledge(supabase, 'mentor').then((data) => ({ data })).catch(() => supabase.from('mentor_conhecimento').select('versao,politica').eq('ativo', true).order('criado_em', { ascending: false }).limit(1).maybeSingle()),
@@ -85,12 +85,14 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
     supabase.from('acervo_meta').select('topico_id').eq('expansao_bloqueada', false),
     supabase.from('sessao').select('data_planejada_original,status,concluida_em,duracao_estimada').eq('origem', 'mentor').gte('data_planejada_original', adherenceStart).lt('data_planejada_original', inicio),
     supabase.from('sessao').select('topico_id').eq('tipo', 'estudo').eq('status', 'feita').not('topico_id', 'is', null),
-    supabase.from('mentor_encontro_semanal').select('semana_inicio,carga_percebida,observacoes').eq('semana_inicio', addDays(inicio, -7)).maybeSingle(),
-    supabase.from('tempo_estudo').select('status,finalizado_em,segundos_acumulados').eq('status', 'concluido').gte('finalizado_em', `${adherenceStart}T00:00:00-03:00`).lt('finalizado_em', `${inicio}T00:00:00-03:00`),
+    supabase.from('mentor_encontro_semanal').select('semana_inicio,carga_percebida,observacoes,classificacoes').eq('semana_inicio', addDays(inicio, -7)).maybeSingle(),
+    supabase.from('tempo_estudo').select('status,finalizado_em,segundos_acumulados,objetivo_id,materia_id,topico_id,contexto').eq('status', 'concluido').gte('finalizado_em', `${adherenceStart}T00:00:00-03:00`).lt('finalizado_em', `${inicio}T00:00:00-03:00`),
+    supabase.from('question_card').select('id,topico_id,proxima_revisao,lapsos,ativo'),
+    supabase.from('question_card_registro').select('resultado,criado_em,question_card!inner(topico_id)').order('criado_em', { ascending: false }),
   ])
   const error = results.find((item) => item.error)?.error
   if (error) throw error
-  const [catalogResult, recordsResult, reviewResult, commitmentsResult, existingResult, carryoverResult, knowledgeResult, spacedQuestionResult, availableTopicsResult, adherenceResult, studiedTopicsResult, meetingResult, timersResult] = results
+  const [catalogResult, recordsResult, reviewResult, commitmentsResult, existingResult, carryoverResult, knowledgeResult, spacedQuestionResult, availableTopicsResult, adherenceResult, studiedTopicsResult, meetingResult, timersResult, cardsResult, cardRecordsResult] = results
   const availableTopicIds = new Set((availableTopicsResult.data || []).map((item) => item.topico_id))
   const mentorCatalog = (catalogResult.data || []).map((objective) => objective.tipo !== 'concurso' ? objective : ({
     ...objective,
@@ -107,7 +109,28 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
     if (!id) continue
     grouped.set(id, [...(grouped.get(id) || []), record])
   }
-  const priorities = [...grouped.entries()].map(([id, items]) => ({ id, ...calculateTopicDiagnosis(items, policy) })).filter((item) => item.status === 'prioridade').sort((a, b) => b.gravidade - a.gravidade).slice(0, 3)
+  const cardsByTopic = new Map()
+  for (const card of cardsResult.data || []) cardsByTopic.set(card.topico_id, [...(cardsByTopic.get(card.topico_id) || []), card])
+  const cardRecordsByTopic = new Map()
+  for (const record of cardRecordsResult.data || []) {
+    const id = record.question_card?.topico_id
+    if (id) cardRecordsByTopic.set(id, [...(cardRecordsByTopic.get(id) || []), record])
+  }
+  const timersByTopic = new Map()
+  for (const timer of timersResult.data || []) if (timer.topico_id) timersByTopic.set(timer.topico_id, [...(timersByTopic.get(timer.topico_id) || []), timer])
+  const topicMetadata = new Map(mentorCatalog.flatMap((objective) => (objective.materias || []).flatMap((subject) => (subject.topicos || []).map((topic) => [topic.id, { subjectId: subject.id, weight: subject.peso_prova, incidence: topic.incidencia }]))))
+  const commitmentWeight = new Map()
+  for (const commitment of commitmentsResult.data || []) {
+    for (const link of commitment.topicos || []) commitmentWeight.set(link.topico_id, Math.max(commitmentWeight.get(link.topico_id) || 0, Number(commitment.peso) || 0))
+  }
+  const ranked = [...new Set([...grouped.keys(), ...cardsByTopic.keys(), ...topicMetadata.keys()])].map((id) => {
+    const diagnosis = calculateTopicDiagnosis(grouped.get(id) || [], policy)
+    const cardRetention = calculateCardRetention(cardRecordsByTopic.get(id) || [], cardsByTopic.get(id) || [], policy)
+    const efficiency = calculateStudyEfficiency(timersByTopic.get(id) || [], diagnosis, cardRetention, policy)
+    const metadata = topicMetadata.get(id) || {}
+    return { id, materia_id: metadata.subjectId, ...topicSignals({ diagnosis, cardRetention, studyEfficiency: efficiency, dueCards: cardRetention.cards_vencidos, subjectWeight: metadata.weight, incidence: metadata.incidence, commitmentWeight: commitmentWeight.get(id), customPolicy: policy }) }
+  }).filter((item) => item.status === 'prioridade' || item.retencao_cards?.status === 'retencao_fraca' || item.questoes_para_revisar || item.cards_vencidos)
+  const priorities = diversifyPriorities(ranked, policy.decisao_semanal?.maximo_prioridades || 3, policy.prioridade_topico?.maximo_mesma_disciplina || 2)
   const reviewGroups = new Map()
   for (const question of spacedQuestionResult.data || []) {
     const due = String(question.proxima_revisao).slice(0, 10)
@@ -154,7 +177,8 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
   if (refreshed.error) throw refreshed.error
   const sessionsForReallocation = [...(carryoverResult.data || []), ...(refreshed.data || [])]
   const moved = inicio <= today && today <= weekEnd ? await reallocateOverdue(supabase, sessionsForReallocation, today, weekEnd) : 0
-  return { status: 200, body: { atualizadas: upsert.data?.length || 0, removidas: obsoleteIds.length, total_planejado: demands.length, revisoes_espacadas_planejadas: scheduledQuestionReviews.length, revisoes_adiadas: Math.max(0, reviewGroups.size - scheduledQuestionReviews.length), remanejadas: moved, aderencia_analisada: history, ajuste_carga: adjustment, politica_mentor: policy.versao } }
+  const meetingSignals = meetingResult.data?.classificacoes || []
+  return { status: 200, body: { atualizadas: upsert.data?.length || 0, removidas: obsoleteIds.length, total_planejado: demands.length, revisoes_espacadas_planejadas: scheduledQuestionReviews.length, revisoes_adiadas: Math.max(0, reviewGroups.size - scheduledQuestionReviews.length), remanejadas: moved, aderencia_analisada: history, ajuste_carga: adjustment, prioridades_aplicadas: priorities.map((item) => ({ topico_id: item.id, acao: item.acao_recomendada, pontuacao: item.prioridade_calculada })), encontro_aplicado: meetingSignals, politica_mentor: policy.versao } }
 }
 
 export default async function planHandler(req, res) {
