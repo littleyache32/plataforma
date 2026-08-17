@@ -50,7 +50,8 @@ describe('buildMentorWeek', () => {
     const result = buildMentorWeek({ weekStart: '2026-08-17', catalog: withWriting })
     const facultyStudy = result.filter((item) => item.tipo === 'estudo' && item.objetivo_id !== 'bacen' && item.data <= '2026-08-20')
     expect(facultyStudy).toHaveLength(8)
-    expect(facultyStudy.every((item) => /Aula dada|Recuperar conteúdo/.test(item.titulo))).toBe(true)
+    expect(facultyStudy.every((item) => /Recuperar conteúdo atrasado|Continuar recuperação/.test(item.titulo))).toBe(true)
+    expect(facultyStudy.every((item) => item.topico_id === null)).toBe(true)
     expect(result.some((item) => item.materia_id === 'texto')).toBe(false)
   })
 
@@ -103,7 +104,15 @@ describe('buildMentorWeek', () => {
     const monday = result.filter((item) => item.data === '2026-08-17')
     expect(monday.filter((item) => item.objetivo_id === 'facul')).toHaveLength(1)
     expect(monday.filter((item) => item.objetivo_id === 'bacen')).toHaveLength(2)
+    expect(monday.find((item) => item.objetivo_id === 'facul')).toMatchObject({ topico_id: null, titulo: expect.stringContaining('Aula dada, aula estudada') })
     expect(monday.reduce((sum, item) => sum + item.duracao_estimada, 0)).toBe(150)
+  })
+
+  it('mantem a recuperacao acumulada depois da fase inicial enquanto a faculdade estiver atrasada', () => {
+    const result = buildMentorWeek({ weekStart: '2026-08-31', catalog, weeklyMeeting: { classificacoes: ['faculdade_atrasada'] } })
+    const faculty = result.filter((item) => item.data === '2026-08-31' && item.objetivo_id === 'facul' && item.tipo === 'estudo')
+    expect(faculty).toHaveLength(2)
+    expect(faculty.every((item) => item.topico_id === null && /conteúdo atrasado/.test(item.titulo))).toBe(true)
   })
 
   it('transforma provas e entregas em prioridade com preparacao antecipada', () => {

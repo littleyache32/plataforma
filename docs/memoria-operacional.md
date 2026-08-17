@@ -1,6 +1,6 @@
 # Memória operacional da plataforma
 
-Última atualização: 16 de agosto de 2026.
+Última atualização: 17 de agosto de 2026.
 
 ## Finalidade
 
@@ -43,10 +43,10 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - O usuário é o mentorado. A plataforma prepara e recalibra a semana.
 - Demandas são orientadas por entrega, não por horário rígido.
 - A demanda deve ser concluída inteira na mesma execução. Ultrapassar a estimativa não cria continuação, não divide a atividade e não reduz a aderência quando a entrega foi concluída.
-- Atividades normais duram 30, 60 ou no máximo 90 minutos. Provas e simulados podem exceder.
+- O bloco normal de estudo dura 50 minutos e é seguido por 10 minutos de intervalo. Question Cards mantêm 30 minutos. Provas e simulados podem exceder.
 - Arrastar demanda significa reorganizar a ordem dentro do mesmo dia. Não mover entre dias por arraste.
 - Demanda não concluída deve ser redistribuída pelo mentor para um dia posterior possível.
-- A partir de 17 de agosto de 2026, enquanto a Faculdade estiver atrasada, segunda a sexta recebem dois blocos de 50 minutos de Faculdade e dois blocos de 50 minutos de BACEN. Sábado e domingo recebem dois blocos de 50 minutos de BACEN. Quando o encontro semanal registrar `faculdade_em_dia`, a Faculdade volta a um bloco de 50 minutos nos dias úteis e o mentor decide a carga adicional do concurso. As duas primeiras semanas não contêm Questões nem Question Cards. A partir da terceira semana, entra exatamente uma demanda diária de 30 minutos de Question Cards, além da carga de estudo.
+- A partir de 17 de agosto de 2026, enquanto a Faculdade estiver atrasada, segunda a sexta recebem dois blocos de 50 minutos de Faculdade e dois blocos de 50 minutos de BACEN. Os dois blocos acadêmicos recuperam, na ordem da disciplina, todo o conteúdo acumulado desde a primeira aula; não representam apenas reforço da aula atual e não recebem tópico aleatório. Sábado e domingo recebem dois blocos de 50 minutos de BACEN. Quando o encontro semanal registrar `faculdade_em_dia`, a Faculdade volta a um bloco de 50 minutos nos dias úteis no regime aula dada, aula estudada, e o mentor decide a carga adicional do concurso. As duas primeiras semanas não contêm Questões nem Question Cards. A partir da terceira semana, entra exatamente uma demanda diária de 30 minutos de Question Cards, além da carga de estudo.
 - A semana é preparada automaticamente no domingo às 00h00, horário de Brasília, na virada de sábado para domingo. Abrir o aplicativo no domingo ou na segunda-feira funciona como contingência caso a execução agendada não ocorra.
 - Faculdade segue aula dada, aula estudada: Pessoas e Negócios na segunda, Teoria do Crime na terça, Teorias da Justiça na quarta e Teoria da Constituição na quinta.
 - Após a fase inicial, BACEN tem prioridade de carga. Question Cards BACEN são diários quando liberados; Faculdade, duas vezes por semana.
@@ -107,7 +107,7 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 1. Foram adicionadas ações não solicitadas, como reagendar ou ajustar meta. Regra: implementar somente ações expressamente pedidas.
 2. Elementos administrativos apareceram no Aluno, incluindo coleta de dados e administração do banco. Regra: conferir visibilidade por modo antes da publicação.
 3. Faculdade e BACEN foram separados excessivamente. Regra: separar por filtro dentro de cada módulo, mantendo Semana e Desempenho unificados.
-4. O mentor interpretou cargas informadas como teto e também começou abaixo do piso corrigido. Regra: tratar três horas nos dias úteis e duas no fim de semana como carga mínima inicial; aumentos futuros dependem de aderência e capacidade real demonstrada.
+4. O mentor interpretou cargas informadas como teto e também começou abaixo do piso corrigido. Regra: usar a carga inicial vigente em blocos de 50 minutos como mínimo planejado, sem limitar o tempo real; aumentos futuros dependem de aderência e capacidade real demonstrada.
 5. O arraste foi interpretado entre dias. Regra: permitir apenas reordenação no mesmo dia.
 6. Exemplos do usuário foram generalizados como regras. Regra: exemplo só vira regra quando o usuário confirmar.
 7. Foi sugerido faturamento apesar da preferência pelo plano gratuito. Regra: otimizar primeiro todas as cotas gratuitas e nunca pressupor faturamento.
@@ -133,6 +133,8 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 7. Tratar a cota do Gemini como bloqueio externo, sem inserção parcial ou substituição por conteúdo artificial.
 
 ## Histórico de aprendizado
+
+- 2026-08-17, correção da recuperação acadêmica: o usuário esclareceu que não estudou as matérias da Faculdade desde a primeira semana. Os dois blocos acadêmicos devem recuperar o conteúdo atrasado desde a primeira aula, seguindo a ordem da própria disciplina, até que o encontro semanal registre `faculdade_em_dia`. Durante a recuperação, não selecionar tópico acadêmico aleatório. Depois, retornar a um bloco no regime aula dada, aula estudada.
 
 - 2026-08-16, recuperação da Faculdade e proteção do concurso: como o mentorado ainda não iniciou o conteúdo acadêmico, a fase inicial passa a ter dois blocos de 50 minutos de Faculdade e dois blocos de 50 minutos de BACEN nos dias úteis. Sábado e domingo preservam dois blocos de BACEN. O encontro semanal registra `faculdade_em_dia` ou `faculdade_atrasada`; quando a recuperação terminar, a Faculdade volta a um bloco e a capacidade restante prioriza o concurso. Provas e semanas anteriores acrescentam blocos acadêmicos sem eliminar a continuidade mínima do BACEN.
 - 2026-08-16, consolidação do conhecimento do mentor: foram incorporados da especificação externa os blocos 50 + 10, a recuperação acadêmica temporária, o uso combinado e conservador das evidências, a proteção do concurso e a exigência de dados reais para projeções. Foram descartados por conflito o microplanejamento de páginas e minutos, a justificativa obrigatória visível em cada demanda, experimentos automáticos e a substituição integral das fases já aprovadas. Não usar prazo, capacidade semanal ou percentual universal ocultos para declarar trajetória ou domínio.

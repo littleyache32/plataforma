@@ -1,5 +1,5 @@
 export const DEFAULT_MENTOR_POLICY = Object.freeze({
-  versao: '2026.08.8',
+  versao: '2026.08.9',
   amostra_minima: 10,
   janela_maxima: 60,
   meia_vida_recencia_dias: 21,
@@ -23,6 +23,8 @@ export const DEFAULT_MENTOR_POLICY = Object.freeze({
     faculdade_recuperacao_ativa: true,
     faculdade_blocos_recuperacao: 2,
     faculdade_blocos_regular: 1,
+    faculdade_recuperacao_modo: 'conteudo_acumulado_desde_primeira_aula',
+    faculdade_recuperacao_sem_topico_aleatorio: true,
     bacen_blocos_segunda_sexta: 2,
     bacen_blocos_fim_semana: 2,
     bacen_minimo_blocos_semana_avaliacao: 1,
@@ -89,7 +91,7 @@ export const DEFAULT_MENTOR_POLICY = Object.freeze({
     maximo_mesma_disciplina: 2,
   },
   encontro_semanal: {
-    classificacoes: ['dificuldade_conteudo', 'dificuldade_volume', 'dificuldade_questoes', 'dificuldade_revisao', 'problema_material', 'estrategia_funcionou', 'prioridade_percebida'],
+    classificacoes: ['dificuldade_conteudo', 'dificuldade_volume', 'dificuldade_questoes', 'dificuldade_revisao', 'problema_material', 'estrategia_funcionou', 'prioridade_percebida', 'faculdade_atrasada', 'faculdade_em_dia'],
     texto_livre_apenas_contexto: true,
   },
   experimentos: {

@@ -156,7 +156,7 @@ export default async function handler(req, res) {
     if(planned) alerts.push({tipo:'carga',gravidade:'baixa',titulo:`Carga da proxima semana: ${adjustment.nivel}`,mensagem:adjustment.motivo})
     const body = {
       fase: mentorPhase(), prioridades, cenarios,
-      politica: { versao: modularKnowledge?.versao || legacyPolicy?.versao || '2026.08.8' },
+      politica: { versao: modularKnowledge?.versao || legacyPolicy?.versao || '2026.08.9' },
       resumo: { topicos_cobertos: coveredTopics, topicos_totais: diagnoses.length, dias_restantes: hasTargetDate ? daysRemaining : null, revisoes_imediatas: revisaoImediata.length },
       trajetoria: trajectory,
       fechamento_semanal: weeklyClose,

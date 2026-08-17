@@ -30,7 +30,7 @@ describe('calculateTopicDiagnosis', () => {
     expect(result.status).toBe('prioridade')
     expect(result.falsa_certeza).toBeGreaterThan(30)
     expect(result.probabilidade_dominio).toBeLessThan(50)
-    expect(result.versao_politica).toBe('2026.08.8')
+    expect(result.versao_politica).toBe('2026.08.9')
   })
 
   it('reduz prioridade quando as respostas recentes mostram melhora real', () => {

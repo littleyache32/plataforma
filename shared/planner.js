@@ -173,6 +173,15 @@ function facultyCatchUpActive(weeklyMeeting, policy) {
   return policy.fase_inicial.faculdade_recuperacao_ativa === true
 }
 
+function subjectOnly(target) {
+  return target ? { ...target, topicId: null, topic: '' } : null
+}
+
+function facultyStudyTitle(target, block, catchUpActive) {
+  if (!catchUpActive) return `Aula dada, aula estudada: ${target?.subject || ''}`
+  return `${block === 0 ? 'Recuperar conteúdo atrasado desde a primeira aula' : 'Continuar recuperação do conteúdo atrasado'}: ${target?.subject || ''}`
+}
+
 /**
  * Cria uma semana por demandas. O bloco normal tem 50 minutos de estudo.
  * Question Cards mantêm os 30 minutos explicitamente definidos pelo usuário.
@@ -208,7 +217,8 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
   const baseOnly = weekStart >= MENTORSHIP_START && weekStart < policy.fase_inicial.question_cards_inicio
   const loadProfile = weeklyLoadProfile(weekStart, adherenceHistory, policy, weeklyMeeting)
   const studyBlock = policy.fase_inicial.bloco_estudo_minutos || 50
-  const facultyBlocks = facultyCatchUpActive(weeklyMeeting, policy)
+  const catchUpActive = facultyCatchUpActive(weeklyMeeting, policy)
+  const facultyBlocks = catchUpActive
     ? policy.fase_inicial.faculdade_blocos_recuperacao || 2
     : policy.fase_inicial.faculdade_blocos_regular || 1
   const rows = []
@@ -218,7 +228,7 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     const bacenPool = prioritized.filter((item) => item.context === 'concurso')
     const bacenTarget = pick(urgentPool.length ? urgentPool : bacenPool.length ? bacenPool : byContext.concurso, rotationSeed + day) || pick(targets, rotationSeed + day)
     const otherBacen = pick(byContext.concurso.filter((item) => item.subjectId !== bacenTarget?.subjectId), rotationSeed + day + 2) || bacenTarget
-    const facultyTarget = facultyTargetForDay(targets, priorities, day, rotationSeed, policy) || pick(byContext.faculdade, rotationSeed + day)
+    const facultyTarget = subjectOnly(facultyTargetForDay(targets, priorities, day, rotationSeed, policy) || pick(byContext.faculdade, rotationSeed + day))
     const facultyCardTarget = pick(byContext.faculdade.filter(allowsQuestionCards), rotationSeed + day)
     const priorityPracticeSlots = Math.min(3, priorities.length * 2)
     const practiceTarget = (day < priorityPracticeSlots ? pick(practiceBacen.filter((item) => priorityIds.has(item.topicId)), rotationSeed + day) : null)
@@ -229,7 +239,7 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     if (baseOnly) {
       if (day <= 4) {
         for (let block = 0; block < facultyBlocks; block += 1) {
-          rows.push(demand({ weekStart, day, slot: `base-faculdade-${block + 1}`, target: facultyTarget, title: `${block === 0 ? 'Aula dada, aula estudada' : 'Recuperar conteúdo da faculdade'}: ${facultyTarget?.subject || ''}`, type: 'estudo', duration: studyBlock, priority: 2 }))
+          rows.push(demand({ weekStart, day, slot: `base-faculdade-${block + 1}`, target: facultyTarget, title: facultyStudyTitle(facultyTarget, block, catchUpActive), type: 'estudo', duration: studyBlock, priority: 2 }))
         }
       }
       const bacenBlocks = day <= 4 ? policy.fase_inicial.bacen_blocos_segunda_sexta : policy.fase_inicial.bacen_blocos_fim_semana
@@ -254,7 +264,9 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
 
     if (day <= 4) {
       const facultyDuration = policy.agenda_faculdade.find((item) => item.dia === day)?.duracao || studyBlock
-      if (facultyTarget) rows.push(demand({ weekStart, day, slot: 'estudo', target: facultyTarget, title: `Aula dada, aula estudada: ${facultyTarget.subject}`, type: 'estudo', duration: facultyDuration, priority: 2 }))
+      for (let block = 0; block < facultyBlocks; block += 1) {
+        if (facultyTarget) rows.push(demand({ weekStart, day, slot: `estudo-faculdade-${block + 1}`, target: facultyTarget, title: facultyStudyTitle(facultyTarget, block, catchUpActive), type: 'estudo', duration: facultyDuration, priority: 2 }))
+      }
     } else if (day === 5) {
       rows.push(demand({ weekStart, day, slot: 'revisao-bacen', target: bacenTarget, title: 'Revisar erros do BACEN', type: 'revisao', duration: studyBlock, priority: 1 }))
     } else if (day === 6) {
