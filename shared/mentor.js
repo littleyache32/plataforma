@@ -13,14 +13,44 @@ export function mentorPhase(date = new Date().toISOString().slice(0, 10)) {
   return { id: 'adaptativa', titulo: 'Preparação adaptativa', descricao: 'O mentor combina estudo, revisão, questões e simulados conforme as evidências.' }
 }
 
+export function classifyQuestionAttempts(records = [], minimumDelayDays = 2) {
+  const byQuestion = new Map()
+  for (const record of records) {
+    const questionId = record.questao?.id || record.questao_id
+    if (!questionId) continue
+    byQuestion.set(questionId, [...(byQuestion.get(questionId) || []), record])
+  }
+  const classified = []
+  for (const attempts of byQuestion.values()) {
+    const ordered = [...attempts].sort((a, b) => new Date(a.criado_em) - new Date(b.criado_em))
+    ordered.forEach((record, index) => {
+      const previous = ordered[index - 1]
+      const delayDays = previous ? Math.max(0, new Date(record.criado_em) - new Date(previous.criado_em)) / 86_400_000 : null
+      classified.push({
+        ...record,
+        inedita: index === 0,
+        reteste_espacado: index > 0 && delayDays >= minimumDelayDays,
+        intervalo_desde_tentativa_anterior_dias: delayDays === null ? null : Number(delayDays.toFixed(2)),
+      })
+    })
+  }
+  return classified.sort((a, b) => new Date(b.criado_em) - new Date(a.criado_em))
+}
+
 export function calculateTopicDiagnosis(records, customPolicy = {}) {
   const policy = resolveMentorPolicy(customPolicy)
-  const ordered = [...records]
+  const raw = [...records]
     .sort((a, b) => new Date(b.criado_em) - new Date(a.criado_em))
     .slice(0, policy.janela_maxima)
+  const evidenceAnnotated = raw.some((record) => Object.hasOwn(record, 'inedita') || Object.hasOwn(record, 'reteste_espacado'))
+  const ordered = evidenceAnnotated ? raw.filter((record) => record.inedita || record.reteste_espacado) : raw
+  const unseenCount = evidenceAnnotated ? ordered.filter((record) => record.inedita).length : ordered.length
+  const delayedCount = ordered.filter((record) => record.reteste_espacado).length
+  const retentionMinimum = policy.evidencia_individual?.retestes_espacados_minimos || 2
+  const retentionConfirmed = !evidenceAnnotated || delayedCount >= retentionMinimum
 
   if (ordered.length < policy.amostra_minima) {
-    return { status: 'coletando_dados', amostra: ordered.length, faltam: policy.amostra_minima - ordered.length, versao_politica: policy.versao }
+    return { status: 'coletando_dados', amostra: ordered.length, faltam: policy.amostra_minima - ordered.length, questoes_ineditas_avaliadas: unseenCount, retestes_espacados: delayedCount, retencao_confirmada: retentionConfirmed, versao_politica: policy.versao }
   }
 
   const newestTime = new Date(ordered[0].criado_em).getTime()
@@ -55,7 +85,7 @@ export function calculateTopicDiagnosis(records, customPolicy = {}) {
   const gravity = falseCertainty * 2.5 + (1 - mastery) * 1.2 + errorRate * 0.3 + uncertainty * 0.4
 
   return {
-    status: needsPriority ? 'prioridade' : improving ? 'melhorando' : 'estavel',
+    status: needsPriority ? 'prioridade' : !retentionConfirmed ? 'coletando_retencao' : improving ? 'melhorando' : 'estavel',
     amostra: ordered.length,
     dominio: Math.round(mastery * 100),
     falsa_certeza: Math.round(falseCertainty * 100),
@@ -63,6 +93,10 @@ export function calculateTopicDiagnosis(records, customPolicy = {}) {
     probabilidade_dominio: Math.round(mastery * 100),
     incerteza_estimativa: Math.round(uncertainty * 100),
     gravidade: Number(gravity.toFixed(4)),
+    questoes_ineditas_avaliadas: unseenCount,
+    retestes_espacados: delayedCount,
+    retencao_confirmada: retentionConfirmed,
+    limiares: 'parametros_operacionais_calibraveis',
     versao_politica: policy.versao,
   }
 }
@@ -143,7 +177,7 @@ export function topicSignals({ diagnosis, cardRetention = {}, studyEfficiency = 
   const coverage = totalQuestions ? 1 - (unusedQuestions / totalQuestions) : 0
   const uncertainty = (diagnosis.incerteza_estimativa ?? 50) / 100
   const mastery = (diagnosis.probabilidade_dominio ?? diagnosis.dominio ?? 0) / 100
-  const sufficientQuestionSample = diagnosis.status !== 'coletando_dados'
+  const sufficientQuestionSample = !['coletando_dados', 'coletando_retencao'].includes(diagnosis.status)
   const cardWeak = cardRetention.status === 'retencao_fraca'
   const questionWeak = sufficientQuestionSample && diagnosis.status === 'prioridade'
   const priority =

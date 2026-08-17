@@ -1,5 +1,5 @@
 export const DEFAULT_MENTOR_POLICY = Object.freeze({
-  versao: '2026.08.9',
+  versao: '2026.08.10',
   amostra_minima: 10,
   janela_maxima: 60,
   meia_vida_recencia_dias: 21,
@@ -12,7 +12,7 @@ export const DEFAULT_MENTOR_POLICY = Object.freeze({
   pesos_confianca: {
     certeza: { acerto: 1.35, erro: 2.2 },
     duvida: { acerto: 0.9, erro: 1.1 },
-    eliminacao: { acerto: 1.05, erro: 1.2 },
+    eliminacao: { acerto: 0.75, erro: 1.15 },
     sem_conhecimento: { acerto: 0.65, erro: 1.4 },
   },
   fase_inicial: {
@@ -73,6 +73,29 @@ export const DEFAULT_MENTOR_POLICY = Object.freeze({
     sessoes_minimas: 3,
     minutos_minimos: 60,
     janela_dias: 28,
+  },
+  evidencia_individual: {
+    intervalo_minimo_reteste_dias: 2,
+    retestes_espacados_minimos: 2,
+    separar_primeira_tentativa_repeticao_imediata_e_reteste: true,
+    acerto_imediato_nao_confirma_retencao: true,
+    primeira_tentativa_mede_aplicacao: true,
+    parametros_iniciais_calibraveis: true,
+  },
+  fundamento_decisao: {
+    ordem: ['evidencia_cientifica', 'dados_individuais', 'contexto_real'],
+    aplicar_melhor_evidencia_disponivel_primeiro: true,
+    adaptar_somente_com_dados_suficientes: true,
+    nenhuma_mudanca_por_evento_isolado: true,
+    diagnosticar_dificuldade_antes_de_recomendar_formato: true,
+    formatos_nao_automaticos: ['releitura', 'resumo', 'videoaula'],
+    criterios_para_manter_tecnica: ['retencao', 'aplicacao', 'velocidade', 'aderencia'],
+    contexto: ['peso', 'incidencia', 'banca', 'proximidade_prova', 'disponibilidade_semanal', 'obrigacoes_faculdade'],
+  },
+  parametros_operacionais: {
+    natureza: 'provisorios_versionados_calibraveis',
+    percentuais_nao_sao_verdades_cientificas: true,
+    bloco_50_10_e_preferencia_do_mentorado: true,
   },
   prioridade_topico: {
     coeficientes: {
@@ -137,6 +160,9 @@ export function resolveMentorPolicy(policy = {}) {
     decisao_semanal: { ...DEFAULT_MENTOR_POLICY.decisao_semanal, ...(policy.decisao_semanal || {}) },
     retencao_cards: { ...DEFAULT_MENTOR_POLICY.retencao_cards, ...(policy.retencao_cards || {}) },
     eficiencia_estudo: { ...DEFAULT_MENTOR_POLICY.eficiencia_estudo, ...(policy.eficiencia_estudo || {}) },
+    evidencia_individual: { ...DEFAULT_MENTOR_POLICY.evidencia_individual, ...(policy.evidencia_individual || {}) },
+    fundamento_decisao: { ...DEFAULT_MENTOR_POLICY.fundamento_decisao, ...(policy.fundamento_decisao || {}) },
+    parametros_operacionais: { ...DEFAULT_MENTOR_POLICY.parametros_operacionais, ...(policy.parametros_operacionais || {}) },
     prioridade_topico: {
       ...DEFAULT_MENTOR_POLICY.prioridade_topico,
       ...(policy.prioridade_topico || {}),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildScenarios, calculateCardRetention, calculateStudyEfficiency, calculateTopicDiagnosis, diversifyPriorities, mentorPhase, scoreboard, topicSignals } from '../shared/mentor.js'
+import { buildScenarios, calculateCardRetention, calculateStudyEfficiency, calculateTopicDiagnosis, classifyQuestionAttempts, diversifyPriorities, mentorPhase, scoreboard, topicSignals } from '../shared/mentor.js'
 
 function record(resultado, classificacao, index = 0) {
   return { resultado, classificacao, criado_em: new Date(Date.now() - index * 60000).toISOString() }
@@ -30,7 +30,7 @@ describe('calculateTopicDiagnosis', () => {
     expect(result.status).toBe('prioridade')
     expect(result.falsa_certeza).toBeGreaterThan(30)
     expect(result.probabilidade_dominio).toBeLessThan(50)
-    expect(result.versao_politica).toBe('2026.08.9')
+    expect(result.versao_politica).toBe('2026.08.10')
   })
 
   it('reduz prioridade quando as respostas recentes mostram melhora real', () => {
@@ -71,6 +71,27 @@ describe('evidencias integradas', () => {
       { id: 'c', materia_id: 'm2', prioridade_calculada: 3 },
     ], 3, 1)
     expect(result.map((item) => item.id)).toEqual(['a', 'c'])
+  })
+
+  it('separa questão inédita, repetição imediata e reteste espaçado', () => {
+    const base = new Date('2026-08-01T12:00:00.000Z')
+    const attempts = classifyQuestionAttempts([
+      { ...record('erro', 'certeza'), questao_id: 'q1', criado_em: base.toISOString() },
+      { ...record('acerto', 'certeza'), questao_id: 'q1', criado_em: new Date(base.getTime() + 60 * 60 * 1000).toISOString() },
+      { ...record('acerto', 'certeza'), questao_id: 'q1', criado_em: new Date(base.getTime() + 3 * 86_400_000).toISOString() },
+    ])
+    expect(attempts.filter((item) => item.inedita)).toHaveLength(1)
+    expect(attempts.filter((item) => item.reteste_espacado)).toHaveLength(1)
+    expect(attempts.find((item) => !item.inedita && !item.reteste_espacado)).toBeTruthy()
+  })
+
+  it('não confunde acerto imediato com retenção confirmada', () => {
+    const records = Array.from({ length: 10 }, (_, index) => ({
+      ...record('acerto', 'certeza', index),
+      questao_id: `q${index}`,
+    }))
+    const result = calculateTopicDiagnosis(classifyQuestionAttempts(records))
+    expect(result).toMatchObject({ status: 'coletando_retencao', questoes_ineditas_avaliadas: 10, retestes_espacados: 0, retencao_confirmada: false })
   })
 })
 

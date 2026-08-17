@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from './_lib/supabase.js'
 import { allowMethods, fail, queryParam, requireAccess } from './_lib/http.js'
 import { loadModuleKnowledge } from './_lib/module-knowledge.js'
-import { buildScenarios, calculateCardRetention, calculateStudyEfficiency, calculateTopicDiagnosis, diversifyPriorities, mentorPhase, topicSignals } from '../shared/mentor.js'
+import { buildScenarios, calculateCardRetention, calculateStudyEfficiency, calculateTopicDiagnosis, classifyQuestionAttempts, diversifyPriorities, mentorPhase, topicSignals } from '../shared/mentor.js'
 import { adherenceAdjustment } from '../shared/planner.js'
 
 function monday(date = new Date()) {
@@ -44,7 +44,7 @@ export default async function handler(req, res) {
     const previousEnd = addDays(currentWeek, -1)
     const [{ data: topics, error: topicsError }, { data: records, error: recordsError }, { data: reviewItems, error: reviewError }, { data: inventory, error: inventoryError }, modularKnowledge, { data: legacyPolicy }, { data: objective }, { data: weeklySessions, error: sessionsError }, { data: pendingSessions, error: pendingError }, { data: commitments, error: commitmentsError }, { data: weeklyMeeting, error: meetingError }, { data: cards, error: cardsError }, { data: cardRecords, error: cardRecordsError }, { data: timers, error: timersError }] = await Promise.all([
       supabase.from('topico').select('id,nome,incidencia,materia:materia_id(id,nome,peso_prova,objetivo:objetivo_id(id,nome))'),
-      supabase.from('registro').select('resultado,classificacao,tempo,criado_em,questao!inner(topico_id,topico:topico_id(materia:materia_id(objetivo_id)))').order('criado_em', { ascending: false }),
+      supabase.from('registro').select('resultado,classificacao,tempo,criado_em,questao!inner(id,topico_id,topico:topico_id(materia:materia_id(objetivo_id)))').order('criado_em', { ascending: false }),
       supabase.from('revisao_item').select('id,motivo,prioridade,agendada_para,questao:questao_id(id,enunciado,topico_id,topico:topico_id(materia:materia_id(objetivo_id)))').eq('status', 'pendente').order('prioridade').order('agendada_para').limit(20),
       supabase.from('mentor_acervo_topico').select('*'),
       loadModuleKnowledge(supabase, 'mentor').catch(() => null),
@@ -91,7 +91,7 @@ export default async function handler(req, res) {
     const timersByTopic = new Map()
     for (const timer of timers || []) if (timer.topico_id) timersByTopic.set(timer.topico_id, [...(timersByTopic.get(timer.topico_id) || []), timer])
     const diagnoses = [...topicMap.values()].map((topic) => {
-      const topicRecords = recordsByTopic.get(topic.id) || []
+      const topicRecords = classifyQuestionAttempts(recordsByTopic.get(topic.id) || [], policy.evidencia_individual?.intervalo_minimo_reteste_dias || 2)
       const stock = inventoryByTopic.get(topic.id) || {}
       const diagnosis = calculateTopicDiagnosis(topicRecords, policy)
       const cardRetention = calculateCardRetention(cardRecordsByTopic.get(topic.id) || [], cardsByTopic.get(topic.id) || [], policy)
@@ -156,7 +156,7 @@ export default async function handler(req, res) {
     if(planned) alerts.push({tipo:'carga',gravidade:'baixa',titulo:`Carga da proxima semana: ${adjustment.nivel}`,mensagem:adjustment.motivo})
     const body = {
       fase: mentorPhase(), prioridades, cenarios,
-      politica: { versao: modularKnowledge?.versao || legacyPolicy?.versao || '2026.08.9' },
+      politica: { versao: modularKnowledge?.versao || legacyPolicy?.versao || '2026.08.10' },
       resumo: { topicos_cobertos: coveredTopics, topicos_totais: diagnoses.length, dias_restantes: hasTargetDate ? daysRemaining : null, revisoes_imediatas: revisaoImediata.length },
       trajetoria: trajectory,
       fechamento_semanal: weeklyClose,
