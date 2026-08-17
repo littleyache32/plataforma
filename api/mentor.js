@@ -23,7 +23,7 @@ export default async function handler(req, res) {
       const cargaPercebida = String(req.body?.cargaPercebida || '')
       if (!/^\d{4}-\d{2}-\d{2}$/.test(semanaInicio) || new Date(`${semanaInicio}T12:00:00Z`).getUTCDay() !== 1) return res.status(400).json({ error: 'Informe a segunda-feira da semana do encontro.' })
       if (!['leve', 'adequada', 'pesada'].includes(cargaPercebida)) return res.status(400).json({ error: 'Classifique a carga como leve, adequada ou pesada.' })
-      const allowedClassifications = ['dificuldade_conteudo', 'dificuldade_volume', 'dificuldade_questoes', 'dificuldade_revisao', 'problema_material', 'estrategia_funcionou', 'prioridade_percebida']
+      const allowedClassifications = ['dificuldade_conteudo', 'dificuldade_volume', 'dificuldade_questoes', 'dificuldade_revisao', 'problema_material', 'estrategia_funcionou', 'prioridade_percebida', 'faculdade_atrasada', 'faculdade_em_dia']
       const classifications = [...new Set((Array.isArray(req.body?.classificacoes) ? req.body.classificacoes : []).filter((item) => allowedClassifications.includes(item)))]
       const payload = {
         semana_inicio: semanaInicio,
@@ -125,15 +125,15 @@ export default async function handler(req, res) {
       .filter((item) => item.status === 'prioridade' || item.cards_vencidos || item.questoes_para_revisar || item.risco_esquecimento >= 60)
       .map((item) => ({ ...item, motivo: item.falsa_certeza >= 10 ? 'Falsa certeza exige correção imediata.' : item.questoes_para_revisar ? 'Há questões programadas para revisão espaçada.' : item.retencao_cards?.status === 'retencao_fraca' ? 'A recuperação nos Question Cards precisa de revisão.' : item.cards_vencidos ? 'Há Question Cards vencidos.' : 'Risco de esquecimento ou domínio insuficiente.' })), policy.decisao_semanal?.maximo_prioridades || 3, policy.prioridade_topico?.maximo_mesma_disciplina || 2)
     const revisaoImediata = filteredReviews.map((item) => ({ id: item.id, questao_id: item.questao.id, topico_id: item.questao.topico_id, enunciado: item.questao.enunciado, motivo: item.motivo, prioridade: item.prioridade, agendada_para: item.agendada_para }))
-    const coveredTopics = diagnoses.filter((item) => item.amostra >= (policy.amostra_minima || 10) && (item.dominio || 0) >= 68).length
+    const coveredTopics = diagnoses.filter((item) => item.amostra >= (policy.amostra_minima || 10) && ['estavel', 'melhorando'].includes(item.status)).length
     const hasTargetDate = Boolean(objective?.data_alvo)
-    const daysRemaining = hasTargetDate ? Math.max(1, Math.ceil((new Date(objective.data_alvo) - Date.now()) / 86_400_000)) : 180
-    const cenarios = buildScenarios({ coveredTopics, totalTopics: diagnoses.length, daysRemaining })
+    const daysRemaining = hasTargetDate ? Math.max(1, Math.ceil((new Date(objective.data_alvo) - Date.now()) / 86_400_000)) : null
     const scopedSessions = (weeklySessions || []).filter((item) => !objetivoId || item.objetivo_id === objetivoId)
     const planned = scopedSessions.length
     const completedSessions = scopedSessions.filter((item) => item.status === 'feita' && item.concluida_em && brazilDate(item.concluida_em) <= previousEnd)
     const completed = completedSessions.length
     const completedMinutes = completedSessions.reduce((sum, item) => sum + (item.duracao_estimada || 0), 0)
+    const cenarios = buildScenarios({ coveredTopics, totalTopics: diagnoses.length, daysRemaining, weeklyMinutes: completedMinutes })
     const adherence = planned ? completed / planned : 0
     const adjustment = adherenceAdjustment(planned ? [{ inicio: previousStart, planejadas: planned, concluidas: completed }] : [], weeklyMeeting)
     const probable = cenarios.find((item) => item.cenario === 'provavel')
@@ -156,7 +156,7 @@ export default async function handler(req, res) {
     if(planned) alerts.push({tipo:'carga',gravidade:'baixa',titulo:`Carga da proxima semana: ${adjustment.nivel}`,mensagem:adjustment.motivo})
     const body = {
       fase: mentorPhase(), prioridades, cenarios,
-      politica: { versao: modularKnowledge?.versao || legacyPolicy?.versao || '2026.08.7' },
+      politica: { versao: modularKnowledge?.versao || legacyPolicy?.versao || '2026.08.8' },
       resumo: { topicos_cobertos: coveredTopics, topicos_totais: diagnoses.length, dias_restantes: hasTargetDate ? daysRemaining : null, revisoes_imediatas: revisaoImediata.length },
       trajetoria: trajectory,
       fechamento_semanal: weeklyClose,

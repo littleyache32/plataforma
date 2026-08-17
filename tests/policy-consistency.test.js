@@ -4,7 +4,8 @@ import { DEFAULT_MENTOR_POLICY } from '../shared/mentor-policy.js'
 
 describe('politica canonica do mentor', () => {
   it('mantem uma versao nova e o limiar de dez respostas', () => {
-    expect(DEFAULT_MENTOR_POLICY).toMatchObject({ versao: '2026.08.7', amostra_minima: 10 })
+    expect(DEFAULT_MENTOR_POLICY).toMatchObject({ versao: '2026.08.8', amostra_minima: 10 })
+    expect(DEFAULT_MENTOR_POLICY.fase_inicial).toMatchObject({ bloco_estudo_minutos: 50, intervalo_minutos: 10, faculdade_blocos_recuperacao: 2, bacen_blocos_segunda_sexta: 2 })
     expect(DEFAULT_MENTOR_POLICY.decisao_semanal.amostra_minima_desempenho).toBe(10)
   })
 

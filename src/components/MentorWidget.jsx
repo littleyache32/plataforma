@@ -19,6 +19,8 @@ const meetingSignals = [
   ['prioridade_percebida', 'Prioridade para a próxima semana'],
 ]
 
+const facultyStatus = (classifications = []) => classifications.includes('faculdade_em_dia') ? 'em_dia' : 'atrasada'
+
 export default function MentorWidget({ objectiveId, onOpenAlerts, onOpenQuestions, onOpenCards }) {
   const [open, setOpen] = useState(false)
   const [mentor, setMentor] = useState(null)
@@ -62,6 +64,13 @@ export default function MentorWidget({ objectiveId, onOpenAlerts, onOpenQuestion
     }
   }
 
+  function setFacultyStatus(status) {
+    setMeeting((current) => ({
+      ...current,
+      classificacoes: [...current.classificacoes.filter((item) => !['faculdade_atrasada', 'faculdade_em_dia'].includes(item)), status === 'em_dia' ? 'faculdade_em_dia' : 'faculdade_atrasada'],
+    }))
+  }
+
   const priority = mentor?.prioridades?.[0]
   const probable = mentor?.cenarios?.find((item) => item.cenario === 'provavel')
   const basePhase = mentor?.fase?.id === 'construcao_base'
@@ -92,7 +101,7 @@ export default function MentorWidget({ objectiveId, onOpenAlerts, onOpenQuestion
           <div className="mentor-summary-grid">
             <article><small>AVISOS</small><strong>{visibleAlerts.length}</strong><span>{visibleAlerts.length === 1 ? 'item para acompanhar' : 'itens para acompanhar'}</span></article>
             <article><small>REVISÕES</small><strong>{summary.revisoes_imediatas || 0}</strong><span>prioridade imediata</span></article>
-            <article><small>DOMÍNIO</small><strong>{summary.topicos_cobertos || 0}<i>/{summary.topicos_totais || 0}</i></strong><span>tópicos consolidados</span></article>
+            <article><small>ESTÁVEIS</small><strong>{summary.topicos_cobertos || 0}<i>/{summary.topicos_totais || 0}</i></strong><span>tópicos com amostra e estabilidade</span></article>
             <article><small>ADERÊNCIA</small><strong>{adherence === null ? '...' : `${adherence}%`}</strong><span>último fechamento</span></article>
           </div>
           <div className="chat-message received"><img src={avatar} alt=""/><div className="chat-bubble"><small>LEITURA DO MENTOR</small><strong>{visibleAlerts.length ? 'Há pontos que merecem atenção' : 'Nenhum risco urgente agora'}</strong><span>{visibleAlerts[0]?.mensagem || 'Continue executando as demandas planejadas. O mentor atualizará a leitura com seus resultados.'}</span></div></div>
@@ -119,6 +128,7 @@ export default function MentorWidget({ objectiveId, onOpenAlerts, onOpenQuestion
         {activePanel === 'encontro' && <form className="mentor-weekly-meeting" onSubmit={saveMeeting}>
           <div><h3>Encontro semanal</h3><p>Registre as questões da semana. Sono, energia e humor não entram no cálculo do mentor.</p></div>
           <label>Como ficou a carga planejada?<select value={meeting.cargaPercebida} onChange={(event) => setMeeting((current) => ({ ...current, cargaPercebida: event.target.value }))}><option value="leve">Leve</option><option value="adequada">Adequada</option><option value="pesada">Pesada</option></select></label>
+          <label>A Faculdade está em dia?<select value={facultyStatus(meeting.classificacoes)} onChange={(event) => setFacultyStatus(event.target.value)}><option value="atrasada">Ainda preciso recuperar conteúdo</option><option value="em_dia">Sim, estou em dia</option></select></label>
           <fieldset className="mentor-meeting-signals"><legend>O que marcou a semana? <small>Opcional</small></legend>{meetingSignals.map(([id, label]) => <label key={id}><input type="checkbox" checked={meeting.classificacoes.includes(id)} onChange={() => setMeeting((current) => ({ ...current, classificacoes: current.classificacoes.includes(id) ? current.classificacoes.filter((item) => item !== id) : [...current.classificacoes, id] }))}/><span>{label}</span></label>)}</fieldset>
           <label>Questões da semana<textarea rows="4" maxLength="1200" value={meeting.observacoes} onChange={(event) => setMeeting((current) => ({ ...current, observacoes: event.target.value }))} placeholder="O que funcionou, quais dificuldades surgiram e o que precisa de atenção?"/></label>
           <button className="primary" type="submit">Registrar encontro</button>{meetingMessage && <small>{meetingMessage}</small>}

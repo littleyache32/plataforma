@@ -77,13 +77,14 @@ export function weeklyLoadProfile(weekStart, history = [], customPolicy = {}, we
   const adjustment = adherenceAdjustment(history, weeklyMeeting)
   const recent = adjustment.semanas.at(-1)
   const progression = policy.progressao_carga
-  const previousWeekday = Number(recent?.media_segunda_sexta || progression.minimo_segunda_sexta)
+  const block = policy.fase_inicial.bloco_estudo_minutos || 50
+  const previousWeekday = Math.round(Number(recent?.media_segunda_sexta || progression.minimo_segunda_sexta) / block) * block
   const delta = adjustment.nivel === 'aumentar' ? progression.incremento_minutos : adjustment.nivel === 'reduzir' ? -progression.incremento_minutos : 0
   const weekday = Math.max(progression.minimo_segunda_sexta, previousWeekday + delta)
   return {
     segunda_sexta: weekday,
-    sabado: Math.max(progression.minimo_sabado, Math.round(weekday * 2 / 3 / 30) * 30),
-    domingo: Math.max(progression.minimo_domingo, Math.round(weekday * 2 / 3 / 30) * 30),
+    sabado: Math.max(progression.minimo_sabado, Math.round(weekday * 2 / 3 / block) * block),
+    domingo: Math.max(progression.minimo_domingo, Math.round(weekday * 2 / 3 / block) * block),
     nivel: adjustment.nivel,
     motivo: adjustment.motivo,
   }
@@ -165,9 +166,16 @@ function facultyTargetForDay(targets, priorities, day, rotationSeed, policy) {
   return pick(weakTopics.length ? weakTopics : matching, rotationSeed + day)
 }
 
+function facultyCatchUpActive(weeklyMeeting, policy) {
+  const signals = weeklyMeeting?.classificacoes || []
+  if (signals.includes('faculdade_em_dia')) return false
+  if (signals.includes('faculdade_atrasada')) return true
+  return policy.fase_inicial.faculdade_recuperacao_ativa === true
+}
+
 /**
- * Cria uma semana por demandas. O bloco de 30 minutos e uma unidade de calculo,
- * mas cada atividade aparece como um unico cartao de 30, 60 ou 90 minutos.
+ * Cria uma semana por demandas. O bloco normal tem 50 minutos de estudo.
+ * Question Cards mantêm os 30 minutos explicitamente definidos pelo usuário.
  */
 export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingReviews = 0, scheduledQuestionReviews = [], commitments = [], adherenceHistory = [], studiedTopicIds = null, weeklyMeeting = null, policy: customPolicy = {} }) {
   const policy = resolveMentorPolicy(customPolicy)
@@ -199,6 +207,10 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
   const rotationSeed = Math.floor(new Date(`${weekStart}T12:00:00Z`).getTime() / (DAY_MS * 7))
   const baseOnly = weekStart >= MENTORSHIP_START && weekStart < policy.fase_inicial.question_cards_inicio
   const loadProfile = weeklyLoadProfile(weekStart, adherenceHistory, policy, weeklyMeeting)
+  const studyBlock = policy.fase_inicial.bloco_estudo_minutos || 50
+  const facultyBlocks = facultyCatchUpActive(weeklyMeeting, policy)
+    ? policy.fase_inicial.faculdade_blocos_recuperacao || 2
+    : policy.fase_inicial.faculdade_blocos_regular || 1
   const rows = []
 
   for (let day = 0; day < 7; day += 1) {
@@ -215,43 +227,45 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     const otherPracticeTarget = pick(practiceBacen.filter((item) => item.subjectId !== practiceTarget?.subjectId), rotationSeed + day + 2) || practiceTarget
 
     if (baseOnly) {
-      const dailyTarget = day <= 4 ? loadProfile.segunda_sexta : day === 5 ? loadProfile.sabado : loadProfile.domingo
-      const facultyMinutes = day <= 4 ? policy.fase_inicial.faculdade_minutos_segunda_sexta : 0
-      if (facultyMinutes) rows.push(demand({ weekStart, day, slot: 'base-faculdade', target: facultyTarget, title: `Aula dada, aula estudada: ${facultyTarget?.subject || ''}`, type: 'estudo', duration: facultyMinutes, priority: 2 }))
-      const bacenBlocks = Math.max(0, Math.floor((dailyTarget - facultyMinutes) / 60))
+      if (day <= 4) {
+        for (let block = 0; block < facultyBlocks; block += 1) {
+          rows.push(demand({ weekStart, day, slot: `base-faculdade-${block + 1}`, target: facultyTarget, title: `${block === 0 ? 'Aula dada, aula estudada' : 'Recuperar conteúdo da faculdade'}: ${facultyTarget?.subject || ''}`, type: 'estudo', duration: studyBlock, priority: 2 }))
+        }
+      }
+      const bacenBlocks = day <= 4 ? policy.fase_inicial.bacen_blocos_segunda_sexta : policy.fase_inicial.bacen_blocos_fim_semana
       for (let block = 0; block < bacenBlocks; block += 1) {
         const baseTarget = pickSequentiallyDistributed(byContext.concurso, day * 3 + block) || bacenTarget
-        rows.push(demand({ weekStart, day, slot: `base-bacen-${block + 1}`, target: baseTarget, title: `Construir base BACEN: ${baseTarget.topic || baseTarget.subject}`, type: 'estudo', duration: 60, priority: 1 }))
+        rows.push(demand({ weekStart, day, slot: `base-bacen-${block + 1}`, target: baseTarget, title: `Construir base BACEN: ${baseTarget.topic || baseTarget.subject}`, type: 'estudo', duration: studyBlock, priority: 1 }))
       }
       continue
     }
 
     const cardTarget = day >= 5 ? facultyCardTarget : practiceTarget
     rows.push(demand({ weekStart, day, slot: 'cards-diarios', target: cardTarget, title: day >= 5 ? 'Revisar Question Cards da faculdade' : 'Revisar Question Cards BACEN', type: 'especial', duration: policy.fase_inicial.question_cards_diarios_minutos, priority: 1 }))
-    rows.push(demand({ weekStart, day, slot: 'questoes-bacen', target: otherPracticeTarget, title: `Resolver questões: ${otherPracticeTarget?.subject || ''}`, type: 'exercicio', duration: day === 4 ? 60 : 30, priority: 1 }))
+    rows.push(demand({ weekStart, day, slot: 'questoes-bacen', target: otherPracticeTarget, title: `Resolver questões: ${otherPracticeTarget?.subject || ''}`, type: 'exercicio', duration: studyBlock, priority: 1 }))
 
     const reviewForDay = scheduledQuestionReviews
       .filter((item) => Math.max(0, Math.min(6, dayIndex(weekStart, item.dueDate))) === day)
       .sort((a, b) => (b.count || 0) - (a.count || 0))[0]
     if (reviewForDay) {
       const reviewTarget = targets.find((item) => item.topicId === reviewForDay.topicId)
-      rows.push(demand({ weekStart, day, slot: `revisao-questoes:${reviewForDay.topicId}`, target: reviewTarget, title: `Revisão espaçada: ${reviewForDay.count} questões de ${reviewTarget?.topic || reviewTarget?.subject || 'conteúdo'}`, type: 'revisao', duration: 30, priority: 1 }))
+      rows.push(demand({ weekStart, day, slot: `revisao-questoes:${reviewForDay.topicId}`, target: reviewTarget, title: `Revisão espaçada: ${reviewForDay.count} questões de ${reviewTarget?.topic || reviewTarget?.subject || 'conteúdo'}`, type: 'revisao', duration: studyBlock, priority: 1 }))
     }
 
     if (day <= 4) {
-      const facultyDuration = policy.agenda_faculdade.find((item) => item.dia === day)?.duracao || 60
+      const facultyDuration = policy.agenda_faculdade.find((item) => item.dia === day)?.duracao || studyBlock
       if (facultyTarget) rows.push(demand({ weekStart, day, slot: 'estudo', target: facultyTarget, title: `Aula dada, aula estudada: ${facultyTarget.subject}`, type: 'estudo', duration: facultyDuration, priority: 2 }))
     } else if (day === 5) {
-      rows.push(demand({ weekStart, day, slot: 'revisao-bacen', target: bacenTarget, title: 'Revisar erros do BACEN', type: 'revisao', duration: 30, priority: 1 }))
+      rows.push(demand({ weekStart, day, slot: 'revisao-bacen', target: bacenTarget, title: 'Revisar erros do BACEN', type: 'revisao', duration: studyBlock, priority: 1 }))
     } else if (day === 6) {
-      rows.push(demand({ weekStart, day, slot: 'correcao', target: bacenTarget, title: pendingReviews > 0 ? 'Corrigir erros e falsas certezas da semana' : 'Revisar e corrigir a semana', type: 'revisao', duration: 60, priority: 1 }))
+      rows.push(demand({ weekStart, day, slot: 'correcao', target: bacenTarget, title: pendingReviews > 0 ? 'Corrigir erros e falsas certezas da semana' : 'Revisar e corrigir a semana', type: 'revisao', duration: studyBlock, priority: 1 }))
     }
 
     const date = isoDate(new Date(new Date(`${weekStart}T12:00:00Z`).getTime() + day * DAY_MS))
     const dailyTarget = day <= 4 ? loadProfile.segunda_sexta : day === 5 ? loadProfile.sabado : loadProfile.domingo
     let remainingStudy = Math.max(0, dailyTarget - rows.filter((item) => item?.data === date && item.tipo !== 'especial').reduce((sum, item) => sum + Number(item.duracao_estimada || 0), 0))
-    for (let block = 0; remainingStudy >= 30; block += 1) {
-      const duration = remainingStudy >= 90 ? 90 : remainingStudy >= 60 ? 60 : 30
+    for (let block = 0; remainingStudy >= studyBlock; block += 1) {
+      const duration = studyBlock
       const studyTarget = pickSequentiallyDistributed(byContext.concurso, rotationSeed + day * 4 + block) || bacenTarget
       rows.push(demand({ weekStart, day, slot: `estudo-bacen-${block + 1}`, target: studyTarget, title: `Estudar BACEN: ${studyTarget.topic || studyTarget.subject}`, type: 'estudo', duration, priority: 1 }))
       remainingStudy -= duration
@@ -286,7 +300,7 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
         target,
         title: priorityIds.has(target.topicId) ? `Revisar: ${target.topic || target.subject}` : `Estudar: ${target.topic || target.subject}`,
         type: priorityIds.has(target.topicId) ? 'revisao' : 'estudo',
-        duration: commitment.peso >= 4 ? 90 : 60,
+        duration: commitment.peso >= 4 ? studyBlock * 2 : studyBlock,
         priority: commitment.peso >= 4 ? 1 : 2,
       })
       if (prep) prep.chave_mentor = `${weekStart}:preparo:${commitment.id}`

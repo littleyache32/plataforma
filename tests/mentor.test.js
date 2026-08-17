@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateCardRetention, calculateStudyEfficiency, calculateTopicDiagnosis, diversifyPriorities, mentorPhase, scoreboard, topicSignals } from '../shared/mentor.js'
+import { buildScenarios, calculateCardRetention, calculateStudyEfficiency, calculateTopicDiagnosis, diversifyPriorities, mentorPhase, scoreboard, topicSignals } from '../shared/mentor.js'
 
 function record(resultado, classificacao, index = 0) {
   return { resultado, classificacao, criado_em: new Date(Date.now() - index * 60000).toISOString() }
@@ -30,7 +30,7 @@ describe('calculateTopicDiagnosis', () => {
     expect(result.status).toBe('prioridade')
     expect(result.falsa_certeza).toBeGreaterThan(30)
     expect(result.probabilidade_dominio).toBeLessThan(50)
-    expect(result.versao_politica).toBe('2026.08.7')
+    expect(result.versao_politica).toBe('2026.08.8')
   })
 
   it('reduz prioridade quando as respostas recentes mostram melhora real', () => {
@@ -85,6 +85,17 @@ describe('mentorPhase', () => {
 
   it('libera a preparacao adaptativa a partir de setembro', () => {
     expect(mentorPhase('2026-09-07').id).toBe('adaptativa')
+  })
+})
+
+describe('buildScenarios', () => {
+  it('nao inventa prazo nem capacidade quando faltam dados reais', () => {
+    expect(buildScenarios({ coveredTopics: 10, totalTopics: 100 })).toEqual([])
+    expect(buildScenarios({ coveredTopics: 10, totalTopics: 100, daysRemaining: 180 })).toEqual([])
+  })
+
+  it('projeta cenarios somente com prazo e tempo semanal validos', () => {
+    expect(buildScenarios({ coveredTopics: 10, totalTopics: 100, daysRemaining: 180, weeklyMinutes: 600 })).toHaveLength(3)
   })
 })
 

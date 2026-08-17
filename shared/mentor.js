@@ -5,7 +5,7 @@ export function mentorPhase(date = new Date().toISOString().slice(0, 10)) {
     return { id: 'aguardando_inicio', titulo: 'Preparação para o início', descricao: 'A mentoria começa em 17 de agosto. Nenhuma carga anterior será criada.' }
   }
   if (date >= '2026-08-17' && date <= '2026-08-30') {
-    return { id: 'construcao_base', titulo: 'Construção da base', descricao: 'Carga mínima de três horas nos dias úteis e duas horas no fim de semana, sem questões nem Question Cards nas duas primeiras semanas.' }
+    return { id: 'construcao_base', titulo: 'Construção da base', descricao: 'Dois blocos de Faculdade e dois de BACEN nos dias úteis enquanto a Faculdade estiver atrasada. No fim de semana, dois blocos BACEN, sem questões nem Question Cards nas duas primeiras semanas.' }
   }
   if (date < '2026-09-07') {
     return { id: 'pratica_progressiva', titulo: 'Prática progressiva', descricao: 'Estudo, questões e revisões espaçadas entram gradualmente conforme o desempenho.' }
@@ -173,7 +173,8 @@ export function diversifyPriorities(items = [], limit = 3, maxPerSubject = 2) {
   return selected
 }
 
-export function buildScenarios({ coveredTopics, totalTopics, daysRemaining = 180, weeklyMinutes = 1260 }) {
+export function buildScenarios({ coveredTopics, totalTopics, daysRemaining, weeklyMinutes }) {
+  if (!Number.isFinite(daysRemaining) || daysRemaining <= 0 || !Number.isFinite(weeklyMinutes) || weeklyMinutes <= 0) return []
   const coverage = totalTopics ? coveredTopics / totalTopics : 0
   const remaining = Math.max(0, totalTopics - coveredTopics)
   const hoursRemaining = remaining * 3
