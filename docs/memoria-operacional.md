@@ -1,6 +1,6 @@
 # Memória operacional da plataforma
 
-Última atualização: 14 de agosto de 2026.
+Última atualização: 16 de agosto de 2026.
 
 ## Finalidade
 
@@ -31,7 +31,7 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - A linguagem visual é clara e inspirada em desenho manual: fundo de papel muito discreto, contornos levemente irregulares, bastante espaço em branco e cores reservadas para contexto, estado e ação. Textos longos permanecem em fonte neutra para preservar legibilidade.
 - A área de Questões apresenta disciplinas e tópicos em um catálogo hierárquico expansível. A disciplina continua inicialmente vazia. Selecionar uma disciplina abre a primeira questão de todos os seus tópicos; selecionar um tópico troca imediatamente para a primeira questão dele.
 - Os números exibidos ao lado de disciplinas e tópicos representam contagens reais de itens ativos daquela área. Não usar numeração meramente ordinal nesses locais.
-- O timer de Questões e Question Cards é opcional, progressivo e começa em zero somente ao acionar o botão próximo ao indicador de tempo. O conteúdo pode ser respondido sem iniciar o timer.
+- O timer de Questões e Question Cards é opcional e o campo de duração aceita vazio ou zero. Sem alvo, a contagem é progressiva. Com alvo, a contagem é regressiva até zero e continua como excedente positivo até o usuário encerrar. O conteúdo pode ser respondido sem iniciar o timer.
 - Abrir uma demanda na Semana não apresenta timer. O controle de tempo continua disponível no módulo Tempo de estudo e nos módulos específicos autorizados.
 - Question Cards usam a mesma estrutura visual hierárquica das Questões, mantendo frente, resposta e avaliação de revisão espaçada próprias.
 - O Mentor pode usar composição visual de conversa e balões, mas não deve simular campo de chat, anexos, reações ou funções que ainda não existam.
@@ -63,11 +63,11 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 
 ### Questões e Question Cards
 
-- Em 13 de agosto de 2026, o usuário determinou a exclusão integral de todas as questões e todos os Question Cards de Faculdade e BACEN. Em 14 de agosto, autorizou reconstruir agora somente as questões BACEN. Question Cards e questões da Faculdade permanecem vazios até solicitação explícita.
+- Em 13 de agosto de 2026, o usuário determinou a exclusão integral de todas as questões e todos os Question Cards de Faculdade e BACEN. Em 14 de agosto, autorizou reconstruir agora somente as questões BACEN. Em 16 de agosto, autorizou criar Question Cards corretivos a partir das respostas. Questões e cards da Faculdade permanecem vazios até solicitação explícita.
 - A solicitação de geração de questões é feita exclusivamente por disciplina. O usuário não escolhe tópico para gerar. O mentor distribui cada lote entre os tópicos com base em incidência, cobertura atual e necessidade de equilibrar o acervo. A inserção do lote deve ser atômica e respeitar fonte, formato e dificuldade.
 
 - O acervo BACEN tem 3.554 questões ativas distribuídas pelos 71 tópicos do catálogo, sem tópico zerado. A quantidade não precisa ser igual por tópico nem terminar em 0 ou 5: o dimensionamento considera extensão e densidade do material, incidência provável, importância estrutural, variedade de habilidades cobradas, cobertura existente, consumo, repetição e desempenho. A expansão ocorre em ciclos quinzenais até a data provável da prova, usando os PDFs autorizados e, somente quando eles não cobrem diretamente o tópico, fontes oficiais ou exercícios determinísticos verificáveis. Não usar Gemini sem nova autorização explícita.
-- Cada ciclo quinzenal tem meta entre 2.000 e 2.500 novas questões BACEN. O alvo inicial é 2.250. O mentor distribui o lote entre disciplinas e tópicos sem igualdade obrigatória e sem arredondamento em 0 ou 5, usando incidência quando disponível, peso da disciplina, cobertura, desempenho com amostra mínima, consumo, repetição e densidade da fonte. Um novo ciclo não acumula outro ciclo aberto; qualidade, fonte e inserção atômica continuam obrigatórias.
+- Cada ciclo quinzenal tem meta entre 2.000 e 2.500 novas questões BACEN. O alvo inicial é 2.250. O mentor distribui o lote entre disciplinas e tópicos sem igualdade obrigatória e sem arredondamento em 0 ou 5, usando incidência quando disponível, peso da disciplina, cobertura, desempenho com amostra mínima, consumo, repetição e densidade da fonte. Quando a incidência estiver classificada com evidência, o lote reserva 60% para alta incidência, 30% para média e 10% para baixa. Não atribuir faixa de incidência por intuição. Um novo ciclo não acumula outro ciclo aberto; qualidade, fonte e inserção atômica continuam obrigatórias.
 - A expansão busca aproximadamente 60% de questões fáceis, 30% médias e 10% difíceis no conjunto de cada disciplina e de cada ciclo. A proporção não exige totais idênticos por tópico e pode variar quando a natureza do conteúdo justificar. Itens excedentes podem ser arquivados de forma recuperável, priorizando itens já respondidos e os de melhor qualidade.
 - Toda questão exige fonte, trecho de evidência, gabarito e explicação.
 - BACEN usa CE e ME, com predominância compatível com Cebraspe. Faculdade pode mesclar CE e ME.
@@ -78,7 +78,7 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - Erro, Dúvida e Sem conhecimento enviam automaticamente a questão ao Caderno de Questões. O caderno é uma opção própria dentro de Questões e alimenta futuras revisões.
 - Cards devem ser atômicos, específicos, baseados em recuperação ativa e sem duplicidade. Priorizar recordação, distinção, aplicação, exceção e correção.
 - A frente do card usa contexto mínimo, comando direto e dica do formato esperado. O verso apresenta primeiro a resposta direta, depois explicação de até duas frases. Imagem ou mnemônico é opcional e só entra quando for fiel e realmente útil. Os formatos permitidos são pergunta e resposta, lacuna e causa e efeito.
-- Responder questões não pode elevar o tópico acima de 20 Question Cards. O fluxo atualiza card correspondente quando existente; o Caderno absorve a necessidade de revisão sem criar excedente.
+- Responder questões não pode elevar o tópico acima de 20 Question Cards. Erro, Dúvida ou Sem conhecimento cria um card corretivo quando ele ainda não existe e o tópico está abaixo do teto; se já existe, atualiza sua recorrência e revisão. Acerto com Certeza ou Eliminação não cria card. O Caderno continua absorvendo a necessidade de revisão da questão.
 - Em 11 de agosto de 2026, o usuário autorizou reconstruir o acervo BACEN sem Gemini. Em 14 de agosto, determinou cobertura de todos os tópicos. Os PDFs do Estratégia continuam como base principal; lacunas podem usar legislação, documentação oficial, fonte acadêmica aberta ou exercício determinístico verificável, sempre com fonte e evidência.
 - Os PDFs pagos do Estratégia não podem ser enviados ao GitHub. O texto integral fica apenas no Supabase protegido, e o repositório guarda importadores, mapeamentos e auditorias.
 - Revisões vencidas de Question Cards vêm antes de cards novos. O limite inicial é de dez cards novos por objetivo ao dia.
@@ -93,10 +93,10 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - O fechamento transfere no máximo três pendências e somente quando elas couberem na capacidade do dia. Demandas de questões e revisões usam somente tópicos com itens ativos, fonte e evidência.
 - Falhas de funções e do cron são registradas no backend para resolução técnica.
 - A implantação gratuita usa sete funções serverless: Autenticação, Estudos, Planejamento, Desempenho, Mentor, Administração e Cron. Os handlers permanecem separados em `api/_lib`; consolidar a porta de entrada não autoriza misturar responsabilidades no código nem remover funcionalidades.
-- O timer de estudo é progressivo e persistente, pode ser iniciado em demanda, disciplina, Questões e Question Cards, permite pausa e retomada e oferece modo foco. O tempo real não divide automaticamente uma demanda concluída.
+- O timer de estudo é persistente, pode ser iniciado em disciplina, Questões e Question Cards, permite pausa e retomada e oferece modo foco. Sem alvo, é progressivo; com alvo, regride até zero e continua exibindo o excedente com sinal positivo. O tempo real não divide automaticamente uma demanda concluída.
 - O Yoda é a porta da central de alertas: revisões vencidas, pendências, risco de acúmulo, prazos e mudança de carga. Semana e próxima demanda continuam acessíveis pelos módulos próprios.
 - O painel do Yoda não repete Próxima demanda, Fase atual ou Abrir minha semana. Ele mostra exclusivamente alertas, estatísticas resumidas, falsas certezas, riscos de preparação para a prova e ações ligadas ao aviso.
-- O timer permite escolher uma duração de foco. Ao atingir essa duração, emite aviso sonoro e continua contando até o usuário pausar ou concluir. O Tempo de estudo apresenta a distribuição por disciplina em gráfico de pizza com legenda e cores distintas.
+- O timer permite escolher uma duração de foco, inclusive zero. O atalho 50 + 10 configura 50 minutos de foco; ao atingir zero, emite aviso sonoro e continua contando o excedente até o usuário concluir. Somente depois da conclusão manual começa o descanso de 10 minutos, que não entra no tempo estudado. O Tempo de estudo apresenta a distribuição por disciplina em gráfico de pizza com legenda e cores distintas.
 - Questões e Question Cards mostram cadeado ao lado de disciplinas e tópicos bloqueados; o cadeado desaparece quando o tópico se torna elegível para prática. Question Cards não geram demandas nem alertas visíveis antes de 31 de agosto de 2026.
 - A Central de Revisão unifica questões erradas, Dúvida, Sem conhecimento, cards vencidos e revisões do mentor, ordenadas por urgência.
 - A plataforma é instalável como PWA. Semana e cards previamente carregados ficam disponíveis em conexão instável; mutações offline usam identificadores únicos e sincronizam quando a internet retorna.
@@ -118,6 +118,11 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 12. O leitor de PDF foi importado na inicialização do handler de Materiais e derrubou a função Administração na Vercel por ausência de `DOMMatrix`. Regra: dependências pesadas ou nativas de um recurso opcional devem ser carregadas somente dentro do fluxo que as utiliza, com dependências de runtime declaradas diretamente e erro controlado.
 
 ## Acertos que viram padrão
+
+- 2026-08-16, correção do timer: o campo de duração não pode forçar o valor 1 quando é apagado. Vazio e zero significam contagem livre. Com duração escolhida, o timer regride até zero, toca o aviso e passa a mostrar o excedente positivo sem encerrar. O atalho 50 + 10 inicia o descanso somente depois que o foco é concluído manualmente.
+- 2026-08-16, criação de Question Cards por resposta: erro, Dúvida e Sem conhecimento podem criar um card corretivo, atômico e vinculado à fonte. Acerto com Certeza ou Eliminação não cria card. O limite permanece em 20 cards ativos por tópico e a liberação BACEN continua condicionada à fase e ao tópico estudado.
+- 2026-08-16, auditoria do acervo BACEN: as 3.554 questões ativas foram aprovadas pela auditoria estrutural, sem indicação objetiva de remoção. A dificuldade está exatamente em 2.133 fáceis, 1.066 médias e 355 difíceis, equivalentes a 60%, 30% e 10%. Os 71 tópicos ainda não possuem faixa de incidência comprovada; não aplicar rótulo de alta, média ou baixa sem evidência de edital e provas anteriores.
+- 2026-08-16, orientação de estudo fora da política do mentor: a recomendação sobre computador, iPad, vídeo, PDF e papel é aconselhamento ao usuário, não regra automática de planejamento.
 
 1. Preservar questões válidas e arquivar apenas falhas objetivas.
 2. Exigir fonte e trecho de evidência no banco.

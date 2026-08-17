@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from './supabase.js'
 import { allowMethods, fail, queryParam, requireAccess } from './http.js'
 import { practiceTransition, selectPracticeQuestion, shouldShowExplanation } from '../../shared/practice.js'
-import { cardKey, cardTransition } from '../../shared/cards.js'
+import { buildQuestionCard, cardKey, cardTransition, shouldCreateQuestionCard } from '../../shared/cards.js'
 import { BACEN_PRACTICE_START, canAccessBacenItem } from '../../shared/study-access.js'
 
 const classifications = ['certeza', 'duvida', 'eliminacao', 'sem_conhecimento']
@@ -72,7 +72,7 @@ export default async function handler(req, res) {
       if (prior.data) return res.status(200).json({ ...prior.data, repetida: true })
     }
     const { data: question, error } = await supabase.from('questao')
-      .select('id,tipo,gabarito,enunciado,explicacao,comentarios_alternativas,fonte,trecho_fonte,quantidade_tentativas,intervalo_dias,fator_facilidade,lapsos,acertos_seguidos,topico:topico_id(id,materia:materia_id(id,objetivo_id,objetivo:objetivo_id(tipo)))')
+      .select('id,tipo,gabarito,enunciado,explicacao,comentarios_alternativas,fonte,trecho_fonte,quantidade_tentativas,intervalo_dias,fator_facilidade,lapsos,acertos_seguidos,topico:topico_id(id,nome,materia:materia_id(id,objetivo_id,objetivo:objetivo_id(tipo)))')
       .eq('id', questaoId).eq('marcada_errada', false).eq('ativa', true).single()
     if (error) throw error
 
@@ -120,16 +120,41 @@ export default async function handler(req, res) {
 
     const topico = question.topico
     const materia = topico?.materia
-    if (topico?.id && materia?.id && materia?.objetivo_id) {
+    if (topico?.id && materia?.id && materia?.objetivo_id && shouldCreateQuestionCard({ resultado, classificacao })) {
       const chave = cardKey({ topicoId: topico.id, explicacao: question.explicacao })
-      const cardResult = resultado === 'acerto' && classificacao === 'certeza' ? 'lembrei' : 'revisar'
-      const cardSchedule = cardTransition({ resultado: cardResult })
+      const cardSchedule = cardTransition({ resultado: 'revisar' })
       const due = transition.motivo === 'falsa_certeza' ? now : cardSchedule.proximaRevisao
       const { data: existingCard, error: existingCardError } = await supabase.from('question_card').select('id,ocorrencias').eq('chave', chave).maybeSingle()
       if (existingCardError) throw existingCardError
       if (existingCard) {
         const { error: cardError } = await supabase.from('question_card').update({ ocorrencias: existingCard.ocorrencias + 1, questao_id: question.id, proxima_revisao: due }).eq('id', existingCard.id)
         if (cardError) throw cardError
+      } else {
+        const { count: cardCount, error: cardCountError } = await supabase.from('question_card').select('id', { count: 'exact', head: true }).eq('topico_id', topico.id).eq('ativa', true)
+        if (cardCountError) throw cardCountError
+        if ((cardCount || 0) < 20) {
+          const card = buildQuestionCard({ question, topicName: topico.nome })
+          const { error: cardError } = await supabase.from('question_card').insert({
+            objetivo_id: materia.objetivo_id,
+            materia_id: materia.id,
+            topico_id: topico.id,
+            questao_id: question.id,
+            chave,
+            frente: card.frente,
+            verso: card.verso,
+            resposta_direta: card.respostaDireta,
+            explicacao_curta: card.explicacaoCurta,
+            dica_escopo: card.dicaEscopo,
+            modelo_card: card.modeloCard,
+            tipo_card: card.tipoCard,
+            fonte: question.fonte,
+            trecho_fonte: question.trecho_fonte,
+            proxima_revisao: due,
+            ativa: true,
+            ativo: true,
+          })
+          if (cardError && cardError.code !== '23505') throw cardError
+        }
       }
     }
 

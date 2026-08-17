@@ -37,3 +37,46 @@ export function cardKey({ topicoId, explicacao }) {
   const normalized = String(explicacao || '').toLocaleLowerCase('pt-BR').replace(/\s+/g, ' ').trim()
   return `${topicoId}:${normalized}`
 }
+
+function normalizeText(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim()
+}
+
+function limitText(value, maximum) {
+  const normalized = normalizeText(value)
+  if (normalized.length <= maximum) return normalized
+  return `${normalized.slice(0, maximum - 1).trimEnd()}…`
+}
+
+function explanationParts(value) {
+  const normalized = normalizeText(value)
+  const sentences = normalized.match(/[^.!?]+[.!?]?/g)?.map((item) => item.trim()).filter(Boolean) || []
+  return {
+    direct: limitText(sentences[0] || normalized, 280),
+    short: limitText(sentences.slice(1, 3).join(' ') || sentences[0] || normalized, 480),
+  }
+}
+
+export function shouldCreateQuestionCard({ resultado, classificacao }) {
+  return resultado === 'erro' || classificacao === 'duvida' || classificacao === 'sem_conhecimento'
+}
+
+export function buildQuestionCard({ question, topicName }) {
+  const explanation = explanationParts(question?.explicacao)
+  const statement = limitText(question?.enunciado, 720)
+  const context = normalizeText(topicName) || 'Conteúdo estudado'
+  const answerLabel = question?.tipo === 'CE'
+    ? question?.gabarito === 'C' ? 'Certo.' : 'Errado.'
+    : `Alternativa ${normalizeText(question?.gabarito)}.`
+  const directAnswer = limitText(`${answerLabel} ${explanation.direct}`, 320)
+
+  return {
+    frente: `[${context}] Qual regra ou conclusão resolve este item?\n${statement}`,
+    verso: `${directAnswer}\n${explanation.short}`,
+    respostaDireta: directAnswer,
+    explicacaoCurta: explanation.short,
+    dicaEscopo: 'Responda com a regra central em uma frase.',
+    modeloCard: 'pergunta_resposta',
+    tipoCard: 'correcao',
+  }
+}
