@@ -9,18 +9,18 @@ const catalog = [
 describe('buildMentorWeek', () => {
   it('inicia com dois blocos de Faculdade e dois de BACEN nos dias uteis, sem pratica', () => {
     const result = buildMentorWeek({ weekStart: '2026-08-17', catalog, pendingReviews: 3 })
-    expect(result).toHaveLength(24)
+    expect(result).toHaveLength(26)
     expect(result.every((item) => item.tipo === 'estudo')).toBe(true)
     expect(result.some((item) => item.tipo === 'exercicio' || item.objetivo_id === 'bacen' && item.tipo === 'especial')).toBe(false)
     expect(Math.max(...result.map((item) => item.duracao_estimada))).toBe(50)
   })
 
-  it('limita sabado e domingo a duas horas na primeira semana', () => {
+  it('reserva dois blocos BACEN e um da faculdade no fim de semana', () => {
     const result = buildMentorWeek({ weekStart: '2026-08-17', catalog, pendingReviews: 1 })
     const weekend = result.filter((item) => item.data >= '2026-08-22')
     const totals = weekend.reduce((map, item) => map.set(item.data, (map.get(item.data) || 0) + item.duracao_estimada), new Map())
-    expect([...totals.values()]).toEqual([100, 100])
-    expect(weekend.every((item) => item.objetivo_id === 'bacen')).toBe(true)
+    expect([...totals.values()]).toEqual([150, 150])
+    expect(weekend.filter((item) => item.objetivo_id === 'facul')).toHaveLength(2)
   })
 
   it('reserva dois blocos para faculdade e dois para BACEN de segunda a sexta', () => {
@@ -28,7 +28,7 @@ describe('buildMentorWeek', () => {
     const total = (day) => result.filter((item) => item.data === day).reduce((sum, item) => sum + item.duracao_estimada, 0)
     expect(total('2026-08-17')).toBe(200)
     expect(total('2026-08-21')).toBe(200)
-    expect(total('2026-08-23')).toBe(100)
+    expect(total('2026-08-23')).toBe(150)
   })
 
   it('mantem chaves estaveis para impedir duplicidade ao recarregar', () => {
@@ -59,7 +59,7 @@ describe('buildMentorWeek', () => {
     const result = buildMentorWeek({ weekStart: '2026-08-17', catalog })
     for (let day = 17; day <= 23; day += 1) {
       const items = result.filter((item) => item.data === `2026-08-${day}`)
-      expect(items.filter((item) => item.objetivo_id === 'facul').map((item) => item.duracao_estimada)).toEqual(day <= 21 ? [50, 50] : [])
+      expect(items.filter((item) => item.objetivo_id === 'facul').map((item) => item.duracao_estimada)).toEqual(day <= 21 ? [50, 50] : [50])
       expect(items.filter((item) => item.objetivo_id === 'bacen').map((item) => item.duracao_estimada)).toEqual([50, 50])
     }
   })
@@ -206,7 +206,7 @@ describe('buildMentorWeek', () => {
       adherenceHistory: [{ planejadas: 21, concluidas: 2 }],
     })
     const totals = result.reduce((map, item) => map.set(item.data, (map.get(item.data) || 0) + item.duracao_estimada), new Map())
-    expect([...totals.values()]).toEqual([200, 200, 200, 200, 200, 100, 100])
+    expect([...totals.values()]).toEqual([200, 200, 200, 200, 200, 150, 150])
     expect(result.every((item) => item.tipo === 'estudo')).toBe(true)
   })
 
@@ -242,10 +242,23 @@ describe('buildMentorWeek', () => {
     expect(weeklyLoadProfile('2026-09-07', backlog)).toMatchObject({ segunda_sexta: 400, sabado: 250, domingo: 250, nivel: 'manter' })
   })
 
-  it('limita a tres pendencias transferidas e nao estoura a capacidade diaria', () => {
+  it('transfere todas as pendencias sem descartar demandas', () => {
     const overdue = Array.from({ length: 6 }, (_, index) => ({ id: `p${index}`, data: '2026-08-10', status: 'planejada', prioridade: 1, duracao_estimada: 30 }))
     const moves = planOverdueMoves(overdue, '2026-08-12', '2026-08-16')
-    expect(moves).toHaveLength(3)
+    expect(moves).toHaveLength(6)
+  })
+
+  it('segue a ordem original dos PDFs sem saltar aulas', () => {
+    const studyUnits = [
+      { id: 'c2', objectiveId: 'bacen', context: 'concurso', subjectId: 'cont', subject: 'Contabilidade', name: '2. Patrimônio.pdf', order: 2 },
+      { id: 'c1', objectiveId: 'bacen', context: 'concurso', subjectId: 'cont', subject: 'Contabilidade', name: '1. Introdução.pdf', order: 1 },
+      { id: 'd1', objectiveId: 'bacen', context: 'concurso', subjectId: 'dir', subject: 'Direito', name: '1. Estado.pdf', order: 1 },
+    ]
+    const expanded = [{ id: 'bacen', tipo: 'concurso', materias: [{ id: 'cont', nome: 'Contabilidade', topicos: [{ id: 'c', nome: 'Tópico' }] }, { id: 'dir', nome: 'Direito', topicos: [{ id: 'd', nome: 'Tópico' }] }] }, catalog[1]]
+    const result = buildMentorWeek({ weekStart: '2026-08-24', catalog: expanded, studyUnits })
+    const bacen = result.filter((item) => item.objetivo_id === 'bacen')
+    expect(bacen.slice(0, 3).map((item) => item.material_id)).toEqual(['c1', 'd1', 'c2'])
+    expect(bacen[0].titulo).toContain('Aula 1')
   })
 
   it('bloqueia duplicidade e so aplica teto quando ele for explicitamente fornecido', () => {

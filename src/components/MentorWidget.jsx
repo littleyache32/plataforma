@@ -21,7 +21,7 @@ const meetingSignals = [
 
 const facultyStatus = (classifications = []) => classifications.includes('faculdade_em_dia') ? 'em_dia' : 'atrasada'
 
-export default function MentorWidget({ objectiveId, onOpenAlerts, onOpenQuestions, onOpenCards }) {
+export default function MentorWidget({ objectiveId, onOpenQuestions, onOpenCards }) {
   const [open, setOpen] = useState(false)
   const [mentor, setMentor] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -113,7 +113,6 @@ export default function MentorWidget({ objectiveId, onOpenAlerts, onOpenQuestion
             {visibleAlerts.map((alert, index) => <div className="chat-message received follow-up" key={`${alert.tipo}-${index}`}><div className="chat-avatar-space"/><div className={`chat-bubble ${alert.gravidade === 'alta' ? 'priority-bubble' : ''}`}><small>{alert.gravidade === 'alta' ? 'ATENÇÃO' : 'ALERTA DO MENTOR'}</small><strong>{alert.titulo}</strong><span>{alert.mensagem}</span></div></div>)}
           </div>
           <div className="mentor-actions sketch-replies">
-            {visibleAlerts.length > 0 && <button className="primary" onClick={onOpenAlerts}>Abrir central de revisão</button>}
             {!restrictedPhase && priority?.questoes_para_revisar > 0 && <button className="secondary" onClick={() => onOpenQuestions(priority)}>Revisar questões</button>}
             {!restrictedPhase && priority?.cards_vencidos > 0 && <button className="secondary" onClick={() => onOpenCards(priority)}>Revisar Question Cards</button>}
           </div>
@@ -122,7 +121,7 @@ export default function MentorWidget({ objectiveId, onOpenAlerts, onOpenQuestion
         {activePanel === 'progresso' && <div className="mentor-panel-content mentor-progress">
           <section><small>FECHAMENTO SEMANAL</small><strong>{close?.planejado > 0 ? `${close.realizado} de ${close.planejado} demandas` : 'Ainda sem fechamento'}</strong><span>{close?.planejado > 0 ? `${close.pendencias} pendências · ${close.minutos_realizados || 0} minutos realizados` : 'O primeiro resultado aparecerá após uma semana de uso.'}</span></section>
           <section><small>PRIORIDADE DE CORREÇÃO</small><strong>{priority && !restrictedPhase ? priority.nome : 'Nenhuma prioridade liberada'}</strong><span>{priority && !restrictedPhase ? priority.motivo : 'O mentor aguardará dados suficientes e conteúdos liberados.'}</span></section>
-          <section><small>TRAJETÓRIA ATÉ A PROVA</small><strong>{trajectory?.data_alvo_definida && probable ? `${probable.cobertura_estimada}% de cobertura provável` : 'Data da prova ainda não definida'}</strong><span>{trajectory?.data_alvo_definida ? `${trajectory.conteudo_restante} tópicos restantes` : 'A projeção de risco será calculada somente após existir uma data-alvo oficial.'}</span></section>
+          <section><small>TRAJETÓRIA ATÉ A PROVA</small><strong>{trajectory?.data_alvo_definida && probable ? `${probable.cobertura_estimada}% de cobertura provável` : 'Projeção em calibração'}</strong><span>{trajectory?.data_alvo_definida ? `${trajectory.conteudo_restante} tópicos restantes${trajectory.data_provisoria ? ' · data provisória até o edital' : ''}` : 'A projeção será atualizada com os dados de estudo.'}</span></section>
         </div>}
 
         {activePanel === 'encontro' && <form className="mentor-weekly-meeting" onSubmit={saveMeeting}>

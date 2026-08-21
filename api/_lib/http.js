@@ -2,7 +2,7 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import { getSupabaseAdmin } from './supabase.js'
 
 const COOKIE_NAME = 'mentor_session'
-const SESSION_SECONDS = 60 * 60 * 12
+const SESSION_SECONDS = 60 * 60 * 24 * 30
 
 export function allowMethods(req, res, methods) {
   if (!methods.includes(req.method)) {
@@ -27,8 +27,8 @@ function signature(payload, secret) {
   return createHmac('sha256', secret).update(payload).digest('base64url')
 }
 
-export function createSessionToken(secret, now = Date.now()) {
-  const payload = Buffer.from(JSON.stringify({ exp: Math.floor(now / 1000) + SESSION_SECONDS })).toString('base64url')
+export function createSessionToken(secret, now = Date.now(), userId = null) {
+  const payload = Buffer.from(JSON.stringify({ exp: Math.floor(now / 1000) + SESSION_SECONDS, ...(userId ? { sub: userId } : {}) })).toString('base64url')
   return `${payload}.${signature(payload, secret)}`
 }
 
@@ -54,16 +54,27 @@ export function authenticate(password) {
   return safeEqual(password, process.env.APP_ACCESS_KEY)
 }
 
+export function readSession(req, now = Date.now()) {
+  const secret = process.env.APP_ACCESS_KEY
+  const token = cookieValue(req, COOKIE_NAME)
+  if (!verifySessionToken(token, secret, now)) return null
+  try {
+    return JSON.parse(Buffer.from(String(token).split('.')[0], 'base64url').toString('utf8'))
+  } catch {
+    return null
+  }
+}
+
 export function requestFingerprint(req) {
   const forwarded = String(req.headers?.['x-forwarded-for'] || '').split(',')[0].trim()
   const address = forwarded || String(req.socket?.remoteAddress || 'unknown')
   return createHash('sha256').update(address).digest('hex').slice(0, 16)
 }
 
-export function setSessionCookie(res) {
+export function setSessionCookie(res, userId = null) {
   const secret = process.env.APP_ACCESS_KEY
   const secure = process.env.NODE_ENV === 'production' ? '; Secure' : ''
-  res.setHeader('Set-Cookie', `${COOKIE_NAME}=${createSessionToken(secret)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_SECONDS}${secure}`)
+  res.setHeader('Set-Cookie', `${COOKIE_NAME}=${createSessionToken(secret, Date.now(), userId)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_SECONDS}${secure}`)
 }
 
 export function clearSessionCookie(res) {

@@ -51,12 +51,15 @@ export default function FocusTimer({ sessaoId, objetivoId, materiaId, topicoId, 
   const soundedFor = useRef('')
   const audioContext = useRef(null)
 
-  const load = () => api('/api/tempo').then((data) => setTimer(data.ativo)).catch(() => {})
+  const load = () => api('/api/tempo').then((data) => { setNow(Date.now()); setTimer(data.ativo); setRestUntil(data.descanso_ate ? new Date(data.descanso_ate).getTime() : 0) }).catch(() => {})
   useEffect(() => { load(); const sync = () => load(); window.addEventListener(eventName, sync); return () => window.removeEventListener(eventName, sync) }, [])
   useEffect(() => {
     if (timer?.status !== 'rodando' && restUntil <= Date.now()) return
-    const interval = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(interval)
+    const source = `setInterval(() => postMessage(Date.now()), 500)`
+    const url = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }))
+    const worker = new Worker(url)
+    worker.onmessage = (event) => setNow(Number(event.data) || Date.now())
+    return () => { worker.terminate(); URL.revokeObjectURL(url) }
   }, [timer?.status, restUntil])
 
   const seconds = useMemo(() => !timer ? 0 : timer.status === 'rodando' && timer.retomado_em
@@ -70,13 +73,16 @@ export default function FocusTimer({ sessaoId, objetivoId, materiaId, topicoId, 
     if (!timer?.id || timer.status !== 'rodando' || !targetSeconds || seconds < targetSeconds || soundedFor.current === timer.id) return
     soundedFor.current = timer.id
     playFinishedSound(audioContext.current)
+    if (document.hidden && Notification.permission === 'granted') new Notification('Tempo planejado concluído', { body: 'O timer continua contando até você encerrar.' })
     setMessage('Tempo planejado concluído. O excedente continua sendo contado até você encerrar.')
   }, [seconds, targetSeconds, timer])
 
   useEffect(() => {
     if (!restUntil || restSeconds > 0) return
     setRestUntil(0)
+    api('/api/tempo', { method: 'POST', body: JSON.stringify({ acaoDescanso: 'encerrar' }) }).catch(() => {})
     playFinishedSound(audioContext.current)
+    if (document.hidden && Notification.permission === 'granted') new Notification('Descanso concluído', { body: 'Você pode iniciar o próximo bloco.' })
     setMessage('Descanso concluído. Você pode iniciar o próximo bloco.')
   }, [restSeconds, restUntil])
 
@@ -86,11 +92,13 @@ export default function FocusTimer({ sessaoId, objetivoId, materiaId, topicoId, 
     const until = Date.now() + restPresetMinutes * 60_000
     setNow(Date.now())
     setRestUntil(until)
+    api('/api/tempo', { method: 'POST', body: JSON.stringify({ acaoDescanso: 'iniciar', descansoAte: new Date(until).toISOString() }) }).catch(() => {})
     setMessage('Descanso de 10 minutos iniciado.')
   }
 
   function stopRest() {
     setRestUntil(0)
+    api('/api/tempo', { method: 'POST', body: JSON.stringify({ acaoDescanso: 'encerrar' }) }).catch(() => {})
     setMessage('Descanso encerrado.')
   }
 
@@ -98,6 +106,7 @@ export default function FocusTimer({ sessaoId, objetivoId, materiaId, topicoId, 
     setMessage('')
     audioContext.current ||= createAudioContext()
     audioContext.current?.resume()
+    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {})
     const parsedTarget = Math.max(0, Math.min(720, Number(targetMinutes) || 0))
     const duration = parsedTarget ? parsedTarget * 60 : null
     if (!navigator.onLine) {
@@ -115,6 +124,13 @@ export default function FocusTimer({ sessaoId, objetivoId, materiaId, topicoId, 
       setMessage(error.message)
       if (error.timer) setTimer(error.timer)
     }
+  }
+
+  async function discard() {
+    if (!timer || !window.confirm('Apagar este registro de tempo?')) return
+    if (!timer.offline) await api(`/api/tempo?id=${encodeURIComponent(timer.id)}`, { method: 'DELETE' })
+    setTimer(null); setFocus(false); setMessage('Registro de tempo apagado.')
+    window.dispatchEvent(new Event(eventName))
   }
 
   async function change(acao) {
@@ -141,9 +157,9 @@ export default function FocusTimer({ sessaoId, objetivoId, materiaId, topicoId, 
     <div className="focus-timer">
       <div><small>{restSeconds > 0 ? 'TEMPO DE DESCANSO' : 'TEMPO DE ESTUDO'}</small><b className={displayTime.startsWith('+') ? 'timer-overtime' : ''}>{restSeconds > 0 ? formatTimerValue(restSeconds) : displayTime}</b><span>{restSeconds > 0 ? 'ciclo 50 + 10' : timer ? `${timer.titulo}${targetSeconds ? ` · alvo de ${Math.round(targetSeconds / 60)} min` : ' · contagem livre'}` : 'timer opcional'}</span></div>
       {!timer && restSeconds === 0 && <div className="focus-duration-wrap"><label className="focus-duration">Tempo de foco<input aria-label="Tempo de foco em minutos" inputMode="numeric" type="number" min="0" max="720" value={targetMinutes} onChange={(event) => setTargetMinutes(event.target.value === '' ? '' : String(Math.max(0, Math.min(720, Number(event.target.value) || 0))))}/><span>min</span></label><button className="timer-preset" type="button" onClick={() => setTargetMinutes(String(studyPresetMinutes))}>50 + 10</button></div>}
-      <div className="focus-timer-actions">{!timer && restSeconds === 0 && <button className="primary" onClick={start}>Iniciar foco</button>}{restSeconds > 0 && <button className="secondary" onClick={stopRest}>Encerrar descanso</button>}{timer && <><button className="secondary" onClick={() => setFocus(true)}>Modo foco</button>{timer.status === 'rodando' ? <button className="secondary" onClick={() => change('pausar')}>Pausar</button> : <button className="primary" onClick={() => change('retomar')}>Retomar</button>}<button className="secondary" onClick={() => change('concluir')}>Concluir timer</button></>}</div>
+      <div className="focus-timer-actions">{!timer && restSeconds === 0 && <button className="primary" onClick={start}>Iniciar foco</button>}{restSeconds > 0 && <button className="secondary" onClick={stopRest}>Encerrar descanso</button>}{timer && <><button className="secondary" onClick={() => setFocus(true)}>Modo foco</button>{timer.status === 'rodando' ? <button className="secondary" onClick={() => change('pausar')}>Pausar</button> : <button className="primary" onClick={() => change('retomar')}>Retomar</button>}<button className="secondary" onClick={() => change('concluir')}>Concluir timer</button><button className="ghost danger" onClick={discard}>Apagar horário</button></>}</div>
       {timer && !same && <small className="timer-notice">Há outro foco ativo. Conclua-o antes de iniciar esta atividade.</small>}{message && <small className="timer-notice">{message}</small>}
     </div>
-    {focus && timer && <div className="focus-mode" role="dialog" aria-modal="true"><button className="focus-close" onClick={() => setFocus(false)} aria-label="Sair do modo foco">×</button><small>MODO FOCO</small><h1>{timer.titulo}</h1><b>{displayTime}</b><p>{targetSeconds ? 'Ao chegar a zero, o excedente continuará sendo contado.' : 'O tempo continua salvo mesmo se você fechar esta tela.'}</p><div>{timer.status === 'rodando' ? <button className="secondary" onClick={() => change('pausar')}>Pausar</button> : <button className="primary" onClick={() => change('retomar')}>Retomar</button>}<button className="primary" onClick={() => change('concluir')}>Concluir estudo</button></div></div>}
+    {focus && timer && <div className="focus-mode" role="dialog" aria-modal="true"><button className="focus-close" onClick={() => setFocus(false)} aria-label="Minimizar modo foco">Minimizar</button><small>MODO FOCO</small><h1>{timer.titulo}</h1><b>{displayTime}</b><p>{targetSeconds ? 'Ao chegar a zero, o excedente continuará sendo contado.' : 'O tempo continua salvo mesmo com o modo foco minimizado.'}</p><div>{timer.status === 'rodando' ? <button className="secondary" onClick={() => change('pausar')}>Pausar</button> : <button className="primary" onClick={() => change('retomar')}>Retomar</button>}<button className="primary" onClick={() => change('concluir')}>Concluir estudo</button><button className="secondary" onClick={() => setFocus(false)}>Minimizar</button></div></div>}
   </>
 }

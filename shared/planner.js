@@ -114,7 +114,6 @@ export function planOverdueMoves(sessions, today, weekEnd) {
   const load = Object.fromEntries(candidates.map((date) => [date, sessions.filter((item) => item.data === date && item.status !== 'feita').reduce((sum, item) => sum + (item.duracao_estimada || 0), 0)]))
   const moves = []
   for (const item of movable.sort((a, b) => (a.prioridade || 2) - (b.prioridade || 2))) {
-    if (moves.length >= 3) break
     const duration = item.duracao_estimada || 30
     const destination = [...candidates].sort((a, b) => load[a] - load[b] || a.localeCompare(b))[0]
     load[destination] += duration
@@ -132,6 +131,7 @@ function demand({ weekStart, day, slot, target, title, type, duration, priority 
     objetivo_id: target.objectiveId,
     materia_id: target.subjectId,
     topico_id: target.topicId,
+    material_id: target.materialId || null,
     titulo: title,
     tipo: type,
     data: isoDate(date),
@@ -186,7 +186,7 @@ function facultyStudyTitle(target, block, catchUpActive) {
  * Cria uma semana por demandas. O bloco normal tem 50 minutos de estudo.
  * Question Cards mantêm os 30 minutos explicitamente definidos pelo usuário.
  */
-export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingReviews = 0, scheduledQuestionReviews = [], commitments = [], adherenceHistory = [], studiedTopicIds = null, weeklyMeeting = null, policy: customPolicy = {} }) {
+export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingReviews = 0, scheduledQuestionReviews = [], commitments = [], adherenceHistory = [], studiedTopicIds = null, studyUnits = [], completedMaterialIds = [], weeklyMeeting = null, policy: customPolicy = {} }) {
   const policy = resolveMentorPolicy(customPolicy)
   const targets = catalog.flatMap((objective) => (objective.materias || []).flatMap((subject) => {
     const topics = subject.topicos?.length ? subject.topicos : [{ id: null, nome: '' }]
@@ -222,6 +222,29 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     ? policy.fase_inicial.faculdade_blocos_recuperacao || 2
     : policy.fase_inicial.faculdade_blocos_regular || 1
   const rows = []
+  const completedMaterials = new Set(completedMaterialIds)
+  const lessonGroups = [...studyUnits.filter((item) => item.context === 'concurso' && !completedMaterials.has(item.id)).reduce((map, item) => {
+    const group = map.get(item.subjectId) || []
+    group.push(item)
+    map.set(item.subjectId, group)
+    return map
+  }, new Map()).values()].map((group) => group.sort((a, b) => Number(a.order || 9999) - Number(b.order || 9999) || a.name.localeCompare(b.name)))
+  const lessonCursors = new Map()
+  let lessonSelection = 0
+  function nextBacenLesson() {
+    if (!lessonGroups.length) return null
+    for (let attempt = 0; attempt < lessonGroups.length; attempt += 1) {
+      const groupIndex = (lessonSelection + attempt) % lessonGroups.length
+      const group = lessonGroups[groupIndex]
+      const cursor = lessonCursors.get(groupIndex) || 0
+      if (cursor >= group.length) continue
+      lessonCursors.set(groupIndex, cursor + 1)
+      lessonSelection = groupIndex + 1
+      const item = group[cursor]
+      return { objectiveId: item.objectiveId, context: item.context, subjectId: item.subjectId, subject: item.subject, topicId: null, topic: '', materialId: item.id, materialName: item.name, materialOrder: item.order }
+    }
+    return null
+  }
 
   for (let day = 0; day < 7; day += 1) {
     const urgentPool = byContext.concurso.filter((item) => urgentSubjectIds.has(item.subjectId))
@@ -241,11 +264,14 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
         for (let block = 0; block < facultyBlocks; block += 1) {
           rows.push(demand({ weekStart, day, slot: `base-faculdade-${block + 1}`, target: facultyTarget, title: facultyStudyTitle(facultyTarget, block, catchUpActive), type: 'estudo', duration: studyBlock, priority: 2 }))
         }
+      } else {
+        rows.push(demand({ weekStart, day, slot: 'base-faculdade-fim-semana', target: facultyTarget, title: 'Recuperar conteúdo atrasado da faculdade', type: 'estudo', duration: studyBlock, priority: 2 }))
       }
       const bacenBlocks = day <= 4 ? policy.fase_inicial.bacen_blocos_segunda_sexta : policy.fase_inicial.bacen_blocos_fim_semana
       for (let block = 0; block < bacenBlocks; block += 1) {
-        const baseTarget = pickSequentiallyDistributed(byContext.concurso, day * 3 + block) || bacenTarget
-        rows.push(demand({ weekStart, day, slot: `base-bacen-${block + 1}`, target: baseTarget, title: `Construir base BACEN: ${baseTarget.topic || baseTarget.subject}`, type: 'estudo', duration: studyBlock, priority: 1 }))
+        const baseTarget = nextBacenLesson() || pickSequentiallyDistributed(byContext.concurso, day * 3 + block) || bacenTarget
+        const lessonLabel = baseTarget.materialName ? `Aula ${baseTarget.materialOrder}: ${baseTarget.materialName.replace(/\.pdf$/i, '').replace(/^(\s*\d+\.\s*)+/, '').trim()}` : (baseTarget.topic || baseTarget.subject)
+        rows.push(demand({ weekStart, day, slot: `base-bacen-${block + 1}`, target: baseTarget, title: `BACEN · ${baseTarget.subject} · ${lessonLabel}`, type: 'estudo', duration: studyBlock, priority: 1 }))
       }
       continue
     }

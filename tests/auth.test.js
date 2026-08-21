@@ -10,7 +10,7 @@ describe('sessao assinada', () => {
     const token = createSessionToken('segredo-forte', 1_000_000)
     expect(verifySessionToken(`${token}x`, 'segredo-forte', 1_000_001)).toBe(false)
     expect(verifySessionToken(token, 'outro-segredo', 1_000_001)).toBe(false)
-    expect(verifySessionToken(token, 'segredo-forte', 1_000_000 + 13 * 60 * 60 * 1000)).toBe(false)
+    expect(verifySessionToken(token, 'segredo-forte', 1_000_000 + 31 * 24 * 60 * 60 * 1000)).toBe(false)
   })
 
   it('anonimiza o endereco usado no limite de tentativas de login', () => {

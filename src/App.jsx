@@ -15,6 +15,7 @@ const ReviewCenter = lazy(() => import('./components/ReviewCenter.jsx'))
 
 export default function App() {
   const [status, setStatus] = useState('loading')
+  const [cadastroDisponivel, setCadastroDisponivel] = useState(false)
   const [area, setArea] = useState('semana')
   const [catalog, setCatalog] = useState([])
   const [objectiveId, setObjectiveId] = useState('')
@@ -32,7 +33,7 @@ export default function App() {
 
   useEffect(() => {
     api('/api/auth')
-      .then(async () => { await loadCatalog(); setStatus('ready') })
+      .then(async (auth) => { if (!auth.authenticated) { setCadastroDisponivel(auth.cadastroDisponivel === true); setStatus('guest'); return }; await loadCatalog(); setStatus('ready') })
       .catch(() => setStatus('guest'))
   }, [])
 
@@ -79,7 +80,7 @@ export default function App() {
   }
 
   if (status === 'loading') return <main className="loading"><span className="brand-mark">ME</span><p>Organizando sua plataforma...</p></main>
-  if (status === 'guest') return <AccessGate onSuccess={async () => { await loadCatalog(); setStatus('ready') }} />
+  if (status === 'guest') return <AccessGate cadastroDisponivel={cadastroDisponivel} onSuccess={async () => { await loadCatalog(); setStatus('ready') }} />
 
   const contextCatalog = catalog.filter((item) => item.tipo === context)
   const objective = contextCatalog.find((item) => item.id === objectiveId) || contextCatalog[0]
@@ -98,7 +99,7 @@ export default function App() {
       {area === 'simulados' && <Simulations objective={objective} />}
       {area === 'desempenho' && <Performance objective={objective} onReview={openReview} />}
       </Suspense>
-      <MentorWidget objectiveId={objective?.id || ''} onOpenAlerts={() => setArea('revisoes')} onOpenWeek={() => setArea('semana')} onOpenNextDemand={(item) => { setWeekTarget(item); setArea('semana') }} onOpenQuestions={(item) => openMentorTarget(item, 'questoes')} onOpenCards={(item) => openMentorTarget(item, 'cards')} />
+      <MentorWidget objectiveId={objective?.id || ''} onOpenQuestions={(item) => openMentorTarget(item, 'questoes')} onOpenCards={(item) => openMentorTarget(item, 'cards')} />
     </Layout>
   )
 }

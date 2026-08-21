@@ -49,7 +49,7 @@ export default async function handler(req, res) {
       supabase.from('mentor_acervo_topico').select('*'),
       loadModuleKnowledge(supabase, 'mentor').catch(() => null),
       supabase.from('mentor_conhecimento').select('versao,politica').eq('ativo', true).order('criado_em', { ascending: false }).limit(1).maybeSingle(),
-      objetivoId ? supabase.from('objetivo').select('id,data_alvo').eq('id', objetivoId).maybeSingle() : Promise.resolve({ data: null }),
+      objetivoId ? supabase.from('objetivo').select('id,data_alvo,config').eq('id', objetivoId).maybeSingle() : Promise.resolve({ data: null }),
       supabase.from('sessao').select('id,status,data,data_planejada_original,duracao_estimada,topico_id,objetivo_id,concluida_em').eq('origem', 'mentor').gte('data_planejada_original', previousStart).lte('data_planejada_original', previousEnd),
       supabase.from('sessao').select('id,titulo,data,prioridade,objetivo_id').neq('status','feita').lte('data',addDays(currentWeek,6)).order('data').limit(30),
       supabase.from('compromisso').select('id,titulo,data,tipo,objetivo_id').eq('concluido',false).gte('data',new Date().toISOString().slice(0,10)).lte('data',addDays(new Date().toISOString().slice(0,10),14)).order('data').limit(20),
@@ -126,8 +126,9 @@ export default async function handler(req, res) {
       .map((item) => ({ ...item, motivo: item.falsa_certeza >= 10 ? 'Falsa certeza exige correção imediata.' : item.questoes_para_revisar ? 'Há questões programadas para revisão espaçada.' : item.retencao_cards?.status === 'retencao_fraca' ? 'A recuperação nos Question Cards precisa de revisão.' : item.cards_vencidos ? 'Há Question Cards vencidos.' : 'Risco de esquecimento ou domínio insuficiente.' })), policy.decisao_semanal?.maximo_prioridades || 3, policy.prioridade_topico?.maximo_mesma_disciplina || 2)
     const revisaoImediata = filteredReviews.map((item) => ({ id: item.id, questao_id: item.questao.id, topico_id: item.questao.topico_id, enunciado: item.questao.enunciado, motivo: item.motivo, prioridade: item.prioridade, agendada_para: item.agendada_para }))
     const coveredTopics = diagnoses.filter((item) => item.amostra >= (policy.amostra_minima || 10) && ['estavel', 'melhorando'].includes(item.status)).length
-    const hasTargetDate = Boolean(objective?.data_alvo)
-    const daysRemaining = hasTargetDate ? Math.max(1, Math.ceil((new Date(objective.data_alvo) - Date.now()) / 86_400_000)) : null
+    const projectedTarget = objective?.data_alvo || objective?.config?.planejar_ate || objective?.config?.janela_provavel_prova?.fim
+    const hasTargetDate = Boolean(projectedTarget)
+    const daysRemaining = hasTargetDate ? Math.max(1, Math.ceil((new Date(projectedTarget) - Date.now()) / 86_400_000)) : null
     const scopedSessions = (weeklySessions || []).filter((item) => !objetivoId || item.objetivo_id === objetivoId)
     const planned = scopedSessions.length
     const completedSessions = scopedSessions.filter((item) => item.status === 'feita' && item.concluida_em && brazilDate(item.concluida_em) <= previousEnd)
@@ -138,7 +139,7 @@ export default async function handler(req, res) {
     const adjustment = adherenceAdjustment(planned ? [{ inicio: previousStart, planejadas: planned, concluidas: completed }] : [], weeklyMeeting)
     const probable = cenarios.find((item) => item.cenario === 'provavel')
     const remainingTopics = Math.max(0, diagnoses.length - coveredTopics)
-    const trajectory = { conteudo_restante: remainingTopics, topicos_totais: diagnoses.length, ritmo_atual: planned ? `${completed} de ${planned} demandas` : 'coletando dados', capacidade_projetada: hasTargetDate ? probable?.cobertura_estimada || 0 : null, risco_nao_concluir: hasTargetDate && probable ? Math.round(probable.risco_atraso * 100) : null, data_alvo_definida: hasTargetDate }
+    const trajectory = { conteudo_restante: remainingTopics, topicos_totais: diagnoses.length, ritmo_atual: planned ? `${completed} de ${planned} demandas` : 'coletando dados', capacidade_projetada: hasTargetDate ? probable?.cobertura_estimada || 0 : null, risco_nao_concluir: hasTargetDate && probable ? Math.round(probable.risco_atraso * 100) : null, data_alvo_definida: hasTargetDate, data_provisoria: !objective?.data_alvo && Boolean(projectedTarget), data_referencia: projectedTarget || null }
     const weeklyClose = { semana_inicio: previousStart, semana_fim: previousEnd, planejado: planned, realizado: completed, minutos_realizados: completedMinutes, pendencias: Math.max(0, planned - completed), revisoes_pendentes: filteredReviews.length, aderencia: Math.round(adherence * 100), ajuste_proxima_semana: adjustment.nivel }
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
     const scopedPending=(pendingSessions||[]).filter((item)=>!objetivoId||item.objetivo_id===objetivoId)

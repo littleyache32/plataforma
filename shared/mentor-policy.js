@@ -1,5 +1,5 @@
 export const DEFAULT_MENTOR_POLICY = Object.freeze({
-  versao: '2026.08.10',
+  versao: '2026.08.21',
   amostra_minima: 10,
   janela_maxima: 60,
   meia_vida_recencia_dias: 21,
@@ -27,6 +27,8 @@ export const DEFAULT_MENTOR_POLICY = Object.freeze({
     faculdade_recuperacao_sem_topico_aleatorio: true,
     bacen_blocos_segunda_sexta: 2,
     bacen_blocos_fim_semana: 2,
+    faculdade_blocos_fim_semana: 1,
+    seguir_ordem_original_pdfs_bacen: true,
     bacen_minimo_blocos_semana_avaliacao: 1,
     question_cards_inicio: '2026-08-31',
     question_cards_diarios_minutos: 30,
@@ -61,6 +63,8 @@ export const DEFAULT_MENTOR_POLICY = Object.freeze({
     fallback_sem_dados: 'manter_carga',
     estados_conhecimento: ['confirmado_oficial', 'confirmado_usuario', 'inferido_dados', 'provisorio_pre_edital', 'desconhecido'],
     preservar_concurso_em_semana_avaliacao: true,
+    nao_emitir_alerta_de_aderencia_antes_do_fechamento: true,
+    reorganizar_pendencias_sem_descartar: true,
   },
   retencao_cards: {
     amostra_minima: 5,
@@ -96,6 +100,8 @@ export const DEFAULT_MENTOR_POLICY = Object.freeze({
     natureza: 'provisorios_versionados_calibraveis',
     percentuais_nao_sao_verdades_cientificas: true,
     bloco_50_10_e_preferencia_do_mentorado: true,
+    data_prova_bacen_provisoria: '2027-03-31',
+    revisar_previsao_ao_publicar_edital: true,
   },
   prioridade_topico: {
     coeficientes: {

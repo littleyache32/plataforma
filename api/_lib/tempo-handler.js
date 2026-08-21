@@ -1,14 +1,17 @@
 import { getSupabaseAdmin } from './supabase.js'
-import { allowMethods, fail, queryParam, requireAccess } from './http.js'
+import { allowMethods, fail, queryParam, readSession, requireAccess } from './http.js'
 
 const fields = 'id,operacao_id,sessao_id,objetivo_id,materia_id,topico_id,contexto,titulo,status,segundos_acumulados,duracao_alvo_segundos,iniciado_em,retomado_em,finalizado_em,materia:materia_id(nome),objetivo:objetivo_id(nome,tipo)'
 const elapsed = (item) => item.status === 'rodando' && item.retomado_em ? item.segundos_acumulados + Math.max(0, Math.floor((Date.now() - new Date(item.retomado_em).getTime()) / 1000)) : item.segundos_acumulados
 
 export default async function handler(req, res) {
-  if (!allowMethods(req, res, ['GET', 'POST', 'PATCH']) || !requireAccess(req, res)) return
+  if (!allowMethods(req, res, ['GET', 'POST', 'PATCH', 'DELETE']) || !requireAccess(req, res)) return
   const supabase = getSupabaseAdmin()
   try {
     if (req.method === 'GET') {
+      const session = readSession(req)
+      const rest = session?.sub ? await supabase.from('app_usuario').select('descanso_ate').eq('id', session.sub).maybeSingle() : { data: null }
+      if (rest.error) throw rest.error
       const active = await supabase.from('tempo_estudo').select(fields).in('status', ['rodando','pausado']).maybeSingle()
       if (active.error) throw active.error
       const since = queryParam(req, 'desde') || new Date(Date.now() - 7 * 86400000).toISOString()
@@ -18,13 +21,34 @@ export default async function handler(req, res) {
       const planned = await supabase.from('sessao').select('duracao_estimada,data').gte('data', since.slice(0, 10)).lte('data', new Date().toISOString().slice(0, 10))
       if (planned.error) throw planned.error
       const bySubject = new Map()
+      const byActivity = new Map([['estudo', 0], ['questoes', 0], ['question_cards', 0], ['simulados', 0]])
       for (const item of items) if (item.status === 'concluido') bySubject.set(item.materia?.nome || item.titulo, (bySubject.get(item.materia?.nome || item.titulo) || 0) + item.segundos)
+      for (const item of items.filter((entry) => entry.status === 'concluido')) {
+        const activity = item.contexto === 'questao' ? 'questoes' : item.contexto === 'card' ? 'question_cards' : item.contexto === 'simulado' ? 'simulados' : 'estudo'
+        byActivity.set(activity, (byActivity.get(activity) || 0) + item.segundos)
+      }
       const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
-      return res.status(200).json({ ativo: active.data ? { ...active.data, segundos: elapsed(active.data) } : null, historico: items, resumo: { hoje: items.filter((item) => item.status === 'concluido' && item.iniciado_em.slice(0,10) === today).reduce((sum,item) => sum + item.segundos,0), semana: items.filter((item) => item.status === 'concluido').reduce((sum,item) => sum + item.segundos,0), planejado_semana: (planned.data || []).reduce((sum,item) => sum + (item.duracao_estimada || 0) * 60, 0), disciplinas: [...bySubject.entries()].map(([nome,segundos]) => ({ nome,segundos })).sort((a,b) => b.segundos-a.segundos) } })
+      return res.status(200).json({ ativo: active.data ? { ...active.data, segundos: elapsed(active.data) } : null, descanso_ate: rest.data?.descanso_ate || null, historico: items, resumo: { hoje: items.filter((item) => item.status === 'concluido' && item.iniciado_em.slice(0,10) === today).reduce((sum,item) => sum + item.segundos,0), semana: items.filter((item) => item.status === 'concluido').reduce((sum,item) => sum + item.segundos,0), planejado_semana: (planned.data || []).reduce((sum,item) => sum + (item.duracao_estimada || 0) * 60, 0), disciplinas: [...bySubject.entries()].map(([nome,segundos]) => ({ nome,segundos })).sort((a,b) => b.segundos-a.segundos), atividades: [...byActivity.entries()].map(([tipo, segundos]) => ({ tipo, segundos })) } })
+    }
+    if (req.method === 'DELETE') {
+      const id = queryParam(req, 'id')
+      if (!id) return res.status(400).json({ error: 'Informe o timer que deseja apagar.' })
+      const removed = await supabase.from('tempo_estudo').delete().eq('id', id).select('id').maybeSingle()
+      if (removed.error) throw removed.error
+      return res.status(200).json({ ok: true, removido: Boolean(removed.data) })
     }
     if (req.method === 'POST') {
+      if (req.body?.acaoDescanso) {
+        const session = readSession(req)
+        if (!session?.sub) return res.status(401).json({ error: 'Sessao ausente ou expirada.' })
+        const restUntil = req.body.acaoDescanso === 'iniciar' ? new Date(req.body.descansoAte) : null
+        if (restUntil && Number.isNaN(restUntil.getTime())) return res.status(400).json({ error: 'Horario de descanso invalido.' })
+        const saved = await supabase.from('app_usuario').update({ descanso_ate: restUntil?.toISOString() || null }).eq('id', session.sub)
+        if (saved.error) throw saved.error
+        return res.status(200).json({ descanso_ate: restUntil?.toISOString() || null })
+      }
       const { operacaoId, sessaoId, objetivoId, materiaId, topicoId, contexto = 'livre', titulo, status, segundosAcumulados, duracaoAlvoSegundos } = req.body || {}
-      if (!titulo || !['demanda','disciplina','questao','card','livre'].includes(contexto)) return res.status(400).json({ error: 'Contexto e titulo validos sao obrigatorios.' })
+      if (!titulo || !['demanda','disciplina','questao','card','simulado','livre'].includes(contexto)) return res.status(400).json({ error: 'Contexto e titulo validos sao obrigatorios.' })
       if (operacaoId) { const prior = await supabase.from('tempo_estudo').select(fields).eq('operacao_id', operacaoId).maybeSingle(); if (prior.data) return res.status(200).json({ timer: prior.data, repetida: true }) }
       const existing = await supabase.from('tempo_estudo').select(fields).in('status', ['rodando','pausado']).maybeSingle()
       if (existing.error) throw existing.error

@@ -35,16 +35,17 @@ export default async function handler(req, res) {
         if (!ids.length || ids.length !== orderedIds.length) return res.status(400).json({ error: 'Ordem das demandas invalida.' })
         const { data: demands, error: readError } = await supabase.from('sessao').select('id,data').in('id', ids)
         if (readError) throw readError
-        if (demands.length !== ids.length || new Set(demands.map((item) => item.data)).size !== 1) {
-          return res.status(400).json({ error: 'As demandas so podem ser reorganizadas dentro do mesmo dia.' })
-        }
+        if (demands.length !== ids.length) return res.status(400).json({ error: 'Alguma demanda nao foi encontrada.' })
+        if (data && !/^\d{4}-\d{2}-\d{2}$/.test(data)) return res.status(400).json({ error: 'Dia de destino invalido.' })
+        if (!data && new Set(demands.map((item) => item.data)).size !== 1) return res.status(400).json({ error: 'Informe o dia de destino.' })
         const orderedAt = new Date().toISOString()
-        const updates = await Promise.all(ids.map((demandId, ordem) => supabase.from('sessao').update({ ordem, ordenada_em: orderedAt }).eq('id', demandId)))
+        const originalById = new Map(demands.map((item) => [item.id, item.data]))
+        const updates = await Promise.all(ids.map((demandId, ordem) => supabase.from('sessao').update({ ordem, ordenada_em: orderedAt, ...(data ? { data, ...(originalById.get(demandId) !== data ? { movida_em: orderedAt } : {}) } : {}) }).eq('id', demandId)))
         const updateError = updates.find((result) => result.error)?.error
         if (updateError) throw updateError
         return res.status(200).json({ ok: true })
       }
-      if (data) return res.status(400).json({ error: 'As demandas so podem ser reorganizadas dentro do mesmo dia.' })
+      if (data && !/^\d{4}-\d{2}-\d{2}$/.test(data)) return res.status(400).json({ error: 'Dia de destino invalido.' })
       if (!id) return res.status(400).json({ error: 'Demanda obrigatoria.' })
       const update = {}
       if (status) {
@@ -53,6 +54,7 @@ export default async function handler(req, res) {
         update.duracao_realizada = status === 'planejada' ? null : Number.isInteger(duracaoRealizada) ? duracaoRealizada : null
         update.concluida_em = status === 'feita' ? new Date().toISOString() : null
       }
+      if (data) Object.assign(update, { data, movida_em: new Date().toISOString() })
       if (!Object.keys(update).length) return res.status(400).json({ error: 'Informe uma alteracao para a demanda.' })
       const { error } = await supabase.from('sessao').update(update).eq('id', id)
       if (error) throw error

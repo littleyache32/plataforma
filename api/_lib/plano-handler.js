@@ -89,10 +89,12 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
     supabase.from('tempo_estudo').select('status,finalizado_em,segundos_acumulados,objetivo_id,materia_id,topico_id,contexto').eq('status', 'concluido').gte('finalizado_em', `${adherenceStart}T00:00:00-03:00`).lt('finalizado_em', `${inicio}T00:00:00-03:00`),
     supabase.from('question_card').select('id,topico_id,proxima_revisao,lapsos,ativo'),
     supabase.from('question_card_registro').select('resultado,criado_em,question_card!inner(topico_id)').order('criado_em', { ascending: false }),
+    supabase.from('material').select('id,objetivo_id,materia_id,nome,ordem_estudo,materia:materia_id(nome),objetivo:objetivo_id(tipo)').eq('status', 'aceito').order('materia_id').order('ordem_estudo').order('nome'),
+    supabase.from('sessao').select('material_id').eq('status', 'feita').not('material_id', 'is', null),
   ])
   const error = results.find((item) => item.error)?.error
   if (error) throw error
-  const [catalogResult, recordsResult, reviewResult, commitmentsResult, existingResult, carryoverResult, knowledgeResult, spacedQuestionResult, availableTopicsResult, adherenceResult, studiedTopicsResult, meetingResult, timersResult, cardsResult, cardRecordsResult] = results
+  const [catalogResult, recordsResult, reviewResult, commitmentsResult, existingResult, carryoverResult, knowledgeResult, spacedQuestionResult, availableTopicsResult, adherenceResult, studiedTopicsResult, meetingResult, timersResult, cardsResult, cardRecordsResult, materialsResult, completedMaterialsResult] = results
   const availableTopicIds = new Set((availableTopicsResult.data || []).map((item) => item.topico_id))
   const mentorCatalog = (catalogResult.data || []).map((objective) => objective.tipo !== 'concurso' ? objective : ({
     ...objective,
@@ -146,7 +148,9 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
     ? { nivel: 'carga_inicial_fixa', motivo: 'fase_de_construcao_de_base', semanas: history }
     : adherenceAdjustment(history, meetingResult.data)
   const studiedTopicIds = [...new Set((studiedTopicsResult.data || []).map((item) => item.topico_id))]
-  const demands = buildMentorWeek({ weekStart: inicio, catalog: mentorCatalog, priorities, pendingReviews: reviewResult.count || 0, scheduledQuestionReviews, commitments: commitmentsResult.data || [], adherenceHistory: history, studiedTopicIds, weeklyMeeting: meetingResult.data, policy })
+  const studyUnits = (materialsResult.data || []).map((item) => ({ id: item.id, objectiveId: item.objetivo_id, context: item.objetivo?.tipo, subjectId: item.materia_id, subject: item.materia?.nome, name: item.nome || 'Material', order: item.ordem_estudo || 9999 }))
+  const completedMaterialIds = (completedMaterialsResult.data || []).map((item) => item.material_id)
+  const demands = buildMentorWeek({ weekStart: inicio, catalog: mentorCatalog, priorities, pendingReviews: reviewResult.count || 0, scheduledQuestionReviews, commitments: commitmentsResult.data || [], adherenceHistory: history, studiedTopicIds, studyUnits, completedMaterialIds, weeklyMeeting: meetingResult.data, policy })
   if (!demands.length) return { status: 200, body: { criadas: 0, motivo: 'Nenhuma disciplina disponivel.' } }
   const validation = validateMentorPlan(demands)
   if (!validation.valid) throw new Error(`Planejamento incoerente bloqueado: ${validation.reason}.`)
@@ -176,7 +180,8 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
   const refreshed = await supabase.from('sessao').select('id,data,status,movida_em,movida_pelo_mentor_em,ordem,duracao_estimada,prioridade').gte('data', inicio).lte('data', weekEnd)
   if (refreshed.error) throw refreshed.error
   const sessionsForReallocation = [...(carryoverResult.data || []), ...(refreshed.data || [])]
-  const moved = inicio <= today && today <= weekEnd ? await reallocateOverdue(supabase, sessionsForReallocation, today, weekEnd) : 0
+  const reallocationAnchor = today < inicio ? inicio : today
+  const moved = reallocationAnchor <= weekEnd ? await reallocateOverdue(supabase, sessionsForReallocation, reallocationAnchor, weekEnd) : 0
   const meetingSignals = meetingResult.data?.classificacoes || []
   return { status: 200, body: { atualizadas: upsert.data?.length || 0, removidas: obsoleteIds.length, total_planejado: demands.length, revisoes_espacadas_planejadas: scheduledQuestionReviews.length, revisoes_adiadas: Math.max(0, reviewGroups.size - scheduledQuestionReviews.length), remanejadas: moved, aderencia_analisada: history, ajuste_carga: adjustment, prioridades_aplicadas: priorities.map((item) => ({ topico_id: item.id, acao: item.acao_recomendada, pontuacao: item.prioridade_calculada })), encontro_aplicado: meetingSignals, politica_mentor: policy.versao } }
 }
@@ -184,7 +189,7 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
 export default async function planHandler(req, res) {
   if (!allowMethods(req, res, ['POST']) || !requireAccess(req, res)) return
   try {
-    const result = await prepareMentorWeek({ inicio: req.body?.inicio })
+    const result = await prepareMentorWeek({ inicio: req.body?.inicio, force: req.body?.force === true })
     return res.status(result.status).json(result.body)
   } catch (error) {
     return fail(res, error, 'Nao foi possivel preparar sua semana.')
