@@ -47,16 +47,25 @@ export default async function handler(req, res) {
         if (saved.error) throw saved.error
         return res.status(200).json({ descanso_ate: restUntil?.toISOString() || null })
       }
-      const { operacaoId, sessaoId, objetivoId, materiaId, topicoId, contexto = 'livre', titulo, status, segundosAcumulados, duracaoAlvoSegundos } = req.body || {}
+      const { operacaoId, sessaoId, objetivoId, materiaId, topicoId, contexto = 'livre', titulo, status, segundosAcumulados, duracaoAlvoSegundos, iniciadoEm } = req.body || {}
       if (!titulo || !['demanda','disciplina','questao','card','simulado','livre'].includes(contexto)) return res.status(400).json({ error: 'Contexto e titulo validos sao obrigatorios.' })
       if (operacaoId) { const prior = await supabase.from('tempo_estudo').select(fields).eq('operacao_id', operacaoId).maybeSingle(); if (prior.data) return res.status(200).json({ timer: prior.data, repetida: true }) }
       const existing = await supabase.from('tempo_estudo').select(fields).in('status', ['rodando','pausado']).maybeSingle()
       if (existing.error) throw existing.error
       if (existing.data && status !== 'concluido') return res.status(409).json({ error: 'Pause ou conclua o timer atual antes de iniciar outro.', timer: existing.data })
       const completedOffline = status === 'concluido'
+      const manualSeconds = Math.max(0, Number(segundosAcumulados) || 0)
+      let manualStart = null
+      let manualEnd = null
+      if (completedOffline && iniciadoEm) {
+        manualStart = new Date(iniciadoEm)
+        if (Number.isNaN(manualStart.getTime()) || manualStart.getTime() > Date.now()) return res.status(400).json({ error: 'A data do estudo nao pode estar no futuro.' })
+        if (!Number.isInteger(manualSeconds) || manualSeconds < 60 || manualSeconds > 43200) return res.status(400).json({ error: 'O tempo adicionado deve ficar entre 1 minuto e 12 horas.' })
+        manualEnd = new Date(manualStart.getTime() + manualSeconds * 1000)
+      }
       const targetSeconds = Number(duracaoAlvoSegundos) || null
       if (targetSeconds !== null && (!Number.isInteger(targetSeconds) || targetSeconds < 60 || targetSeconds > 43200)) return res.status(400).json({ error: 'O tempo de foco deve ficar entre 1 minuto e 12 horas.' })
-      const created = await supabase.from('tempo_estudo').insert({ operacao_id: operacaoId || null, sessao_id: sessaoId || null, objetivo_id: objetivoId || null, materia_id: materiaId || null, topico_id: topicoId || null, contexto, titulo: String(titulo).trim(), status: completedOffline ? 'concluido' : 'rodando', segundos_acumulados: completedOffline ? Math.max(0, Number(segundosAcumulados) || 0) : 0, duracao_alvo_segundos: targetSeconds, retomado_em: completedOffline ? null : new Date().toISOString(), finalizado_em: completedOffline ? new Date().toISOString() : null }).select(fields).single()
+      const created = await supabase.from('tempo_estudo').insert({ operacao_id: operacaoId || null, sessao_id: sessaoId || null, objetivo_id: objetivoId || null, materia_id: materiaId || null, topico_id: topicoId || null, contexto, titulo: String(titulo).trim(), status: completedOffline ? 'concluido' : 'rodando', segundos_acumulados: completedOffline ? manualSeconds : 0, duracao_alvo_segundos: targetSeconds, iniciado_em: manualStart?.toISOString() || new Date().toISOString(), retomado_em: completedOffline ? null : new Date().toISOString(), finalizado_em: completedOffline ? (manualEnd || new Date()).toISOString() : null }).select(fields).single()
       if (created.error) throw created.error
       return res.status(201).json({ timer: created.data })
     }
