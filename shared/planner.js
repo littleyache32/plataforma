@@ -102,7 +102,7 @@ export function validateMentorPlan(demands, { dailyLimit = null } = {}) {
   return overloaded ? { valid: false, reason: 'limite_diario_excedido', data: overloaded[0], minutos: overloaded[1] } : { valid: true }
 }
 
-export function planOverdueMoves(sessions, today, weekEnd) {
+export function planOverdueMoves(sessions, today, weekEnd, { maxCarryover = 3 } = {}) {
   if (today > weekEnd) return []
   const movable = sessions.filter((item) => item.status === 'planejada' && item.data < today)
   const candidates = []
@@ -113,13 +113,18 @@ export function planOverdueMoves(sessions, today, weekEnd) {
   if (!movable.length || !candidates.length) return []
   const load = Object.fromEntries(candidates.map((date) => [date, sessions.filter((item) => item.data === date && item.status !== 'feita').reduce((sum, item) => sum + (item.duracao_estimada || 0), 0)]))
   const moves = []
-  for (const item of movable.sort((a, b) => (a.prioridade || 2) - (b.prioridade || 2))) {
+  for (const item of movable.sort((a, b) => (a.prioridade || 2) - (b.prioridade || 2)).slice(0, maxCarryover)) {
     const duration = item.duracao_estimada || 30
     const destination = [...candidates].sort((a, b) => load[a] - load[b] || a.localeCompare(b))[0]
     load[destination] += duration
     moves.push({ id: item.id, data: destination })
   }
   return moves
+}
+
+export function isMentorRestartWeek(weekStart, customPolicy = {}) {
+  const restart = resolveMentorPolicy(customPolicy).reinicio
+  return weekStart >= restart.inicio && weekStart <= restart.fim
 }
 
 function demand({ weekStart, day, slot, target, title, type, duration, priority = 2 }) {
@@ -244,6 +249,41 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
       return { objectiveId: item.objectiveId, context: item.context, subjectId: item.subjectId, subject: item.subject, topicId: null, topic: '', materialId: item.id, materialName: item.name, materialOrder: item.order }
     }
     return null
+  }
+
+  if (isMentorRestartWeek(weekStart, policy)) {
+    const restart = policy.reinicio
+    const theoryCrime = subjectOnly(byContext.faculdade.find((item) => normalized(item.subject).includes('teoria do crime')) || byContext.faculdade[0])
+    for (let day = 0; day < 7; day += 1) {
+      const date = isoDate(new Date(new Date(`${weekStart}T12:00:00Z`).getTime() + day * DAY_MS))
+      const regularFaculty = subjectOnly(facultyTargetForDay(targets, priorities, day, rotationSeed, policy) || pickDistributed(byContext.faculdade, rotationSeed + day))
+      const examPreparationActive = date <= restart.prova_teoria_crime
+      const secondFaculty = examPreparationActive ? theoryCrime : subjectOnly(pickDistributed(byContext.faculdade, rotationSeed + day + 1))
+      const facultyTargets = day <= 3
+        ? [regularFaculty, secondFaculty]
+        : [examPreparationActive ? theoryCrime : regularFaculty]
+      for (let block = 0; block < facultyTargets.length; block += 1) {
+        const target = facultyTargets[block]
+        const title = day <= 3 && block === 0
+          ? `Aula dada, aula estudada: ${target?.subject || ''}`
+          : examPreparationActive && target?.subjectId === theoryCrime?.subjectId
+            ? 'Preparar prova: Teoria do Crime'
+            : `Recuperar conteúdo atrasado: ${target?.subject || ''}`
+        rows.push(demand({ weekStart, day, slot: `reinicio-faculdade-${block + 1}`, target, title, type: 'estudo', duration: studyBlock, priority: examPreparationActive && target?.subjectId === theoryCrime?.subjectId ? 1 : 2 }))
+      }
+      const bacenBlocks = day <= 3 ? restart.bacen_segunda_quinta : day === 4 ? restart.bacen_sexta : restart.bacen_fim_semana
+      for (let block = 0; block < bacenBlocks; block += 1) {
+        const target = nextBacenLesson() || pickSequentiallyDistributed(byContext.concurso, day * 3 + block) || pick(byContext.concurso, day + block)
+        const lessonLabel = target?.materialName ? `Aula ${target.materialOrder}: ${target.materialName.replace(/\.pdf$/i, '').replace(/^(\s*\d+\.\s*)+/, '').trim()}` : (target?.topic || target?.subject)
+        rows.push(demand({ weekStart, day, slot: `reinicio-bacen-${block + 1}`, target, title: `BACEN · ${target?.subject || ''} · ${lessonLabel || ''}`, type: 'estudo', duration: studyBlock, priority: 1 }))
+      }
+    }
+    const orderByDay = new Map()
+    return rows.filter(Boolean).map((item) => {
+      const ordem = orderByDay.get(item.data) || 0
+      orderByDay.set(item.data, ordem + 1)
+      return { ...item, ordem }
+    })
   }
 
   for (let day = 0; day < 7; day += 1) {

@@ -242,10 +242,46 @@ describe('buildMentorWeek', () => {
     expect(weeklyLoadProfile('2026-09-07', backlog)).toMatchObject({ segunda_sexta: 400, sabado: 250, domingo: 250, nivel: 'manter' })
   })
 
-  it('transfere todas as pendencias sem descartar demandas', () => {
+  it('limita a tres pendencias transferidas para evitar novo acumulo', () => {
     const overdue = Array.from({ length: 6 }, (_, index) => ({ id: `p${index}`, data: '2026-08-10', status: 'planejada', prioridade: 1, duracao_estimada: 30 }))
     const moves = planOverdueMoves(overdue, '2026-08-12', '2026-08-16')
-    expect(moves).toHaveLength(6)
+    expect(moves).toHaveLength(3)
+  })
+
+  it('reinicia em 14 de setembro com quatro demandas uteis e duas no fim de semana', () => {
+    const facultySubjects = [
+      ['pessoas', 'Direito das Pessoas e dos Negócios Jurídicos'],
+      ['crime', 'Teoria do Crime'],
+      ['justica', 'Teorias da Justiça'],
+      ['constituicao', 'Teoria da Constituição e Direitos Fundamentais'],
+    ].map(([id, nome]) => ({ id, nome, topicos: [{ id: `${id}-1`, nome: 'Conteúdo' }] }))
+    const expanded = [catalog[0], { id: 'facul', tipo: 'faculdade', materias: facultySubjects }]
+    const result = buildMentorWeek({ weekStart: '2026-09-14', catalog: expanded, pendingReviews: 20 })
+    const counts = Array.from({ length: 7 }, (_, offset) => {
+      const date = new Date('2026-09-14T12:00:00Z'); date.setUTCDate(date.getUTCDate() + offset)
+      return result.filter((item) => item.data === date.toISOString().slice(0, 10)).length
+    })
+    expect(counts).toEqual([4, 4, 4, 4, 4, 2, 2])
+    expect(result).toHaveLength(24)
+    expect(result.every((item) => item.tipo === 'estudo' && item.duracao_estimada === 50)).toBe(true)
+    expect(result.filter((item) => item.titulo === 'Preparar prova: Teoria do Crime')).toHaveLength(7)
+    expect(result.filter((item) => item.data === '2026-09-18' && item.objetivo_id === 'bacen')).toHaveLength(3)
+  })
+
+  it('mantem Teoria do Crime diariamente ate a prova de 22 de setembro sem criar pratica', () => {
+    const facultySubjects = [
+      ['pessoas', 'Direito das Pessoas e dos Negócios Jurídicos'],
+      ['crime', 'Teoria do Crime'],
+      ['justica', 'Teorias da Justiça'],
+      ['constituicao', 'Teoria da Constituição e Direitos Fundamentais'],
+    ].map(([id, nome]) => ({ id, nome, topicos: [{ id: `${id}-1`, nome: 'Conteúdo' }] }))
+    const expanded = [catalog[0], { id: 'facul', tipo: 'faculdade', materias: facultySubjects }]
+    const result = buildMentorWeek({ weekStart: '2026-09-21', catalog: expanded, scheduledQuestionReviews: [{ dueDate: '2026-09-21', topicId: 'cont-1', count: 10 }] })
+    expect(result.filter((item) => item.titulo === 'Preparar prova: Teoria do Crime').map((item) => item.data)).toEqual(['2026-09-21', '2026-09-22'])
+    expect(result).toContainEqual(expect.objectContaining({ data: '2026-09-22', materia_id: 'crime', titulo: 'Aula dada, aula estudada: Teoria do Crime' }))
+    expect(result.some((item) => ['exercicio', 'especial', 'revisao'].includes(item.tipo))).toBe(false)
+    expect(result.filter((item) => item.data === '2026-09-26')).toHaveLength(2)
+    expect(result.filter((item) => item.data === '2026-09-27')).toHaveLength(2)
   })
 
   it('segue a ordem original dos PDFs sem saltar aulas', () => {

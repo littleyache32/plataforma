@@ -1,6 +1,6 @@
 # Memória operacional da plataforma
 
-Última atualização: 17 de agosto de 2026.
+Última atualização: 12 de setembro de 2026.
 
 ## Finalidade
 
@@ -41,6 +41,8 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 ### Semana e mentor
 
 - O usuário é o mentorado. A plataforma prepara e recalibra a semana.
+- Em 14 de setembro de 2026 começa um reinício de duas semanas. As semanas de 14 e 21 de setembro contêm somente Estudo, sem Questões, Question Cards, revisões ou simulados. De segunda a sexta são quatro demandas de 50 minutos; no sábado e no domingo são duas demandas de 50 minutos. Segunda a quinta recebem aula dada, aula estudada, preparação de Teoria do Crime e dois blocos BACEN. Sexta recebe preparação acadêmica e três blocos BACEN. Sábado e domingo recebem um bloco de Faculdade e um de BACEN. Teoria do Crime aparece diariamente até a prova de 22 de setembro. Exercícios podem começar somente em 28 de setembro e dependem de nova confirmação do usuário.
+- O reinício elimina somente demandas pendentes acumuladas. Sessões marcadas como concluídas são fatos históricos e devem ser preservadas. Durante o reinício, pendências anteriores não são transferidas. Depois dele, o mentor pode transferir no máximo três pendências por fechamento, sem transformar baixa aderência em dias sobrecarregados.
 - Demandas são orientadas por entrega, não por horário rígido.
 - A demanda deve ser concluída inteira na mesma execução. Ultrapassar a estimativa não cria continuação, não divide a atividade e não reduz a aderência quando a entrega foi concluída.
 - O bloco normal de estudo dura 50 minutos e é seguido por 10 minutos de intervalo. Question Cards mantêm 30 minutos. Provas e simulados podem exceder.
@@ -68,6 +70,7 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - A solicitação de geração de questões é feita exclusivamente por disciplina. O usuário não escolhe tópico para gerar. O mentor distribui cada lote entre os tópicos com base em incidência, cobertura atual e necessidade de equilibrar o acervo. A inserção do lote deve ser atômica e respeitar fonte, formato e dificuldade.
 
 - Em 21 de agosto de 2026, as 3.554 questões BACEN existentes foram rejeitadas como entrega final e o usuário determinou novo reinício. O banco de questões de Faculdade e BACEN deve permanecer vazio até a nova criação autorizada para o dia seguinte. Question Cards, materiais, conhecimento, catálogo, tempo e planejamento não fazem parte desta exclusão. Não usar Gemini sem nova autorização explícita.
+- Em 12 de setembro de 2026, o usuário adiou novamente a criação: Questões e Question Cards permanecem zerados até ele informar que está pronto para começar. Não gerar nem importar itens durante as duas semanas teóricas.
 - Cada ciclo quinzenal tem meta entre 2.000 e 2.500 novas questões BACEN. O alvo inicial é 2.250. O mentor distribui o lote entre disciplinas e tópicos sem igualdade obrigatória e sem arredondamento em 0 ou 5, usando incidência quando disponível, peso da disciplina, cobertura, desempenho com amostra mínima, consumo, repetição e densidade da fonte. Quando a incidência estiver classificada com evidência, o lote reserva 60% para alta incidência, 30% para média e 10% para baixa. Não atribuir faixa de incidência por intuição. Um novo ciclo não acumula outro ciclo aberto; qualidade, fonte e inserção atômica continuam obrigatórias.
 - A expansão busca aproximadamente 60% de questões fáceis, 30% médias e 10% difíceis no conjunto de cada disciplina e de cada ciclo. A proporção não exige totais idênticos por tópico e pode variar quando a natureza do conteúdo justificar. Itens excedentes podem ser arquivados de forma recuperável, priorizando itens já respondidos e os de melhor qualidade.
 - Toda questão exige fonte, trecho de evidência, gabarito e explicação.

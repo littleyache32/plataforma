@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from './supabase.js'
 import { allowMethods, fail, requireAccess } from './http.js'
 import { calculateCardRetention, calculateStudyEfficiency, calculateTopicDiagnosis, diversifyPriorities, topicSignals } from '../../shared/mentor.js'
-import { adherenceAdjustment, buildMentorWeek, canGenerateMentorWeek, planOverdueMoves, validateMentorPlan } from '../../shared/planner.js'
+import { adherenceAdjustment, buildMentorWeek, canGenerateMentorWeek, isMentorRestartWeek, planOverdueMoves, validateMentorPlan } from '../../shared/planner.js'
 import { loadModuleKnowledge } from './module-knowledge.js'
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
@@ -179,7 +179,8 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
   }
   const refreshed = await supabase.from('sessao').select('id,data,status,movida_em,movida_pelo_mentor_em,ordem,duracao_estimada,prioridade').gte('data', inicio).lte('data', weekEnd)
   if (refreshed.error) throw refreshed.error
-  const sessionsForReallocation = [...(carryoverResult.data || []), ...(refreshed.data || [])]
+  const discardPriorBacklog = isMentorRestartWeek(inicio, policy) && policy.reinicio?.descartar_pendencias_anteriores !== false
+  const sessionsForReallocation = [...(discardPriorBacklog ? [] : (carryoverResult.data || [])), ...(refreshed.data || [])]
   const reallocationAnchor = today < inicio ? inicio : today
   const moved = reallocationAnchor <= weekEnd ? await reallocateOverdue(supabase, sessionsForReallocation, reallocationAnchor, weekEnd) : 0
   const meetingSignals = meetingResult.data?.classificacoes || []
