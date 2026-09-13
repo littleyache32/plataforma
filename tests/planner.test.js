@@ -38,10 +38,10 @@ describe('buildMentorWeek', () => {
   })
 
   it('so libera a proxima semana a partir do domingo', () => {
-    expect(canGenerateMentorWeek({ weekStart: '2026-08-17', today: '2026-08-16' })).toBe(true)
-    expect(canGenerateMentorWeek({ weekStart: '2026-08-17', today: '2026-08-15' })).toBe(false)
-    expect(canGenerateMentorWeek({ weekStart: '2026-08-17', today: '2026-08-16' })).toBe(true)
-    expect(canGenerateMentorWeek({ weekStart: '2026-08-17', today: '2026-08-18' })).toBe(true)
+    expect(canGenerateMentorWeek({ weekStart: '2026-09-14', today: '2026-09-13' })).toBe(true)
+    expect(canGenerateMentorWeek({ weekStart: '2026-09-14', today: '2026-09-12' })).toBe(false)
+    expect(canGenerateMentorWeek({ weekStart: '2026-09-14', today: '2026-09-15' })).toBe(true)
+    expect(canGenerateMentorWeek({ weekStart: '2026-09-07', today: '2026-09-12' })).toBe(false)
     expect(canGenerateMentorWeek({ weekStart: '2026-08-03', today: '2026-08-07' })).toBe(false)
   })
 

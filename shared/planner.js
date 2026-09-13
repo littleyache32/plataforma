@@ -2,6 +2,7 @@ import { resolveMentorPolicy } from './mentor-policy.js'
 
 const DAY_MS = 86_400_000
 export const MENTORSHIP_START = '2026-08-17'
+export const ACTIVE_PLANNING_START = '2026-09-14'
 
 function isoDate(date) {
   return date.toISOString().slice(0, 10)
@@ -33,7 +34,7 @@ export function allowsQuestionCards(target) {
 }
 
 export function canGenerateMentorWeek({ weekStart, today }) {
-  if (weekStart < MENTORSHIP_START) return false
+  if (weekStart < ACTIVE_PLANNING_START) return false
   const start = new Date(`${weekStart}T12:00:00Z`)
   const end = new Date(start); end.setUTCDate(end.getUTCDate() + 6)
   const current = new Date(`${today}T12:00:00Z`)

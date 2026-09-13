@@ -4,7 +4,7 @@ import { api } from '../api.js'
 const typeLabels = { estudo: 'Estudo', revisao: 'Revisão', exercicio: 'Exercício', especial: 'Especial', questoes: 'Exercício', simulado: 'Exercício', aula: 'Estudo', prova: 'Exercício', trabalho: 'Estudo' }
 const typeClasses = { estudo: 'estudo', revisao: 'revisao', exercicio: 'exercicio', especial: 'especial', questoes: 'exercicio', simulado: 'exercicio', aula: 'estudo', prova: 'exercicio', trabalho: 'estudo' }
 const priorities = { 1: 'Alta', 2: 'Média', 3: 'Baixa', 4: 'Flexível' }
-const mentorshipStart = '2026-08-17'
+const mentorshipStart = '2026-09-14'
 
 function localIso(date) {
   const offset = date.getTimezoneOffset() * 60_000
@@ -61,7 +61,7 @@ export default function Week({ catalog, target, onTargetApplied, onOpenQuestions
         if (active) {
           setSessions(data.sessoes)
           setMessage('')
-          setPlanningNotice(plan.aguardando_domingo ? (range.end < mentorshipStart ? 'A mentoria começa em 10 de agosto.' : 'A próxima semana será preparada no domingo, depois do fechamento da semana atual.') : '')
+          setPlanningNotice(plan.aguardando_domingo ? (range.end < mentorshipStart ? 'O novo planejamento começa em 14 de setembro.' : 'A próxima semana será preparada no domingo, depois do fechamento da semana atual.') : '')
         }
       } catch (error) {
         if (active) setMessage(error.message)
