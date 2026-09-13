@@ -14,11 +14,12 @@ export default async function handler(req, res) {
       if (rest.error) throw rest.error
       const active = await supabase.from('tempo_estudo').select(fields).in('status', ['rodando','pausado']).maybeSingle()
       if (active.error) throw active.error
-      const since = queryParam(req, 'desde') || new Date(Date.now() - 7 * 86400000).toISOString()
+      const lastSevenDays = new Date(Date.now() - 7 * 86400000).toISOString()
+      const since = queryParam(req, 'desde') || '2026-08-17T00:00:00-03:00'
       const history = await supabase.from('tempo_estudo').select(fields).gte('iniciado_em', since).order('iniciado_em', { ascending: false }).limit(500)
       if (history.error) throw history.error
       const items = (history.data || []).map((item) => ({ ...item, segundos: elapsed(item) }))
-      const planned = await supabase.from('sessao').select('duracao_estimada,data').gte('data', since.slice(0, 10)).lte('data', new Date().toISOString().slice(0, 10))
+      const planned = await supabase.from('sessao').select('duracao_estimada,data').gte('data', lastSevenDays.slice(0, 10)).lte('data', new Date().toISOString().slice(0, 10))
       if (planned.error) throw planned.error
       const bySubject = new Map()
       const byActivity = new Map([['estudo', 0], ['questoes', 0], ['question_cards', 0], ['simulados', 0]])
@@ -28,7 +29,7 @@ export default async function handler(req, res) {
         byActivity.set(activity, (byActivity.get(activity) || 0) + item.segundos)
       }
       const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
-      return res.status(200).json({ ativo: active.data ? { ...active.data, segundos: elapsed(active.data) } : null, descanso_ate: rest.data?.descanso_ate || null, historico: items, resumo: { hoje: items.filter((item) => item.status === 'concluido' && item.iniciado_em.slice(0,10) === today).reduce((sum,item) => sum + item.segundos,0), semana: items.filter((item) => item.status === 'concluido').reduce((sum,item) => sum + item.segundos,0), planejado_semana: (planned.data || []).reduce((sum,item) => sum + (item.duracao_estimada || 0) * 60, 0), disciplinas: [...bySubject.entries()].map(([nome,segundos]) => ({ nome,segundos })).sort((a,b) => b.segundos-a.segundos), atividades: [...byActivity.entries()].map(([tipo, segundos]) => ({ tipo, segundos })) } })
+      return res.status(200).json({ ativo: active.data ? { ...active.data, segundos: elapsed(active.data) } : null, descanso_ate: rest.data?.descanso_ate || null, historico: items, resumo: { hoje: items.filter((item) => item.status === 'concluido' && item.iniciado_em.slice(0,10) === today).reduce((sum,item) => sum + item.segundos,0), semana: items.filter((item) => item.status === 'concluido' && item.iniciado_em >= lastSevenDays).reduce((sum,item) => sum + item.segundos,0), planejado_semana: (planned.data || []).reduce((sum,item) => sum + (item.duracao_estimada || 0) * 60, 0), disciplinas: [...bySubject.entries()].map(([nome,segundos]) => ({ nome,segundos })).sort((a,b) => b.segundos-a.segundos), atividades: [...byActivity.entries()].map(([tipo, segundos]) => ({ tipo, segundos })) } })
     }
     if (req.method === 'DELETE') {
       const id = queryParam(req, 'id')
