@@ -91,6 +91,28 @@ export function weeklyLoadProfile(weekStart, history = [], customPolicy = {}, we
   }
 }
 
+export function practiceEligibility(weekStart, history = [], customPolicy = {}) {
+  const policy = resolveMentorPolicy(customPolicy)
+  const adaptation = policy.adaptacao_estudo
+  if (weekStart < adaptation.pratica_primeira_semana_possivel) {
+    return { eligible: false, reason: 'fase_de_estudo_basico' }
+  }
+  const requiredWeeks = Number(adaptation.pratica_exige_semanas_aderentes || 2)
+  const threshold = Number(adaptation.pratica_limiar_aderencia || policy.progressao_carga.aumentar_acima_de || 0.85)
+  const measured = history
+    .filter((week) => Number(week.planejadas) >= 5)
+    .map((week) => ({
+      ...week,
+      taxa: Number(week.minutos_planejados) > 0
+        ? Number(week.minutos_concluidos || 0) / Number(week.minutos_planejados)
+        : Number(week.concluidas || 0) / Number(week.planejadas),
+    }))
+    .slice(-requiredWeeks)
+  if (measured.length < requiredWeeks) return { eligible: false, reason: 'aderencia_ainda_sem_duas_semanas' }
+  if (!measured.every((week) => week.taxa >= threshold)) return { eligible: false, reason: 'aderencia_insuficiente' }
+  return { eligible: true, reason: 'aderencia_sustentada' }
+}
+
 export function validateMentorPlan(demands, { dailyLimit = null } = {}) {
   const keys = new Set()
   const load = new Map()
@@ -225,16 +247,24 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
   const studied = studiedTopicIds ? new Set(studiedTopicIds) : null
   const practiceBacen = studied ? byContext.concurso.filter((item) => studied.has(item.topicId)) : byContext.concurso
   const rotationSeed = Math.floor(new Date(`${weekStart}T12:00:00Z`).getTime() / (DAY_MS * 7))
-  const baseOnly = (weekStart >= policy.retomada.inicio && policy.retomada?.bloquear_questoes_e_cards_ate_autorizacao === true)
-    || (weekStart >= MENTORSHIP_START && weekStart < policy.fase_inicial.question_cards_inicio)
+  const adaptiveStudyPeriod = weekStart > policy.retomada.fim_semana_especial
+  const practice = practiceEligibility(weekStart, adherenceHistory, policy)
+  const baseOnly = adaptiveStudyPeriod
+    ? !practice.eligible
+    : weekStart >= MENTORSHIP_START && weekStart < policy.fase_inicial.question_cards_inicio
   const loadProfile = weeklyLoadProfile(weekStart, adherenceHistory, policy, weeklyMeeting)
   const studyBlock = policy.fase_inicial.bloco_estudo_minutos || 50
-  const catchUpActive = weekStart >= policy.retomada.inicio && policy.retomada?.bloquear_questoes_e_cards_ate_autorizacao === true
-    ? false
-    : facultyCatchUpActive(weeklyMeeting, policy)
-  const facultyBlocks = catchUpActive
-    ? policy.fase_inicial.faculdade_blocos_recuperacao || 2
-    : policy.fase_inicial.faculdade_blocos_regular || 1
+  const catchUpActive = adaptiveStudyPeriod
+    ? facultyCatchUpActive(weeklyMeeting, policy)
+    : weekStart >= policy.retomada.inicio && policy.retomada?.bloquear_questoes_e_cards_ate_autorizacao === true
+      ? false
+      : facultyCatchUpActive(weeklyMeeting, policy)
+  const facultyBlocks = Math.min(
+    Number(policy.adaptacao_estudo.faculdade_maximo_blocos_dia || 2),
+    catchUpActive
+      ? policy.fase_inicial.faculdade_blocos_recuperacao || 2
+      : policy.fase_inicial.faculdade_blocos_regular || 1,
+  )
   const rows = []
   const completedMaterials = new Set(completedMaterialIds)
   const lessonGroups = [...studyUnits.filter((item) => item.context === 'concurso' && !completedMaterials.has(item.id)).reduce((map, item) => {
@@ -364,14 +394,20 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     const otherPracticeTarget = pick(practiceBacen.filter((item) => item.subjectId !== practiceTarget?.subjectId), rotationSeed + day + 2) || practiceTarget
 
     if (baseOnly) {
+      const facultyBlocksForDay = adaptiveStudyPeriod && day >= 4 ? 1 : facultyBlocks
       if (day <= 4) {
-        for (let block = 0; block < facultyBlocks; block += 1) {
+        for (let block = 0; block < facultyBlocksForDay; block += 1) {
           rows.push(demand({ weekStart, day, slot: `base-faculdade-${block + 1}`, target: facultyTarget, title: facultyStudyTitle(facultyTarget, block, catchUpActive), type: 'estudo', duration: studyBlock, priority: 2 }))
         }
       } else {
         rows.push(demand({ weekStart, day, slot: 'base-faculdade-fim-semana', target: facultyTarget, title: 'Recuperar conteúdo atrasado da faculdade', type: 'estudo', duration: studyBlock, priority: 2 }))
       }
-      const bacenBlocks = day <= 4 ? policy.fase_inicial.bacen_blocos_segunda_sexta : policy.fase_inicial.bacen_blocos_fim_semana
+      const minimumBacenBlocks = day <= 4 ? policy.fase_inicial.bacen_blocos_segunda_sexta : policy.fase_inicial.bacen_blocos_fim_semana
+      const dailyTarget = day <= 4 ? loadProfile.segunda_sexta : day === 5 ? loadProfile.sabado : loadProfile.domingo
+      const facultyMinutes = facultyBlocksForDay * studyBlock
+      const bacenBlocks = adaptiveStudyPeriod
+        ? Math.max(minimumBacenBlocks, Math.floor(Math.max(0, dailyTarget - facultyMinutes) / studyBlock))
+        : minimumBacenBlocks
       for (let block = 0; block < bacenBlocks; block += 1) {
         const baseTarget = nextBacenLesson() || pickSequentiallyDistributed(byContext.concurso, day * 3 + block) || bacenTarget
         const lessonLabel = baseTarget.materialName ? `Aula ${baseTarget.materialOrder}: ${baseTarget.materialName.replace(/\.pdf$/i, '').replace(/^(\s*\d+\.\s*)+/, '').trim()}` : (baseTarget.topic || baseTarget.subject)

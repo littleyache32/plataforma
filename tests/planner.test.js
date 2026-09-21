@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { adherenceAdjustment, buildMentorWeek, canGenerateMentorWeek, planOverdueMoves, validateMentorPlan, weeklyLoadProfile } from '../shared/planner.js'
+import { adherenceAdjustment, buildMentorWeek, canGenerateMentorWeek, planOverdueMoves, practiceEligibility, validateMentorPlan, weeklyLoadProfile } from '../shared/planner.js'
 
 const catalog = [
   { id: 'bacen', tipo: 'concurso', materias: [{ id: 'cont', nome: 'Contabilidade', topicos: [{ id: 'cont-1', nome: 'Balanço' }] }] },
@@ -211,12 +211,34 @@ describe('buildMentorWeek', () => {
     expect(result.every((item) => item.tipo === 'estudo')).toBe(true)
   })
 
-  it('planeja questões e cards BACEN somente para tópicos já estudados', () => {
+  it('planeja questões e cards BACEN somente após duas semanas aderentes e para tópicos já estudados', () => {
     const expanded = [{ id: 'bacen', tipo: 'concurso', materias: [{ id: 'cont', nome: 'Contabilidade', topicos: [{ id: 'estudado', nome: 'Estudado' }, { id: 'avancado', nome: 'Avançado' }] }] }, catalog[1]]
-    const result = buildMentorWeek({ weekStart: '2026-08-31', catalog: expanded, studiedTopicIds: ['estudado'] })
+    const adherenceHistory = [
+      { planejadas: 10, concluidas: 9, minutos_planejados: 500, minutos_concluidos: 450 },
+      { planejadas: 10, concluidas: 9, minutos_planejados: 500, minutos_concluidos: 450 },
+    ]
+    const result = buildMentorWeek({ weekStart: '2026-10-12', catalog: expanded, studiedTopicIds: ['estudado'], adherenceHistory })
     const practice = result.filter((item) => item.objetivo_id === 'bacen' && ['especial', 'exercicio'].includes(item.tipo))
     expect(practice.length).toBeGreaterThan(0)
     expect(practice.every((item) => item.topico_id === 'estudado')).toBe(true)
+  })
+
+  it('mantem somente estudo se as duas semanas basicas nao atingirem boa aderencia', () => {
+    const lowAdherence = [
+      { planejadas: 10, concluidas: 8, minutos_planejados: 500, minutos_concluidos: 400 },
+      { planejadas: 10, concluidas: 7, minutos_planejados: 500, minutos_concluidos: 350 },
+    ]
+    expect(practiceEligibility('2026-10-12', lowAdherence)).toMatchObject({ eligible: false, reason: 'aderencia_insuficiente' })
+    const result = buildMentorWeek({ weekStart: '2026-10-12', catalog, adherenceHistory: lowAdherence })
+    expect(result.every((item) => item.tipo === 'estudo')).toBe(true)
+  })
+
+  it('limita Faculdade a dois blocos por dia e prioriza BACEN na semana de recuperacao', () => {
+    const result = buildMentorWeek({ weekStart: '2026-09-28', catalog })
+    const facultyByDay = result.filter((item) => item.objetivo_id === 'facul').reduce((map, item) => map.set(item.data, (map.get(item.data) || 0) + 1), new Map())
+    expect(Math.max(...facultyByDay.values())).toBeLessThanOrEqual(2)
+    expect(result.filter((item) => item.objetivo_id === 'bacen').length).toBeGreaterThan(result.filter((item) => item.objetivo_id === 'facul').length)
+    expect(result.every((item) => item.tipo === 'estudo')).toBe(true)
   })
 
   it('maximiza tópicos BACEN diferentes durante a construção inicial da base', () => {

@@ -1,5 +1,5 @@
 export const DEFAULT_MENTOR_POLICY = Object.freeze({
-  versao: '2026.09.21',
+  versao: '2026.09.21.1',
   amostra_minima: 10,
   janela_maxima: 60,
   meia_vida_recencia_dias: 21,
@@ -74,6 +74,15 @@ export const DEFAULT_MENTOR_POLICY = Object.freeze({
       { data: '2026-10-14', tipo: 'prova', materia: 'Teorias da Justiça' },
       { data: '2026-10-19', tipo: 'trabalho_em_grupo', materia: 'Direito das Pessoas e dos Negócios Jurídicos' },
     ],
+  },
+  adaptacao_estudo: {
+    somente_estudo_ate: '2026-10-11',
+    pratica_primeira_semana_possivel: '2026-10-12',
+    pratica_exige_semanas_aderentes: 2,
+    pratica_limiar_aderencia: 0.85,
+    faculdade_maximo_blocos_dia: 2,
+    faculdade_aula_dada_estudada_segunda_quinta: true,
+    priorizar_bacen_na_semana: true,
   },
   progressao_carga: {
     incremento_minutos: 50,
@@ -196,6 +205,7 @@ export function resolveMentorPolicy(policy = {}) {
     fase_inicial: { ...DEFAULT_MENTOR_POLICY.fase_inicial, ...(policy.fase_inicial || {}) },
     reinicio: { ...DEFAULT_MENTOR_POLICY.reinicio, ...(policy.reinicio || {}) },
     retomada: { ...DEFAULT_MENTOR_POLICY.retomada, ...(policy.retomada || {}) },
+    adaptacao_estudo: { ...DEFAULT_MENTOR_POLICY.adaptacao_estudo, ...(policy.adaptacao_estudo || {}) },
     progressao_carga: { ...DEFAULT_MENTOR_POLICY.progressao_carga, ...(policy.progressao_carga || {}) },
     decisao_semanal: { ...DEFAULT_MENTOR_POLICY.decisao_semanal, ...(policy.decisao_semanal || {}) },
     retencao_cards: { ...DEFAULT_MENTOR_POLICY.retencao_cards, ...(policy.retencao_cards || {}) },
