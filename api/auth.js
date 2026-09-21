@@ -29,7 +29,7 @@ export default async function handler(req, res) {
     const action = req.body?.acao === 'criar_conta' ? 'criar_conta' : 'entrar'
     const handle = normalizeHandle(req.body?.handle)
     const password = String(req.body?.password || '')
-    if (!validHandle(handle)) return res.status(400).json({ error: 'Use um @ com 3 a 30 letras, numeros, ponto ou sublinhado.' })
+    if (!validHandle(handle)) return res.status(400).json({ error: 'Use um nome de usuário com 3 a 30 letras, números, ponto ou sublinhado.' })
     if (password.length < 8) return res.status(400).json({ error: 'A senha precisa ter pelo menos 8 caracteres.' })
 
     if (action === 'criar_conta') {
@@ -51,7 +51,7 @@ export default async function handler(req, res) {
       } catch (error) {
         return fail(res, error, 'Nao foi possivel validar o acesso.')
       }
-      return res.status(401).json({ error: 'Arroba ou senha invalidos.' })
+      return res.status(401).json({ error: 'Usuário ou senha inválidos.' })
     }
     setSessionCookie(res, account.data.id)
     return res.status(200).json({ ok: true, usuario: { handle: account.data.handle } })

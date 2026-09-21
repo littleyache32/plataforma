@@ -36,7 +36,8 @@
     "estrategia:questoes:inicial": "node --env-file=.env.local scripts/import-strategy-library.js --apply --questions-only --target-questions=50",
     "estrategia:questoes:completar": "node --env-file=.env.local scripts/fill-bacen-question-gaps.js --apply",
     "estrategia:cards": "node --env-file=.env.local scripts/import-strategy-library.js --apply --cards-only",
-    "estrategia:validar": "node --env-file=.env.local scripts/audit-strategy-production.js"
+    "estrategia:validar": "node --env-file=.env.local scripts/audit-strategy-production.js",
+    "faculdade:fontes:importar": "node --env-file=.env.local scripts/import-current-faculty-sources.js"
   },
   "dependencies": {
     "@google/genai": "^1.28.0",

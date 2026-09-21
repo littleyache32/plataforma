@@ -33,9 +33,9 @@ describe('exibicao do gabarito comentado', () => {
     expect(wrong).toMatchObject({ intervaloDias: 2, lapsos: 1, acertosSeguidos: 0, estado: 'revisao' })
   })
 
-  it('oculta explicacao em acerto com certeza ou eliminacao', () => {
-    expect(shouldShowExplanation({ resultado: 'acerto', classificacao: 'certeza' })).toBe(false)
-    expect(shouldShowExplanation({ resultado: 'acerto', classificacao: 'eliminacao' })).toBe(false)
+  it('mostra o gabarito comentado depois de todo acerto', () => {
+    expect(shouldShowExplanation({ resultado: 'acerto', classificacao: 'certeza' })).toBe(true)
+    expect(shouldShowExplanation({ resultado: 'acerto', classificacao: 'eliminacao' })).toBe(true)
   })
 
   it('nao envia acerto por eliminacao para a fila especial de revisao', () => {

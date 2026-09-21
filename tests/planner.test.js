@@ -38,9 +38,10 @@ describe('buildMentorWeek', () => {
   })
 
   it('so libera a proxima semana a partir do domingo', () => {
-    expect(canGenerateMentorWeek({ weekStart: '2026-09-14', today: '2026-09-13' })).toBe(true)
+    expect(canGenerateMentorWeek({ weekStart: '2026-09-21', today: '2026-09-20' })).toBe(true)
+    expect(canGenerateMentorWeek({ weekStart: '2026-09-14', today: '2026-09-13' })).toBe(false)
     expect(canGenerateMentorWeek({ weekStart: '2026-09-14', today: '2026-09-12' })).toBe(false)
-    expect(canGenerateMentorWeek({ weekStart: '2026-09-14', today: '2026-09-15' })).toBe(true)
+    expect(canGenerateMentorWeek({ weekStart: '2026-09-14', today: '2026-09-15' })).toBe(false)
     expect(canGenerateMentorWeek({ weekStart: '2026-09-07', today: '2026-09-12' })).toBe(false)
     expect(canGenerateMentorWeek({ weekStart: '2026-08-03', today: '2026-08-07' })).toBe(false)
   })
@@ -268,7 +269,7 @@ describe('buildMentorWeek', () => {
     expect(result.filter((item) => item.data === '2026-09-18' && item.objetivo_id === 'bacen')).toHaveLength(3)
   })
 
-  it('mantem Teoria do Crime diariamente ate a prova de 22 de setembro sem criar pratica', () => {
+  it('retoma em 21 de setembro com preparacao intensiva, descanso pos-prova e rotina gradual', () => {
     const facultySubjects = [
       ['pessoas', 'Direito das Pessoas e dos Negócios Jurídicos'],
       ['crime', 'Teoria do Crime'],
@@ -277,11 +278,12 @@ describe('buildMentorWeek', () => {
     ].map(([id, nome]) => ({ id, nome, topicos: [{ id: `${id}-1`, nome: 'Conteúdo' }] }))
     const expanded = [catalog[0], { id: 'facul', tipo: 'faculdade', materias: facultySubjects }]
     const result = buildMentorWeek({ weekStart: '2026-09-21', catalog: expanded, scheduledQuestionReviews: [{ dueDate: '2026-09-21', topicId: 'cont-1', count: 10 }] })
-    expect(result.filter((item) => item.titulo === 'Preparar prova: Teoria do Crime').map((item) => item.data)).toEqual(['2026-09-21', '2026-09-22'])
-    expect(result).toContainEqual(expect.objectContaining({ data: '2026-09-22', materia_id: 'crime', titulo: 'Aula dada, aula estudada: Teoria do Crime' }))
+    expect(result.filter((item) => item.data === '2026-09-21' && item.materia_id === 'crime')).toHaveLength(7)
+    expect(result.filter((item) => item.data === '2026-09-21' && item.objetivo_id === 'bacen')).toHaveLength(2)
+    expect(result.filter((item) => item.data === '2026-09-22')).toHaveLength(0)
     expect(result.some((item) => ['exercicio', 'especial', 'revisao'].includes(item.tipo))).toBe(false)
-    expect(result.filter((item) => item.data === '2026-09-26')).toHaveLength(2)
-    expect(result.filter((item) => item.data === '2026-09-27')).toHaveLength(2)
+    expect(result.filter((item) => item.data === '2026-09-26')).toHaveLength(3)
+    expect(result.filter((item) => item.data === '2026-09-27')).toHaveLength(3)
   })
 
   it('segue a ordem original dos PDFs sem saltar aulas', () => {

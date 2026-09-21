@@ -1,5 +1,5 @@
 export const DEFAULT_MENTOR_POLICY = Object.freeze({
-  versao: '2026.09.12',
+  versao: '2026.09.20',
   amostra_minima: 10,
   janela_maxima: 60,
   meia_vida_recencia_dias: 21,
@@ -58,6 +58,21 @@ export const DEFAULT_MENTOR_POLICY = Object.freeze({
     bacen_sexta: 3,
     bacen_fim_semana: 1,
     descartar_pendencias_anteriores: true,
+  },
+  retomada: {
+    inicio: '2026-09-21',
+    fim_semana_especial: '2026-09-27',
+    zerar_pendencias_anteriores: true,
+    bloquear_questoes_e_cards_ate_autorizacao: true,
+    segunda_especial: { faculdade: 7, concurso: 2 },
+    terca_pos_prova_sem_demanda: true,
+    rotina_restante: { faculdade: 1, concurso: 2 },
+    avaliacoes: [
+      { data: '2026-09-22', tipo: 'prova', materia: 'Teoria do Crime' },
+      { data: '2026-10-01', tipo: 'prova', materia: 'Teoria da Constituição e Direitos Fundamentais' },
+      { data: '2026-10-14', tipo: 'prova', materia: 'Teorias da Justiça' },
+      { data: '2026-10-19', tipo: 'trabalho_em_grupo', materia: 'Direito das Pessoas e dos Negócios Jurídicos' },
+    ],
   },
   progressao_carga: {
     incremento_minutos: 50,
@@ -179,6 +194,7 @@ export function resolveMentorPolicy(policy = {}) {
     pesos_confianca: { ...DEFAULT_MENTOR_POLICY.pesos_confianca, ...(policy.pesos_confianca || {}) },
     fase_inicial: { ...DEFAULT_MENTOR_POLICY.fase_inicial, ...(policy.fase_inicial || {}) },
     reinicio: { ...DEFAULT_MENTOR_POLICY.reinicio, ...(policy.reinicio || {}) },
+    retomada: { ...DEFAULT_MENTOR_POLICY.retomada, ...(policy.retomada || {}) },
     progressao_carga: { ...DEFAULT_MENTOR_POLICY.progressao_carga, ...(policy.progressao_carga || {}) },
     decisao_semanal: { ...DEFAULT_MENTOR_POLICY.decisao_semanal, ...(policy.decisao_semanal || {}) },
     retencao_cards: { ...DEFAULT_MENTOR_POLICY.retencao_cards, ...(policy.retencao_cards || {}) },

@@ -27,6 +27,18 @@ const materialSchema = {
 
 const PDF_LIMIT = 20 * 1024 * 1024
 
+function knowledgeChunks(content, limit = 7000) {
+  const pages = String(content || '').split(/\n\s*--\s*\d+\s+of\s+\d+\s*--\s*\n/i).map((item) => item.trim()).filter((item) => item.length >= 120)
+  const chunks = []
+  for (const page of pages.length ? pages : [String(content || '').trim()]) {
+    for (let start = 0; start < page.length; start += limit) {
+      const excerpt = page.slice(start, start + limit).trim()
+      if (excerpt.length >= 120) chunks.push(excerpt)
+    }
+  }
+  return chunks.slice(0, 120)
+}
+
 async function extractContent({ tipo, conteudo, arquivoBase64, storagePath }, supabase) {
   if (tipo === 'texto') return String(conteudo || '').trim()
   if (tipo !== 'pdf' || (!arquivoBase64 && !storagePath)) throw new Error('PDF obrigatorio.')
@@ -58,6 +70,30 @@ export default async function handler(req, res) {
   const supabase = getSupabaseAdmin()
 
   try {
+    if (req.method === 'POST' && req.body?.acao === 'registrar_fonte') {
+      const { materiaId, objetivoId, nome, conteudo, observacao } = req.body || {}
+      const text = String(conteudo || '').trim()
+      if (!materiaId || !objetivoId || !String(nome || '').trim() || text.length < 120) return res.status(400).json({ error: 'Objetivo, matéria, nome e conteúdo da fonte são obrigatórios.' })
+      if (text.length > 900000) return res.status(413).json({ error: 'Fonte textual maior que 900 mil caracteres.' })
+      const subject = await supabase.from('materia').select('id').eq('id', materiaId).eq('objetivo_id', objetivoId).maybeSingle()
+      if (subject.error || !subject.data) throw subject.error || new Error('Disciplina não encontrada.')
+      const materialName = String(nome).trim().slice(0, 180)
+      const existing = await supabase.from('material').select('id').eq('materia_id', materiaId).eq('nome', materialName).maybeSingle()
+      if (existing.error) throw existing.error
+      const payload = { objetivo_id: objetivoId, materia_id: materiaId, tipo: 'texto', nome: materialName, conteudo: text, status: 'aceito', motivo: String(observacao || 'Fonte fornecida pelo mentorado e registrada sem geração por IA.').slice(0, 1000), forcado: false, versao: 'faculdade-2026.09.20' }
+      const saved = existing.data
+        ? await supabase.from('material').update(payload).eq('id', existing.data.id).select('id').single()
+        : await supabase.from('material').insert(payload).select('id').single()
+      if (saved.error) throw saved.error
+      const removed = await supabase.from('conhecimento').delete().eq('material_id', saved.data.id)
+      if (removed.error) throw removed.error
+      const chunks = knowledgeChunks(text)
+      if (chunks.length) {
+        const inserted = await supabase.from('conhecimento').insert(chunks.map((trecho, index) => ({ materia_id: materiaId, trecho, origem: `fonte-faculdade:${saved.data.id}:${index + 1}`, material_id: saved.data.id, versao: 'faculdade-2026.09.20' })))
+        if (inserted.error) throw inserted.error
+      }
+      return res.status(existing.data ? 200 : 201).json({ id: saved.data.id, trechos: chunks.length })
+    }
     if (req.method === 'POST' && req.body?.acao === 'preparar_pdf') {
       const size = Number(req.body?.tamanho || 0)
       if (!Number.isFinite(size) || size <= 0 || size > PDF_LIMIT) return res.status(400).json({ error: 'O PDF deve ter no maximo 20 MB.' })

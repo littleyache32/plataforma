@@ -1,13 +1,31 @@
 import { getSupabaseAdmin } from './supabase.js'
 import { allowMethods, fail, requireAccess } from './http.js'
 import { calculateCardRetention, calculateStudyEfficiency, calculateTopicDiagnosis, diversifyPriorities, topicSignals } from '../../shared/mentor.js'
-import { adherenceAdjustment, buildMentorWeek, canGenerateMentorWeek, isMentorRestartWeek, planOverdueMoves, validateMentorPlan } from '../../shared/planner.js'
+import { adherenceAdjustment, buildMentorWeek, canGenerateMentorWeek, isMentorRestartWeek, isMentorResumptionWeek, planOverdueMoves, validateMentorPlan } from '../../shared/planner.js'
+import { resolveMentorPolicy } from '../../shared/mentor-policy.js'
 import { loadModuleKnowledge } from './module-knowledge.js'
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const addDays = (date, days) => { const value = new Date(`${date}T12:00:00Z`); value.setUTCDate(value.getUTCDate() + days); return value.toISOString().slice(0, 10) }
 const brazilDate = (value) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value))
 export const brazilToday = () => brazilDate(new Date())
+const normalized = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
+async function ensureResumptionCommitments(supabase, catalog, policy) {
+  const faculty = catalog.find((item) => item.tipo === 'faculdade')
+  if (!faculty || !Array.isArray(policy.retomada?.avaliacoes)) return
+  for (const item of policy.retomada.avaliacoes) {
+    const expected = normalized(item.materia)
+    const subject = (faculty.materias || []).find((entry) => normalized(entry.nome).includes(expected) || expected.includes(normalized(entry.nome)))
+    if (!subject) continue
+    const existing = await supabase.from('compromisso').select('id').eq('materia_id', subject.id).eq('data', item.data).maybeSingle()
+    if (existing.error) throw existing.error
+    if (existing.data) continue
+    const title = item.tipo === 'trabalho_em_grupo' ? `Trabalho em grupo de ${subject.nome}` : `Prova de ${subject.nome}`
+    const inserted = await supabase.from('compromisso').insert({ objetivo_id: faculty.id, materia_id: subject.id, titulo: title, tipo: item.tipo === 'trabalho_em_grupo' ? 'entrega' : 'prova', data: item.data, peso: item.tipo === 'trabalho_em_grupo' ? 4 : 5, duracao_minutos: item.tipo === 'trabalho_em_grupo' ? 50 : 90, concluido: false })
+    if (inserted.error) throw inserted.error
+  }
+}
 
 function adherenceHistory(sessions, timers, weekStart) {
   return [-14, -7].map((offset) => {
@@ -105,6 +123,11 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
   }))
   const modularPolicy = knowledgeResult.data?.conteudo?.politica
   const policy = knowledgeResult.data ? { ...(modularPolicy || knowledgeResult.data.politica || {}), versao: knowledgeResult.data.versao } : {}
+  await ensureResumptionCommitments(supabase, catalogResult.data || [], { ...policy, retomada: { ...resolveMentorPolicy().retomada, ...(policy.retomada || {}) } })
+  if (isMentorResumptionWeek(inicio, policy) && policy.retomada?.zerar_pendencias_anteriores !== false) {
+    const cleared = await supabase.from('sessao').delete().neq('status', 'feita')
+    if (cleared.error) throw cleared.error
+  }
   const grouped = new Map()
   for (const record of recordsResult.data || []) {
     const id = record.questao?.topico_id

@@ -51,6 +51,6 @@ export function selectPracticeQuestion(questions, now = Date.now()) {
 }
 
 export function shouldShowExplanation({ resultado, classificacao }) {
-  return resultado === 'erro' || classificacao === 'duvida' || classificacao === 'sem_conhecimento'
+  return Boolean(resultado && classificacao)
 }
 

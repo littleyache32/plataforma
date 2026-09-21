@@ -2,7 +2,7 @@ import { resolveMentorPolicy } from './mentor-policy.js'
 
 const DAY_MS = 86_400_000
 export const MENTORSHIP_START = '2026-08-17'
-export const ACTIVE_PLANNING_START = '2026-09-14'
+export const ACTIVE_PLANNING_START = '2026-09-21'
 
 function isoDate(date) {
   return date.toISOString().slice(0, 10)
@@ -128,6 +128,11 @@ export function isMentorRestartWeek(weekStart, customPolicy = {}) {
   return weekStart >= restart.inicio && weekStart <= restart.fim
 }
 
+export function isMentorResumptionWeek(weekStart, customPolicy = {}) {
+  const resumption = resolveMentorPolicy(customPolicy).retomada
+  return weekStart === resumption.inicio
+}
+
 function demand({ weekStart, day, slot, target, title, type, duration, priority = 2 }) {
   if (!target) return null
   const date = new Date(`${weekStart}T12:00:00Z`)
@@ -220,10 +225,13 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
   const studied = studiedTopicIds ? new Set(studiedTopicIds) : null
   const practiceBacen = studied ? byContext.concurso.filter((item) => studied.has(item.topicId)) : byContext.concurso
   const rotationSeed = Math.floor(new Date(`${weekStart}T12:00:00Z`).getTime() / (DAY_MS * 7))
-  const baseOnly = weekStart >= MENTORSHIP_START && weekStart < policy.fase_inicial.question_cards_inicio
+  const baseOnly = (weekStart >= policy.retomada.inicio && policy.retomada?.bloquear_questoes_e_cards_ate_autorizacao === true)
+    || (weekStart >= MENTORSHIP_START && weekStart < policy.fase_inicial.question_cards_inicio)
   const loadProfile = weeklyLoadProfile(weekStart, adherenceHistory, policy, weeklyMeeting)
   const studyBlock = policy.fase_inicial.bloco_estudo_minutos || 50
-  const catchUpActive = facultyCatchUpActive(weeklyMeeting, policy)
+  const catchUpActive = weekStart >= policy.retomada.inicio && policy.retomada?.bloquear_questoes_e_cards_ate_autorizacao === true
+    ? false
+    : facultyCatchUpActive(weeklyMeeting, policy)
   const facultyBlocks = catchUpActive
     ? policy.fase_inicial.faculdade_blocos_recuperacao || 2
     : policy.fase_inicial.faculdade_blocos_regular || 1
@@ -250,6 +258,55 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
       return { objectiveId: item.objectiveId, context: item.context, subjectId: item.subjectId, subject: item.subject, topicId: null, topic: '', materialId: item.id, materialName: item.name, materialOrder: item.order }
     }
     return null
+  }
+
+  if (isMentorResumptionWeek(weekStart, policy)) {
+    const resumption = policy.retomada
+    const theoryCrime = subjectOnly(byContext.faculdade.find((item) => normalized(item.subject).includes('teoria do crime')) || byContext.faculdade[0])
+    const theoryBlocks = [
+      'Direito Penal, controle social e conceitos de crime',
+      'Princípios constitucionais penais',
+      'Aplicação da lei penal no tempo',
+      'Aplicação da lei penal no espaço e às pessoas',
+      'Hermenêutica jurídico-penal e conflito aparente de normas',
+      'Teoria do delito: causalismo, finalismo e funcionalismo',
+      'Delito como fato típico e mapa de revisão',
+    ]
+    for (let block = 0; block < Number(resumption.segunda_especial?.faculdade || 0); block += 1) {
+      rows.push(demand({
+        weekStart,
+        day: 0,
+        slot: `retomada-prova-${block + 1}`,
+        target: theoryCrime,
+        title: `Teoria do Crime · ${theoryBlocks[block] || `Revisão orientada ${block + 1}`}`,
+        type: 'estudo',
+        duration: studyBlock,
+        priority: 1,
+      }))
+    }
+    for (let block = 0; block < Number(resumption.segunda_especial?.concurso || 0); block += 1) {
+      const target = nextBacenLesson() || pickSequentiallyDistributed(byContext.concurso, block) || pick(byContext.concurso, block)
+      const lessonLabel = target?.materialName ? `Aula ${target.materialOrder}: ${target.materialName.replace(/\.pdf$/i, '').replace(/^(\s*\d+\.\s*)+/, '').trim()}` : (target?.topic || target?.subject)
+      rows.push(demand({ weekStart, day: 0, slot: `retomada-bacen-${block + 1}`, target, title: `BACEN · ${target?.subject || ''} · ${lessonLabel || ''}`, type: 'estudo', duration: studyBlock, priority: 2 }))
+    }
+
+    for (let day = 2; day < 7; day += 1) {
+      const facultyTarget = subjectOnly(facultyTargetForDay(targets, priorities, day, rotationSeed, policy) || pickDistributed(byContext.faculdade, rotationSeed + day))
+      for (let block = 0; block < Number(resumption.rotina_restante?.faculdade || 0); block += 1) {
+        rows.push(demand({ weekStart, day, slot: `retomada-faculdade-${block + 1}`, target: facultyTarget, title: `Aula dada, aula estudada: ${facultyTarget?.subject || ''}`, type: 'estudo', duration: studyBlock, priority: 2 }))
+      }
+      for (let block = 0; block < Number(resumption.rotina_restante?.concurso || 0); block += 1) {
+        const target = nextBacenLesson() || pickSequentiallyDistributed(byContext.concurso, day * 3 + block) || pick(byContext.concurso, day + block)
+        const lessonLabel = target?.materialName ? `Aula ${target.materialOrder}: ${target.materialName.replace(/\.pdf$/i, '').replace(/^(\s*\d+\.\s*)+/, '').trim()}` : (target?.topic || target?.subject)
+        rows.push(demand({ weekStart, day, slot: `retomada-bacen-${block + 1}`, target, title: `BACEN · ${target?.subject || ''} · ${lessonLabel || ''}`, type: 'estudo', duration: studyBlock, priority: 1 }))
+      }
+    }
+    const orderByDay = new Map()
+    return rows.filter(Boolean).map((item) => {
+      const ordem = orderByDay.get(item.data) || 0
+      orderByDay.set(item.data, ordem + 1)
+      return { ...item, ordem }
+    })
   }
 
   if (isMentorRestartWeek(weekStart, policy)) {
