@@ -1,5 +1,5 @@
 export const DEFAULT_MENTOR_POLICY = Object.freeze({
-  versao: '2026.09.20',
+  versao: '2026.09.21',
   amostra_minima: 10,
   janela_maxima: 60,
   meia_vida_recencia_dias: 21,
@@ -65,7 +65,8 @@ export const DEFAULT_MENTOR_POLICY = Object.freeze({
     zerar_pendencias_anteriores: true,
     bloquear_questoes_e_cards_ate_autorizacao: true,
     segunda_especial: { faculdade: 7, concurso: 2 },
-    terca_pos_prova_sem_demanda: true,
+    dia_prova_sem_faculdade: true,
+    dia_prova_bacen_blocos: 2,
     rotina_restante: { faculdade: 1, concurso: 2 },
     avaliacoes: [
       { data: '2026-09-22', tipo: 'prova', materia: 'Teoria do Crime' },

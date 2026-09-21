@@ -290,6 +290,12 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
       rows.push(demand({ weekStart, day: 0, slot: `retomada-bacen-${block + 1}`, target, title: `BACEN · ${target?.subject || ''} · ${lessonLabel || ''}`, type: 'estudo', duration: studyBlock, priority: 2 }))
     }
 
+    for (let block = 0; block < Number(resumption.dia_prova_bacen_blocos || 0); block += 1) {
+      const target = nextBacenLesson() || pickSequentiallyDistributed(byContext.concurso, block + 2) || pick(byContext.concurso, block + 2)
+      const lessonLabel = target?.materialName ? `Aula ${target.materialOrder}: ${target.materialName.replace(/\.pdf$/i, '').replace(/^(\s*\d+\.\s*)+/, '').trim()}` : (target?.topic || target?.subject)
+      rows.push(demand({ weekStart, day: 1, slot: `retomada-bacen-${block + 1}`, target, title: `BACEN · ${target?.subject || ''} · ${lessonLabel || ''}`, type: 'estudo', duration: studyBlock, priority: 1 }))
+    }
+
     for (let day = 2; day < 7; day += 1) {
       const facultyTarget = subjectOnly(facultyTargetForDay(targets, priorities, day, rotationSeed, policy) || pickDistributed(byContext.faculdade, rotationSeed + day))
       for (let block = 0; block < Number(resumption.rotina_restante?.faculdade || 0); block += 1) {

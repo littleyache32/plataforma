@@ -269,7 +269,7 @@ describe('buildMentorWeek', () => {
     expect(result.filter((item) => item.data === '2026-09-18' && item.objetivo_id === 'bacen')).toHaveLength(3)
   })
 
-  it('retoma em 21 de setembro com preparacao intensiva, descanso pos-prova e rotina gradual', () => {
+  it('retoma em 21 de setembro com preparacao intensiva, BACEN no dia da prova e rotina gradual', () => {
     const facultySubjects = [
       ['pessoas', 'Direito das Pessoas e dos Negócios Jurídicos'],
       ['crime', 'Teoria do Crime'],
@@ -280,7 +280,8 @@ describe('buildMentorWeek', () => {
     const result = buildMentorWeek({ weekStart: '2026-09-21', catalog: expanded, scheduledQuestionReviews: [{ dueDate: '2026-09-21', topicId: 'cont-1', count: 10 }] })
     expect(result.filter((item) => item.data === '2026-09-21' && item.materia_id === 'crime')).toHaveLength(7)
     expect(result.filter((item) => item.data === '2026-09-21' && item.objetivo_id === 'bacen')).toHaveLength(2)
-    expect(result.filter((item) => item.data === '2026-09-22')).toHaveLength(0)
+    expect(result.filter((item) => item.data === '2026-09-22' && item.objetivo_id === 'facul')).toHaveLength(0)
+    expect(result.filter((item) => item.data === '2026-09-22' && item.objetivo_id === 'bacen')).toHaveLength(2)
     expect(result.some((item) => ['exercicio', 'especial', 'revisao'].includes(item.tipo))).toBe(false)
     expect(result.filter((item) => item.data === '2026-09-26')).toHaveLength(3)
     expect(result.filter((item) => item.data === '2026-09-27')).toHaveLength(3)
