@@ -13,4 +13,13 @@ describe('experiencia pessoal sem modo administrador', () => {
     const week = readFileSync('src/components/Week.jsx', 'utf8')
     expect(week).not.toMatch(/FocusTimer/)
   })
+
+  it('permite apagar uma demanda com confirmacao sem apagar tempo registrado', () => {
+    const week = readFileSync('src/components/Week.jsx', 'utf8')
+    const handler = readFileSync('api/_lib/sessoes-handler.js', 'utf8')
+    expect(week).toMatch(/Apagar demanda/)
+    expect(week).toMatch(/window\.confirm/)
+    expect(handler).toMatch(/\['GET', 'POST', 'PATCH', 'DELETE'\]/)
+    expect(handler).toMatch(/status: 'cancelada'/)
+  })
 })

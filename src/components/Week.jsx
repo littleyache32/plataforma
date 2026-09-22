@@ -117,6 +117,18 @@ export default function Week({ catalog, target, onTargetApplied, onOpenQuestions
     }
   }
 
+  async function deleteDemand() {
+    if (!selected || !window.confirm('Apagar esta demanda da semana? O tempo de estudo registrado não será apagado.')) return
+    try {
+      await api(`/api/sessoes?id=${encodeURIComponent(selected.id)}`, { method: 'DELETE' })
+      setSessions((items) => items.filter((item) => item.id !== selected.id))
+      setSelected(null)
+      setMessage('Demanda apagada da semana.')
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
 
   const days = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(`${range.start}T12:00:00`)
@@ -141,7 +153,7 @@ export default function Week({ catalog, target, onTargetApplied, onOpenQuestions
       {message && <p className="alert error">{message}</p>}
       <div className="week-grid mentor-week-grid">{days.map((day) => <article key={day.iso} className={`day-column demand-day ${day.iso === range.today ? 'today' : ''}`} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }} onDrop={(event) => reorderDemand(day.iso, null, event)}><header><div><span>{day.label}</span><b>{day.number}</b>{day.iso === range.today && <small>Hoje</small>}</div><em>{day.demands.length} demandas</em></header><div>{day.demands.map((item) => <article className={`demand-card ${item.objetivo?.tipo || ''} ${typeClasses[item.tipo] || 'estudo'} ${item.status === 'feita' ? 'feita' : ''}`} key={item.id} draggable onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }} onDrop={(event) => reorderDemand(day.iso, item.id, event)} onClick={() => { if (draggedRecently.current) { draggedRecently.current = false; return }; setSelected(item) }} onDragStart={(event) => { draggedRecently.current = true; setDraggingId(item.id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', item.id) }} onDragEnd={() => setDraggingId('')}><div className="demand-card-top"><span>{item.objetivo?.tipo === 'faculdade' ? 'Faculdade' : 'BACEN'}</span><i>{typeLabels[item.tipo] || 'Estudo'}</i></div><b>{item.titulo}</b><p>{item.materia?.nome || 'Matéria a definir'}</p>{item.topico?.nome && <small>{item.topico.nome}</small>}<footer><span>{minutesLabel(item.duracao_estimada)}</span><span className={`priority p${item.prioridade || 2}`}>{priorities[item.prioridade || 2]}</span></footer></article>)}{!day.demands.length && <p className="day-empty">Solte uma demanda aqui.</p>}</div></article>)}</div>
       <footer className="week-footnote"><span>{subjectCount} disciplinas conectadas</span><span>O mentor distribui estudo, revisão, exercício e atividades especiais conforme a fase e as evidências disponíveis.</span></footer>
-      {selected && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null) }}><div className="modal panel" role="dialog" aria-modal="true" aria-labelledby="demand-title"><span className="eyebrow">DEMANDA DA SEMANA</span><h2 id="demand-title">{selected.titulo}</h2><p>{selected.materia?.nome}{selected.topico?.nome ? ` · ${selected.topico.nome}` : ''}</p><div className="modal-actions"><button className="secondary" onClick={() => { setSelected(null); onOpenQuestions(selected) }}>Resolver questões</button><button className="secondary" onClick={() => { setSelected(null); onOpenCards(selected) }}>Estudar com Question Cards</button><button className={selected.status === 'feita' ? 'secondary' : 'primary'} onClick={toggleDemand}>{selected.status === 'feita' ? 'Desmarcar conclusão' : 'Marcar como concluída'}</button></div></div></div>}
+      {selected && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null) }}><div className="modal panel" role="dialog" aria-modal="true" aria-labelledby="demand-title"><span className="eyebrow">DEMANDA DA SEMANA</span><h2 id="demand-title">{selected.titulo}</h2><p>{selected.materia?.nome}{selected.topico?.nome ? ` · ${selected.topico.nome}` : ''}</p><div className="modal-actions"><button className="secondary" onClick={() => { setSelected(null); onOpenQuestions(selected) }}>Resolver questões</button><button className="secondary" onClick={() => { setSelected(null); onOpenCards(selected) }}>Estudar com Question Cards</button><button className={selected.status === 'feita' ? 'secondary' : 'primary'} onClick={toggleDemand}>{selected.status === 'feita' ? 'Desmarcar conclusão' : 'Marcar como concluída'}</button><button className="ghost danger" onClick={deleteDemand}>Apagar demanda</button></div></div></div>}
     </section>
   )
 }

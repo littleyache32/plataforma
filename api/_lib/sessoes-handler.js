@@ -4,29 +4,37 @@ import planHandler from './plano-handler.js'
 
 export default async function handler(req, res) {
   if (queryParam(req, 'recurso') === 'plano') return planHandler(req, res)
-  if (!allowMethods(req, res, ['GET', 'POST', 'PATCH']) || !requireAccess(req, res)) return
+  if (!allowMethods(req, res, ['GET', 'POST', 'PATCH', 'DELETE']) || !requireAccess(req, res)) return
   const supabase = getSupabaseAdmin()
   try {
     if (req.method === 'GET') {
       if (queryParam(req, 'recurso') === 'proxima') {
         const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
-        const next = await supabase.from('sessao').select('id,titulo,tipo,data,duracao_estimada,prioridade,objetivo:objetivo_id(id,nome,tipo),materia:materia_id(id,nome),topico:topico_id(id,nome)').neq('status','feita').lte('data', today).order('data').order('prioridade').order('ordem').limit(1).maybeSingle()
+        const next = await supabase.from('sessao').select('id,titulo,tipo,data,duracao_estimada,prioridade,objetivo:objetivo_id(id,nome,tipo),materia:materia_id(id,nome),topico:topico_id(id,nome)').neq('status','feita').neq('status','cancelada').lte('data', today).order('data').order('prioridade').order('ordem').limit(1).maybeSingle()
         if (next.error) throw next.error
         if (next.data) return res.status(200).json({ demanda: next.data })
-        const future = await supabase.from('sessao').select('id,titulo,tipo,data,duracao_estimada,prioridade,objetivo:objetivo_id(id,nome,tipo),materia:materia_id(id,nome),topico:topico_id(id,nome)').neq('status','feita').gt('data', today).order('data').order('prioridade').order('ordem').limit(1).maybeSingle()
+        const future = await supabase.from('sessao').select('id,titulo,tipo,data,duracao_estimada,prioridade,objetivo:objetivo_id(id,nome,tipo),materia:materia_id(id,nome),topico:topico_id(id,nome)').neq('status','feita').neq('status','cancelada').gt('data', today).order('data').order('prioridade').order('ordem').limit(1).maybeSingle()
         if (future.error) throw future.error
         return res.status(200).json({ demanda: future.data || null })
       }
       const inicio = queryParam(req, 'inicio')
       const fim = queryParam(req, 'fim')
       const objetivoId = queryParam(req, 'objetivoId')
-      let query = supabase.from('sessao').select('id,titulo,tipo,data,data_planejada_original,duracao_estimada,duracao_realizada,status,concluida_em,prioridade,ordem,ordenada_em,movida_em,movida_pelo_mentor_em,origem,objetivo:objetivo_id(id,nome,tipo),materia:materia_id(id,nome),topico:topico_id(id,nome)').order('data').order('ordem').order('prioridade')
+      let query = supabase.from('sessao').select('id,titulo,tipo,data,data_planejada_original,duracao_estimada,duracao_realizada,status,concluida_em,prioridade,ordem,ordenada_em,movida_em,movida_pelo_mentor_em,origem,objetivo:objetivo_id(id,nome,tipo),materia:materia_id(id,nome),topico:topico_id(id,nome)').neq('status', 'cancelada').order('data').order('ordem').order('prioridade')
       if (inicio) query = query.gte('data', inicio)
       if (fim) query = query.lte('data', fim)
       if (objetivoId) query = query.eq('objetivo_id', objetivoId)
       const { data, error } = await query
       if (error) throw error
       return res.status(200).json({ sessoes: data })
+    }
+    if (req.method === 'DELETE') {
+      const id = queryParam(req, 'id') || req.body?.id
+      if (!id) return res.status(400).json({ error: 'Demanda obrigatoria.' })
+      const { data, error } = await supabase.from('sessao').update({ status: 'cancelada', concluida_em: null, duracao_realizada: null }).eq('id', id).select('id').maybeSingle()
+      if (error) throw error
+      if (!data) return res.status(404).json({ error: 'Demanda nao encontrada.' })
+      return res.status(200).json({ ok: true })
     }
     if (req.method === 'PATCH') {
       const { id, status, data, duracaoRealizada, orderedIds } = req.body || {}

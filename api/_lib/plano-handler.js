@@ -31,7 +31,7 @@ function adherenceHistory(sessions, timers, weekStart) {
   return [-14, -7].map((offset) => {
     const inicio = addDays(weekStart, offset)
     const fim = addDays(inicio, 6)
-    const week = sessions.filter((item) => item.data_planejada_original >= inicio && item.data_planejada_original <= fim)
+    const week = sessions.filter((item) => item.status !== 'cancelada' && item.data_planejada_original >= inicio && item.data_planejada_original <= fim)
     const concludedByEnd = (item) => item.status === 'feita' && item.concluida_em && brazilDate(item.concluida_em) <= fim
     const completed = week.filter(concludedByEnd)
     const weekdays = week.filter((item) => {
@@ -173,11 +173,14 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
   const studiedTopicIds = [...new Set((studiedTopicsResult.data || []).map((item) => item.topico_id))]
   const studyUnits = (materialsResult.data || []).map((item) => ({ id: item.id, objectiveId: item.objetivo_id, context: item.objetivo?.tipo, subjectId: item.materia_id, subject: item.materia?.nome, name: item.nome || 'Material', order: item.ordem_estudo || 9999 }))
   const completedMaterialIds = (completedMaterialsResult.data || []).map((item) => item.material_id)
-  const demands = buildMentorWeek({ weekStart: inicio, catalog: mentorCatalog, priorities, pendingReviews: reviewResult.count || 0, scheduledQuestionReviews, commitments: commitmentsResult.data || [], adherenceHistory: history, studiedTopicIds, studyUnits, completedMaterialIds, weeklyMeeting: meetingResult.data, policy })
-  if (!demands.length) return { status: 200, body: { criadas: 0, motivo: 'Nenhuma disciplina disponivel.' } }
+  const proposedDemands = buildMentorWeek({ weekStart: inicio, catalog: mentorCatalog, priorities, pendingReviews: reviewResult.count || 0, scheduledQuestionReviews, commitments: commitmentsResult.data || [], adherenceHistory: history, studiedTopicIds, studyUnits, completedMaterialIds, weeklyMeeting: meetingResult.data, policy })
+  if (!proposedDemands.length) return { status: 200, body: { criadas: 0, motivo: 'Nenhuma disciplina disponivel.' } }
+  const existingByKey = new Map((existingResult.data || []).map((item) => [item.chave_mentor, item]))
+  const cancelledKeys = new Set((existingResult.data || []).filter((item) => item.status === 'cancelada').map((item) => item.chave_mentor).filter(Boolean))
+  const demands = proposedDemands.filter((item) => !cancelledKeys.has(item.chave_mentor))
+  if (!demands.length) return { status: 200, body: { criadas: 0, total_planejado: 0, motivo: 'Todas as demandas desta semana foram apagadas.' } }
   const validation = validateMentorPlan(demands)
   if (!validation.valid) throw new Error(`Planejamento incoerente bloqueado: ${validation.reason}.`)
-  const existingByKey = new Map((existingResult.data || []).map((item) => [item.chave_mentor, item]))
   const recalibrated = demands.map((item) => {
     const previous = existingByKey.get(item.chave_mentor)
     if (!previous) return item
