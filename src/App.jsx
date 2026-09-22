@@ -6,6 +6,7 @@ import Week from './components/Week.jsx'
 import MentorWidget from './components/MentorWidget.jsx'
 
 const Questions = lazy(() => import('./components/Questions.jsx'))
+const Home = lazy(() => import('./components/Home.jsx'))
 const DiscursiveQuestions = lazy(() => import('./components/DiscursiveQuestions.jsx'))
 const Simulations = lazy(() => import('./components/Simulations.jsx'))
 const Performance = lazy(() => import('./components/Performance.jsx'))
@@ -16,7 +17,7 @@ const ReviewCenter = lazy(() => import('./components/ReviewCenter.jsx'))
 export default function App() {
   const [status, setStatus] = useState('loading')
   const [cadastroDisponivel, setCadastroDisponivel] = useState(false)
-  const [area, setArea] = useState('semana')
+  const [area, setArea] = useState('inicio')
   const [catalog, setCatalog] = useState([])
   const [objectiveId, setObjectiveId] = useState('')
   const [context, setContext] = useState('concurso')
@@ -88,8 +89,9 @@ export default function App() {
 
   return (
     <Layout area={area} onAreaChange={setArea} catalog={contextCatalog} objectiveId={objective?.id || ''} onObjectiveChange={setObjectiveId} context={context} onContextChange={changeContext} onLogout={logout}>
-      {area === 'semana' && <Week catalog={catalog} target={weekTarget} onTargetApplied={() => setWeekTarget(null)} onOpenQuestions={(item) => openDemand(item, 'questoes')} onOpenCards={(item) => openDemand(item, 'cards')} />}
       <Suspense fallback={<div className="module-loading">Carregando módulo...</div>}>
+      {area === 'inicio' && <Home onNavigate={setArea} />}
+      {area === 'semana' && <Week catalog={catalog} target={weekTarget} onTargetApplied={() => setWeekTarget(null)} onOpenQuestions={(item) => openDemand(item, 'questoes')} onOpenCards={(item) => openDemand(item, 'cards')} />}
       {area === 'tempo' && <StudyTime catalog={catalog} />}
       {area === 'revisoes' && <ReviewCenter objective={objective} onOpenQuestion={openReviewItem} onOpenCards={(item) => { setStudyTarget({ objectiveId: objective?.id, subjectId: item.materia_id || '', topicId: item.topico_id || '' }); setArea('cards') }} />}
       {area === 'questoes' && <Questions {...common} target={studyTarget?.objectiveId === objective?.id ? studyTarget : null} onTargetApplied={() => setStudyTarget(null)} reviewQuestionId={reviewQuestionId} onReviewLoaded={() => setReviewQuestionId('')} />}

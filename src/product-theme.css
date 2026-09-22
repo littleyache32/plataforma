@@ -231,3 +231,45 @@ input:focus, select:focus, textarea:focus { border-color: var(--teal); outline: 
 @media (prefers-reduced-motion: reduce) {
   *, *:before, *:after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
+
+/* Painel inicial com dados reais de estudo e planejamento. */
+.home-page { display: grid; gap: 18px; }
+.home-title { align-items: center; margin-bottom: 2px; }
+.home-title h1 { font-size: clamp(32px, 3.5vw, 48px); }
+.home-title .primary { flex: 0 0 auto; }
+.home-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.home-metric { display: grid; align-content: space-between; gap: 8px; min-height: 143px; padding: 21px; }
+.home-metric > span { color: var(--teal-deep); font-size: 10px; font-weight: 850; letter-spacing: .11em; }
+.home-metric strong { color: var(--ink); font-size: clamp(24px, 2.5vw, 34px); line-height: 1; letter-spacing: -.05em; }
+.home-metric small { color: var(--muted); font-size: 11px; }
+.home-main-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 14px; }
+.home-panel { min-width: 0; padding: 23px; }
+.home-panel-head { display: flex; justify-content: space-between; align-items: start; gap: 12px; margin-bottom: 20px; }
+.home-panel-head h2 { margin: 4px 0 0; font-size: 21px; }
+.home-panel-head .secondary { white-space: nowrap; }
+.home-week-chart { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; height: 210px; }
+.home-week-day { display: grid; grid-template-rows: minmax(90px, 1fr) auto auto; justify-items: center; align-items: end; gap: 7px; min-width: 0; }
+.home-week-bar-track { position: relative; width: 100%; height: 100%; border-radius: 8px; background: #f2f7f5; overflow: hidden; }
+.home-week-bar-track i { position: absolute; right: 0; bottom: 0; left: 0; border-radius: 8px 8px 0 0; background: var(--teal); }
+.home-week-day b { color: var(--ink); font-size: 10px; white-space: nowrap; }
+.home-week-day span { color: var(--muted); font-size: 10px; text-transform: capitalize; }
+.home-demand-list { display: grid; gap: 0; }
+.home-demand-list > div { display: flex; gap: 12px; min-width: 0; padding: 13px 0; border-top: 1px solid var(--line); }
+.home-demand-list > div:first-child { border-top: 0; }
+.home-demand-list > div > div { display: grid; gap: 4px; min-width: 0; }
+.home-demand-list small { color: var(--muted); font-size: 10px; }
+.home-demand-list b { overflow: hidden; color: var(--ink); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.home-demand-list span:not(.home-demand-dot) { color: var(--muted); font-size: 11px; }
+.home-demand-dot { flex: 0 0 9px; width: 9px; height: 9px; margin-top: 5px; border-radius: 50%; background: var(--teal); }
+.home-demand-dot.faculdade { background: var(--purple); }
+.home-subject-list { display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px; }
+.home-subject-list > div { display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-width: 0; padding: 11px 0; border-top: 1px solid var(--line); }
+.home-subject-list i { width: 9px; height: 9px; border-radius: 50%; }
+.home-subject-list span { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.home-subject-list b { font-size: 12px; white-space: nowrap; }
+.home-empty { margin: 0; padding: 12px 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.home-data-note { margin: 0; color: var(--muted); font-size: 11px; }
+.home-loading { padding: 28px; color: var(--muted); }
+@media (max-width: 1100px) { .home-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .home-main-grid { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .home-title { display: grid; gap: 13px; } .home-title .primary { width: max-content; } .home-panel { padding: 18px; } .home-subject-list { grid-template-columns: 1fr; } }
+@media (max-width: 430px) { .home-metrics { gap: 9px; } .home-metric { min-height: 124px; padding: 15px; } .home-metric strong { font-size: 23px; } .home-panel-head { display: grid; } .home-week-chart { gap: 5px; height: 180px; } .home-week-day b { font-size: 8px; } }
