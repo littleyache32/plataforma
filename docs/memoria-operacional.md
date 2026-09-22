@@ -28,7 +28,7 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 - As legendas permitidas na Semana são Estudo, Revisão, Exercício e Especial. Não criar a legenda Todas.
 - Não usar emojis como ícones. Usar SVGs consistentes.
 - A navegação móvel e de tablet usa barra lateral expansível e recolhível, sem navegação fixa no rodapé.
-- A linguagem visual é clara e inspirada em desenho manual: fundo de papel muito discreto, contornos levemente irregulares, bastante espaço em branco e cores reservadas para contexto, estado e ação. Textos longos permanecem em fonte neutra para preservar legibilidade.
+- A linguagem visual vigente usa como referência a clareza operacional do Estudei: fundo claro, cartões limpos e arredondados, navegação objetiva, verde-água como ação principal e roxo como apoio. A marca, os textos e os componentes continuam próprios. Não copiar ranking, pagamentos, biblioteca comercial ou funções multiusuário.
 - A área de Questões apresenta disciplinas e tópicos em um catálogo hierárquico expansível. A disciplina continua inicialmente vazia. Selecionar uma disciplina abre a primeira questão de todos os seus tópicos; selecionar um tópico troca imediatamente para a primeira questão dele.
 - Os números exibidos ao lado de disciplinas e tópicos representam contagens reais de itens ativos daquela área. Não usar numeração meramente ordinal nesses locais.
 - O timer de Questões e Question Cards é opcional e o campo de duração aceita vazio ou zero. Sem alvo, a contagem é progressiva. Com alvo, a contagem é regressiva até zero e continua como excedente positivo até o usuário encerrar. O conteúdo pode ser respondido sem iniciar o timer.
@@ -143,6 +143,8 @@ Este arquivo é a memória de execução do projeto. Deve ser lido antes de toda
 7. Tratar a cota do Gemini como bloqueio externo, sem inserção parcial ou substituição por conteúdo artificial.
 
 ## Histórico de aprendizado
+
+- 2026-09-22, nova direção visual: a experiência sketch/editorial foi substituída pela referência funcional do Estudei. Os módulos existentes passam a ser apresentados como Meu plano, Cronômetro, Revisões, Questões, Question Cards, Simulados e Estatísticas, sem alterar o motor de dados. O quadro semanal deve manter cartões legíveis e uma coluna quase inteira por vez no celular. O endereço exato `plataforma.vercel.app` já pertence a outro aplicativo e não pode ser atribuído a este projeto.
 
 - 2026-08-17, mentor science-based adaptativo: o usuário definiu que o mentor toma decisões a partir de evidência científica, dados individuais e contexto real. A política passa a distinguir aplicação em questão inédita de retenção em reteste espaçado, reduzir o valor diagnóstico da Eliminação, manter prioridade para erro com Certeza e bloquear mudanças estruturais por evento isolado. O bloco 50/10 e todos os percentuais permanecem preferências ou parâmetros operacionais calibráveis. Releitura, resumo e videoaula exigem diagnóstico prévio da dificuldade.
 - 2026-08-17, correção da recuperação acadêmica: o usuário esclareceu que não estudou as matérias da Faculdade desde a primeira semana. Os dois blocos acadêmicos devem recuperar o conteúdo atrasado desde a primeira aula, seguindo a ordem da própria disciplina, até que o encontro semanal registre `faculdade_em_dia`. Durante a recuperação, não selecionar tópico acadêmico aleatório. Depois, retornar a um bloco no regime aula dada, aula estudada.
