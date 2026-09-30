@@ -1,12 +1,58 @@
 import { describe, expect, it } from 'vitest'
-import { adherenceAdjustment, buildMentorWeek, canGenerateMentorWeek, planOverdueMoves, practiceEligibility, validateMentorPlan, weeklyLoadProfile } from '../shared/planner.js'
+import { adherenceAdjustment, buildMentorWeek, canGenerateMentorWeek, currentPhaseCarryover, planOverdueMoves, practiceEligibility, validateMentorPlan, weeklyLoadProfile } from '../shared/planner.js'
 
 const catalog = [
   { id: 'bacen', tipo: 'concurso', materias: [{ id: 'cont', nome: 'Contabilidade', topicos: [{ id: 'cont-1', nome: 'Balanço' }] }] },
   { id: 'facul', tipo: 'faculdade', materias: [{ id: 'civil', nome: 'Direito Civil', topicos: [{ id: 'civil-1', nome: 'Pessoas' }] }] },
 ]
 
+const currentContext = {
+  fase: 'construcao_habito_base_teorica', vigente_desde: '2026-09-24', semana_inicio: '2026-09-28',
+  carga_atual: { blocos_dia: 3, concurso: 2, faculdade: 1, minutos_bloco: 50 },
+}
+
 describe('buildMentorWeek', () => {
+  it('nao transporta pendencias anteriores ao contexto atual para a nova semana', () => {
+    const prior = { id: 'anterior', data: '2026-09-21', status: 'planejada', duracao_estimada: 50 }
+    const current = { id: 'atual', data: '2026-09-28', status: 'planejada', duracao_estimada: 50 }
+    expect(currentPhaseCarryover([prior, current], currentContext)).toEqual([current])
+    expect(currentPhaseCarryover([prior, current], null)).toEqual([prior, current])
+  })
+  it('usa o contexto atual: um bloco de Faculdade e dois de concurso todos os dias, sem pratica', () => {
+    const result = buildMentorWeek({ weekStart: '2026-09-28', catalog, menteeContext: currentContext })
+    for (let day = 28; day <= 30; day += 1) {
+      const date = `2026-09-${day}`
+      expect(result.filter((item) => item.data === date && item.objetivo_id === 'facul')).toHaveLength(1)
+      expect(result.filter((item) => item.data === date && item.objetivo_id === 'bacen')).toHaveLength(2)
+    }
+    for (let day = 1; day <= 4; day += 1) {
+      const date = `2026-10-0${day}`
+      expect(result.filter((item) => item.data === date && item.objetivo_id === 'facul')).toHaveLength(1)
+      expect(result.filter((item) => item.data === date && item.objetivo_id === 'bacen')).toHaveLength(2)
+    }
+    expect(result.every((item) => item.tipo === 'estudo')).toBe(true)
+  })
+
+  it('mantem as quatro materias da Faculdade no ciclo de segunda a quinta', () => {
+    const names = ['Direito das Pessoas e dos Negócios Jurídicos', 'Teoria do Crime', 'Teoria da Justiça', 'Teoria da Constituição e Direitos Fundamentais']
+    const fullCatalog = [catalog[0], { id: 'facul', tipo: 'faculdade', materias: names.map((nome, index) => ({ id: `f${index}`, nome, topicos: [{ id: `t${index}`, nome: 'Introdução' }] })) }]
+    const result = buildMentorWeek({ weekStart: '2026-09-28', catalog: fullCatalog, menteeContext: currentContext })
+    expect(result.filter((item) => item.objetivo_id === 'facul' && item.data <= '2026-10-01').map((item) => item.materia_id)).toEqual(['f0', 'f1', 'f2', 'f3'])
+  })
+
+  it('nao herda carga das semanas excepcionais para a fase atual', () => {
+    const history = [{ inicio: '2026-09-21', planejadas: 20, concluidas: 20, media_segunda_sexta: 450, media_real_segunda_sexta: 500 }]
+    expect(weeklyLoadProfile('2026-09-28', history, {}, null, currentContext)).toMatchObject({ segunda_sexta: 150, sabado: 150, domingo: 150, nivel: 'manter' })
+  })
+
+  it('oferece o primeiro bloco adicional ao concurso apenas apos duas semanas constantes', () => {
+    const history = ['2026-09-28', '2026-10-05'].map((inicio) => ({ inicio, planejadas: 21, concluidas: 19, minutos_planejados: 1050, minutos_concluidos: 950, pendencias: 2 }))
+    expect(weeklyLoadProfile('2026-10-12', history, {}, null, currentContext)).toMatchObject({ segunda_sexta: 200, sabado: 200, domingo: 200, nivel: 'aumentar' })
+    const result = buildMentorWeek({ weekStart: '2026-10-12', catalog, adherenceHistory: history, menteeContext: currentContext })
+    expect(result.filter((item) => item.data === '2026-10-12' && item.objetivo_id === 'facul')).toHaveLength(1)
+    expect(result.filter((item) => item.data === '2026-10-12' && item.objetivo_id === 'bacen')).toHaveLength(3)
+    expect(result.every((item) => item.tipo === 'estudo')).toBe(true)
+  })
   it('inicia com dois blocos de Faculdade e dois de BACEN nos dias uteis, sem pratica', () => {
     const result = buildMentorWeek({ weekStart: '2026-08-17', catalog, pendingReviews: 3 })
     expect(result).toHaveLength(26)
@@ -125,9 +171,20 @@ describe('buildMentorWeek', () => {
     const exam = result.find((item) => item.chave_mentor.endsWith('compromisso:prova-1'))
     const preparation = result.find((item) => item.chave_mentor.endsWith('preparo:prova-1'))
     expect(exam).toMatchObject({ data: '2026-08-20', tipo: 'prova', duracao_estimada: 120, prioridade: 1 })
-    expect(preparation).toMatchObject({ data: '2026-08-18', tipo: 'estudo', duracao_estimada: 100, materia_id: 'civil' })
+    expect(preparation).toMatchObject({ data: '2026-08-18', tipo: 'estudo', duracao_estimada: 90, materia_id: 'civil' })
+    expect(result.filter((item) => !['prova', 'simulado'].includes(item.tipo)).every((item) => item.duracao_estimada <= 90)).toBe(true)
     const bacenOnPreparationDay = result.filter((item) => item.data === '2026-08-18' && item.objetivo_id === 'bacen')
     expect(bacenOnPreparationDay).toHaveLength(2)
+  })
+
+  it('na semana de 05/10 limita a preparacao academica comum a 90 minutos', () => {
+    const result = buildMentorWeek({
+      weekStart: '2026-10-05',
+      catalog,
+      commitments: [{ id: 'prova-outubro', objetivo_id: 'facul', materia_id: 'civil', titulo: 'Prova de Direito Civil', tipo: 'prova', data: '2026-10-14', peso: 5, duracao_minutos: 120, concluido: false }],
+    })
+    expect(result.find((item) => item.chave_mentor.endsWith('preparo:prova-outubro'))).toMatchObject({ tipo: 'estudo', duracao_estimada: 90 })
+    expect(result.filter((item) => !['prova', 'simulado'].includes(item.tipo)).every((item) => item.duracao_estimada <= 90)).toBe(true)
   })
 
   it('prepara compromisso pelo topico explicitamente vinculado', () => {

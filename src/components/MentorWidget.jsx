@@ -16,10 +16,9 @@ const meetingSignals = [
   ['dificuldade_revisao', 'Dificuldade com revisão'],
   ['problema_material', 'Problema no material'],
   ['estrategia_funcionou', 'Estratégia funcionou'],
-  ['prioridade_percebida', 'Prioridade para a próxima semana'],
 ]
 
-const facultyStatus = (classifications = []) => classifications.includes('faculdade_em_dia') ? 'em_dia' : 'atrasada'
+const facultyStatus = (classifications = []) => classifications.includes('faculdade_em_dia') ? 'em_dia' : classifications.includes('faculdade_atrasada') ? 'atrasada' : 'nao_informado'
 
 export default function MentorWidget({ objectiveId, onOpenQuestions, onOpenCards }) {
   const [open, setOpen] = useState(false)
@@ -28,7 +27,7 @@ export default function MentorWidget({ objectiveId, onOpenQuestions, onOpenCards
   const [loadedFor, setLoadedFor] = useState('')
   const [activePanel, setActivePanel] = useState('resumo')
   const [meetingMessage, setMeetingMessage] = useState('')
-  const [meeting, setMeeting] = useState({ cargaPercebida: 'adequada', observacoes: '', classificacoes: [] })
+  const [meeting, setMeeting] = useState({ cargaPercebida: '', observacoes: '', classificacoes: [] })
 
   useEffect(() => {
     if (!open || !objectiveId || loadedFor === objectiveId) return
@@ -49,7 +48,7 @@ export default function MentorWidget({ objectiveId, onOpenQuestions, onOpenCards
   useEffect(() => {
     const saved = mentor?.encontro_semanal
     if (!saved) return
-    setMeeting({ cargaPercebida: saved.carga_percebida, observacoes: saved.observacoes || '', classificacoes: saved.classificacoes || [] })
+    setMeeting({ cargaPercebida: saved.carga_percebida || '', observacoes: saved.observacoes || '', classificacoes: saved.classificacoes || [] })
   }, [mentor?.encontro_semanal])
 
   async function saveMeeting(event) {
@@ -67,7 +66,7 @@ export default function MentorWidget({ objectiveId, onOpenQuestions, onOpenCards
   function setFacultyStatus(status) {
     setMeeting((current) => ({
       ...current,
-      classificacoes: [...current.classificacoes.filter((item) => !['faculdade_atrasada', 'faculdade_em_dia'].includes(item)), status === 'em_dia' ? 'faculdade_em_dia' : 'faculdade_atrasada'],
+      classificacoes: [...current.classificacoes.filter((item) => !['faculdade_atrasada', 'faculdade_em_dia'].includes(item)), ...(status === 'em_dia' ? ['faculdade_em_dia'] : status === 'atrasada' ? ['faculdade_atrasada'] : [])],
     }))
   }
 
@@ -125,11 +124,11 @@ export default function MentorWidget({ objectiveId, onOpenQuestions, onOpenCards
         </div>}
 
         {activePanel === 'encontro' && <form className="mentor-weekly-meeting" onSubmit={saveMeeting}>
-          <div><h3>Encontro semanal</h3><p>Registre as questões da semana. Sono, energia e humor não entram no cálculo do mentor.</p></div>
-          <label>Como ficou a carga planejada?<select value={meeting.cargaPercebida} onChange={(event) => setMeeting((current) => ({ ...current, cargaPercebida: event.target.value }))}><option value="leve">Leve</option><option value="adequada">Adequada</option><option value="pesada">Pesada</option></select></label>
-          <label>A Faculdade está em dia?<select value={facultyStatus(meeting.classificacoes)} onChange={(event) => setFacultyStatus(event.target.value)}><option value="atrasada">Ainda preciso recuperar conteúdo</option><option value="em_dia">Sim, estou em dia</option></select></label>
+          <div><h3>Encontro semanal</h3><p>Informe fatos da semana. O Mentor decide prioridades, estratégia e carga seguinte.</p></div>
+          <label>Como ficou a carga planejada? <small>Opcional</small><select value={meeting.cargaPercebida} onChange={(event) => setMeeting((current) => ({ ...current, cargaPercebida: event.target.value }))}><option value="">Não informado</option><option value="leve">Leve</option><option value="adequada">Adequada</option><option value="pesada">Pesada</option></select></label>
+          <label>A Faculdade está em dia? <small>Opcional</small><select value={facultyStatus(meeting.classificacoes)} onChange={(event) => setFacultyStatus(event.target.value)}><option value="nao_informado">Não informado</option><option value="atrasada">Ainda preciso recuperar conteúdo</option><option value="em_dia">Sim, estou em dia</option></select></label>
           <fieldset className="mentor-meeting-signals"><legend>O que marcou a semana? <small>Opcional</small></legend>{meetingSignals.map(([id, label]) => <label key={id}><input type="checkbox" checked={meeting.classificacoes.includes(id)} onChange={() => setMeeting((current) => ({ ...current, classificacoes: current.classificacoes.includes(id) ? current.classificacoes.filter((item) => item !== id) : [...current.classificacoes, id] }))}/><span>{label}</span></label>)}</fieldset>
-          <label>Questões da semana<textarea rows="4" maxLength="1200" value={meeting.observacoes} onChange={(event) => setMeeting((current) => ({ ...current, observacoes: event.target.value }))} placeholder="O que funcionou, quais dificuldades surgiram e o que precisa de atenção?"/></label>
+          <label>Dificuldades, material ou exceções<textarea rows="4" maxLength="1200" value={meeting.observacoes} onChange={(event) => setMeeting((current) => ({ ...current, observacoes: event.target.value }))} placeholder="O que a plataforma não consegue saber sozinha?"/></label>
           <button className="primary" type="submit">Registrar encontro</button>{meetingMessage && <small>{meetingMessage}</small>}
         </form>}
       </>}

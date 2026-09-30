@@ -1,6 +1,9 @@
 import { resolveMentorPolicy } from './mentor-policy.js'
 
-export function mentorPhase(date = new Date().toISOString().slice(0, 10)) {
+export function mentorPhase(date = new Date().toISOString().slice(0, 10), context = null) {
+  if (context?.fase === 'construcao_habito_base_teorica' && date >= context.vigente_desde) {
+    return { id: 'construcao_base', titulo: 'Construção de hábito e base teórica', descricao: 'O Mentor organiza dois blocos de concurso e um de Faculdade por dia. Questões, Question Cards e revisões ainda não integram a rotina.' }
+  }
   if (date < '2026-08-17') {
     return { id: 'aguardando_inicio', titulo: 'Preparação para o início', descricao: 'A mentoria começa em 17 de agosto. Nenhuma carga anterior será criada.' }
   }
@@ -47,7 +50,7 @@ export function calculateTopicDiagnosis(records, customPolicy = {}) {
   const unseenCount = evidenceAnnotated ? ordered.filter((record) => record.inedita).length : ordered.length
   const delayedCount = ordered.filter((record) => record.reteste_espacado).length
   const retentionMinimum = policy.evidencia_individual?.retestes_espacados_minimos || 2
-  const retentionConfirmed = !evidenceAnnotated || delayedCount >= retentionMinimum
+  const retentionConfirmed = evidenceAnnotated && delayedCount >= retentionMinimum
 
   if (ordered.length < policy.amostra_minima) {
     return { status: 'coletando_dados', amostra: ordered.length, faltam: policy.amostra_minima - ordered.length, questoes_ineditas_avaliadas: unseenCount, retestes_espacados: delayedCount, retencao_confirmada: retentionConfirmed, versao_politica: policy.versao }
@@ -85,7 +88,7 @@ export function calculateTopicDiagnosis(records, customPolicy = {}) {
   const gravity = falseCertainty * 2.5 + (1 - mastery) * 1.2 + errorRate * 0.3 + uncertainty * 0.4
 
   return {
-    status: needsPriority ? 'prioridade' : !retentionConfirmed ? 'coletando_retencao' : improving ? 'melhorando' : 'estavel',
+    status: needsPriority ? 'prioridade' : improving ? 'melhorando' : !retentionConfirmed ? 'coletando_retencao' : 'estavel',
     amostra: ordered.length,
     dominio: Math.round(mastery * 100),
     falsa_certeza: Math.round(falseCertainty * 100),
@@ -172,7 +175,7 @@ export function calculateStudyEfficiency(timers = [], diagnosis = {}, cardRetent
 export function topicSignals({ diagnosis, cardRetention = {}, studyEfficiency = {}, totalQuestions = 0, unusedQuestions = 0, dueCards = 0, dueQuestions = 0, lastSeenAt = null, averageSeconds = 0, overdue = 0, subjectWeight = 1, incidence = 0, commitmentWeight = 0, customPolicy = {} }) {
   const policy = resolveMentorPolicy(customPolicy)
   const coefficients = policy.prioridade_topico.coeficientes
-  const daysSince = lastSeenAt ? Math.max(0, (Date.now() - new Date(lastSeenAt).getTime()) / 86_400_000) : 30
+  const daysSince = lastSeenAt ? Math.max(0, (Date.now() - new Date(lastSeenAt).getTime()) / 86_400_000) : 0
   const forgettingRisk = Math.min(1, 1 - (0.5 ** (daysSince / 21)))
   const coverage = totalQuestions ? 1 - (unusedQuestions / totalQuestions) : 0
   const uncertainty = (diagnosis.incerteza_estimativa ?? 50) / 100

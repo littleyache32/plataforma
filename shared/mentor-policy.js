@@ -161,7 +161,7 @@ export const DEFAULT_MENTOR_POLICY = Object.freeze({
     maximo_mesma_disciplina: 2,
   },
   encontro_semanal: {
-    classificacoes: ['dificuldade_conteudo', 'dificuldade_volume', 'dificuldade_questoes', 'dificuldade_revisao', 'problema_material', 'estrategia_funcionou', 'prioridade_percebida', 'faculdade_atrasada', 'faculdade_em_dia'],
+    classificacoes: ['dificuldade_conteudo', 'dificuldade_volume', 'dificuldade_questoes', 'dificuldade_revisao', 'problema_material', 'estrategia_funcionou', 'faculdade_atrasada', 'faculdade_em_dia'],
     texto_livre_apenas_contexto: true,
   },
   experimentos: {

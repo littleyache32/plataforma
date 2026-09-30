@@ -22,12 +22,12 @@ export default async function handler(req, res) {
       const semanaInicio = String(req.body?.semanaInicio || '')
       const cargaPercebida = String(req.body?.cargaPercebida || '')
       if (!/^\d{4}-\d{2}-\d{2}$/.test(semanaInicio) || new Date(`${semanaInicio}T12:00:00Z`).getUTCDay() !== 1) return res.status(400).json({ error: 'Informe a segunda-feira da semana do encontro.' })
-      if (!['leve', 'adequada', 'pesada'].includes(cargaPercebida)) return res.status(400).json({ error: 'Classifique a carga como leve, adequada ou pesada.' })
-      const allowedClassifications = ['dificuldade_conteudo', 'dificuldade_volume', 'dificuldade_questoes', 'dificuldade_revisao', 'problema_material', 'estrategia_funcionou', 'prioridade_percebida', 'faculdade_atrasada', 'faculdade_em_dia']
+      if (cargaPercebida && !['leve', 'adequada', 'pesada'].includes(cargaPercebida)) return res.status(400).json({ error: 'Classifique a carga como leve, adequada ou pesada.' })
+      const allowedClassifications = ['dificuldade_conteudo', 'dificuldade_volume', 'dificuldade_questoes', 'dificuldade_revisao', 'problema_material', 'estrategia_funcionou', 'faculdade_atrasada', 'faculdade_em_dia']
       const classifications = [...new Set((Array.isArray(req.body?.classificacoes) ? req.body.classificacoes : []).filter((item) => allowedClassifications.includes(item)))]
       const payload = {
         semana_inicio: semanaInicio,
-        carga_percebida: cargaPercebida,
+        carga_percebida: cargaPercebida || null,
         observacoes: String(req.body?.observacoes || '').trim().slice(0, 1200) || null,
         classificacoes: classifications,
         realizado_em: new Date().toISOString(),
@@ -42,13 +42,13 @@ export default async function handler(req, res) {
     const currentWeek = monday()
     const previousStart = addDays(currentWeek, -7)
     const previousEnd = addDays(currentWeek, -1)
-    const [{ data: topics, error: topicsError }, { data: records, error: recordsError }, { data: reviewItems, error: reviewError }, { data: inventory, error: inventoryError }, modularKnowledge, { data: legacyPolicy }, { data: objective }, { data: weeklySessions, error: sessionsError }, { data: pendingSessions, error: pendingError }, { data: commitments, error: commitmentsError }, { data: weeklyMeeting, error: meetingError }, { data: cards, error: cardsError }, { data: cardRecords, error: cardRecordsError }, { data: timers, error: timersError }] = await Promise.all([
+    const [{ data: topics, error: topicsError }, { data: records, error: recordsError }, { data: reviewItems, error: reviewError }, { data: inventory, error: inventoryError }, modularKnowledge, { data: menteeContext, error: contextError }, { data: objective }, { data: weeklySessions, error: sessionsError }, { data: pendingSessions, error: pendingError }, { data: commitments, error: commitmentsError }, { data: weeklyMeeting, error: meetingError }, { data: cards, error: cardsError }, { data: cardRecords, error: cardRecordsError }, { data: timers, error: timersError }] = await Promise.all([
       supabase.from('topico').select('id,nome,incidencia,materia:materia_id(id,nome,peso_prova,objetivo:objetivo_id(id,nome))'),
       supabase.from('registro').select('resultado,classificacao,tempo,criado_em,questao!inner(id,topico_id,topico:topico_id(materia:materia_id(objetivo_id)))').order('criado_em', { ascending: false }),
       supabase.from('revisao_item').select('id,motivo,prioridade,agendada_para,questao:questao_id(id,enunciado,topico_id,topico:topico_id(materia:materia_id(objetivo_id)))').eq('status', 'pendente').order('prioridade').order('agendada_para').limit(20),
       supabase.from('mentor_acervo_topico').select('*'),
-      loadModuleKnowledge(supabase, 'mentor').catch(() => null),
-      supabase.from('mentor_conhecimento').select('versao,politica').eq('ativo', true).order('criado_em', { ascending: false }).limit(1).maybeSingle(),
+      loadModuleKnowledge(supabase, 'mentor'),
+      supabase.from('mentor_contexto').select('fase,vigente_desde,semana_inicio,dados').eq('id', 1).single(),
       objetivoId ? supabase.from('objetivo').select('id,data_alvo,config').eq('id', objetivoId).maybeSingle() : Promise.resolve({ data: null }),
       supabase.from('sessao').select('id,status,data,data_planejada_original,duracao_estimada,topico_id,objetivo_id,concluida_em').eq('origem', 'mentor').gte('data_planejada_original', previousStart).lte('data_planejada_original', previousEnd),
       supabase.from('sessao').select('id,titulo,data,prioridade,objetivo_id').neq('status','feita').lte('data',addDays(currentWeek,6)).order('data').limit(30),
@@ -58,9 +58,11 @@ export default async function handler(req, res) {
       supabase.from('question_card_registro').select('resultado,criado_em,question_card!inner(topico_id)').order('criado_em', { ascending: false }),
       supabase.from('tempo_estudo').select('topico_id,status,segundos_acumulados,finalizado_em').eq('status','concluido').gte('finalizado_em', addDays(new Date().toISOString().slice(0,10), -28)),
     ])
-    if (topicsError || recordsError || reviewError || inventoryError || sessionsError || pendingError || commitmentsError || meetingError || cardsError || cardRecordsError || timersError) throw topicsError || recordsError || reviewError || inventoryError || sessionsError || pendingError || commitmentsError || meetingError || cardsError || cardRecordsError || timersError
+    if (topicsError || recordsError || reviewError || inventoryError || contextError || sessionsError || pendingError || commitmentsError || meetingError || cardsError || cardRecordsError || timersError || !modularKnowledge) throw topicsError || recordsError || reviewError || inventoryError || contextError || sessionsError || pendingError || commitmentsError || meetingError || cardsError || cardRecordsError || timersError || new Error('Conhecimento principal do Mentor ausente.')
 
-    const policy = modularKnowledge?.conteudo?.politica || legacyPolicy?.politica || {}
+    const policy = modularKnowledge.conteudo?.politica || {}
+    const context = { ...menteeContext.dados, fase: menteeContext.fase, vigente_desde: menteeContext.vigente_desde, semana_inicio: menteeContext.semana_inicio }
+    const practiceActive = context.fase !== 'construcao_habito_base_teorica'
     const topicMap = new Map()
     for (const topic of topics || []) {
       if (objetivoId && topic.materia?.objetivo?.id !== objetivoId) continue
@@ -124,30 +126,32 @@ export default async function handler(req, res) {
     const prioridades = diversifyPriorities(diagnoses
       .filter((item) => item.status === 'prioridade' || item.cards_vencidos || item.questoes_para_revisar || item.risco_esquecimento >= 60)
       .map((item) => ({ ...item, motivo: item.falsa_certeza >= 10 ? 'Falsa certeza exige correção imediata.' : item.questoes_para_revisar ? 'Há questões programadas para revisão espaçada.' : item.retencao_cards?.status === 'retencao_fraca' ? 'A recuperação nos Question Cards precisa de revisão.' : item.cards_vencidos ? 'Há Question Cards vencidos.' : 'Risco de esquecimento ou domínio insuficiente.' })), policy.decisao_semanal?.maximo_prioridades || 3, policy.prioridade_topico?.maximo_mesma_disciplina || 2)
-    const revisaoImediata = filteredReviews.map((item) => ({ id: item.id, questao_id: item.questao.id, topico_id: item.questao.topico_id, enunciado: item.questao.enunciado, motivo: item.motivo, prioridade: item.prioridade, agendada_para: item.agendada_para }))
-    const coveredTopics = diagnoses.filter((item) => item.amostra >= (policy.amostra_minima || 10) && ['estavel', 'melhorando'].includes(item.status)).length
+    const revisaoImediata = practiceActive ? filteredReviews.map((item) => ({ id: item.id, questao_id: item.questao.id, topico_id: item.questao.topico_id, enunciado: item.questao.enunciado, motivo: item.motivo, prioridade: item.prioridade, agendada_para: item.agendada_para })) : []
+    const coveredTopics = diagnoses.filter((item) => item.retencao_confirmada && item.amostra >= (policy.amostra_minima || 10) && ['estavel', 'melhorando'].includes(item.status)).length
     const projectedTarget = objective?.data_alvo || objective?.config?.planejar_ate || objective?.config?.janela_provavel_prova?.fim
     const hasTargetDate = Boolean(projectedTarget)
     const daysRemaining = hasTargetDate ? Math.max(1, Math.ceil((new Date(projectedTarget) - Date.now()) / 86_400_000)) : null
-    const scopedSessions = (weeklySessions || []).filter((item) => !objetivoId || item.objetivo_id === objetivoId)
+    const phasePreviousWeek = previousStart >= context.semana_inicio
+    const activeMeeting = phasePreviousWeek ? weeklyMeeting : null
+    const scopedSessions = phasePreviousWeek ? (weeklySessions || []).filter((item) => !objetivoId || item.objetivo_id === objetivoId) : []
     const planned = scopedSessions.length
     const completedSessions = scopedSessions.filter((item) => item.status === 'feita' && item.concluida_em && brazilDate(item.concluida_em) <= previousEnd)
     const completed = completedSessions.length
     const completedMinutes = completedSessions.reduce((sum, item) => sum + (item.duracao_estimada || 0), 0)
     const cenarios = buildScenarios({ coveredTopics, totalTopics: diagnoses.length, daysRemaining, weeklyMinutes: completedMinutes })
     const adherence = planned ? completed / planned : 0
-    const adjustment = adherenceAdjustment(planned ? [{ inicio: previousStart, planejadas: planned, concluidas: completed }] : [], weeklyMeeting)
+    const adjustment = adherenceAdjustment(planned ? [{ inicio: previousStart, planejadas: planned, concluidas: completed }] : [], activeMeeting)
     const probable = cenarios.find((item) => item.cenario === 'provavel')
     const remainingTopics = Math.max(0, diagnoses.length - coveredTopics)
     const trajectory = { conteudo_restante: remainingTopics, topicos_totais: diagnoses.length, ritmo_atual: planned ? `${completed} de ${planned} demandas` : 'coletando dados', capacidade_projetada: hasTargetDate ? probable?.cobertura_estimada || 0 : null, risco_nao_concluir: hasTargetDate && probable ? Math.round(probable.risco_atraso * 100) : null, data_alvo_definida: hasTargetDate, data_provisoria: !objective?.data_alvo && Boolean(projectedTarget), data_referencia: projectedTarget || null }
     const weeklyClose = { semana_inicio: previousStart, semana_fim: previousEnd, planejado: planned, realizado: completed, minutos_realizados: completedMinutes, pendencias: Math.max(0, planned - completed), revisoes_pendentes: filteredReviews.length, aderencia: Math.round(adherence * 100), ajuste_proxima_semana: adjustment.nivel }
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
-    const scopedPending=(pendingSessions||[]).filter((item)=>!objetivoId||item.objetivo_id===objetivoId)
+    const scopedPending=(pendingSessions||[]).filter((item)=>(!objetivoId||item.objetivo_id===objetivoId) && item.data>=context.semana_inicio)
     const scopedCommitments=(commitments||[]).filter((item)=>!objetivoId||item.objetivo_id===objetivoId)
     const alerts=[]
-    if(weeklyMeeting?.classificacoes?.includes('problema_material')) alerts.push({tipo:'material',gravidade:'alta',titulo:'Material precisa de verificação',mensagem:'O encontro semanal registrou um problema no material. Revise a fonte antes de avançar neste conteúdo.'})
-    const cardsReleased = today >= (policy.aprendizagem?.inicio_pratica_bacen || '2026-08-31')
-    if(filteredReviews.length) alerts.push({tipo:'revisao',gravidade:'alta',titulo:`${filteredReviews.length} revisoes vencidas`,mensagem:'A central de revisao ordenou os itens mais urgentes.'})
+    if(activeMeeting?.classificacoes?.includes('problema_material')) alerts.push({tipo:'material',gravidade:'alta',titulo:'Material precisa de verificação',mensagem:'O encontro semanal registrou um problema no material. Revise a fonte antes de avançar neste conteúdo.'})
+    const cardsReleased = practiceActive && today >= (policy.aprendizagem?.inicio_pratica_bacen || '2026-08-31')
+    if(practiceActive && filteredReviews.length) alerts.push({tipo:'revisao',gravidade:'alta',titulo:`${filteredReviews.length} revisoes vencidas`,mensagem:'A central de revisao ordenou os itens mais urgentes.'})
     const overdue=scopedPending.filter((item)=>item.data<today); if(overdue.length) alerts.push({tipo:'pendencia',gravidade:'alta',titulo:`${overdue.length} demandas nao concluidas`,mensagem:'O mentor vai redistribuir no fechamento sem ultrapassar o limite.'})
     if(scopedPending.length>=8) alerts.push({tipo:'acumulo',gravidade:'media',titulo:'Risco de acumulo',mensagem:`Ha ${scopedPending.length} demandas abertas na semana.`})
     const falseCertainty = prioridades.find((item) => item.falsa_certeza >= 10)
@@ -156,14 +160,14 @@ export default async function handler(req, res) {
     for(const item of scopedCommitments.slice(0,3)) alerts.push({tipo:'prazo',gravidade:'media',titulo:item.titulo,mensagem:`${item.tipo} em ${new Date(`${item.data}T12:00:00`).toLocaleDateString('pt-BR')}.`})
     if(planned) alerts.push({tipo:'carga',gravidade:'baixa',titulo:`Carga da proxima semana: ${adjustment.nivel}`,mensagem:adjustment.motivo})
     const body = {
-      fase: mentorPhase(), prioridades, cenarios,
-      politica: { versao: modularKnowledge?.versao || legacyPolicy?.versao || '2026.08.10' },
+      fase: mentorPhase(today, context), prioridades, cenarios,
+      politica: { versao: modularKnowledge.versao },
       resumo: { topicos_cobertos: coveredTopics, topicos_totais: diagnoses.length, dias_restantes: hasTargetDate ? daysRemaining : null, revisoes_imediatas: revisaoImediata.length },
       trajetoria: trajectory,
-      fechamento_semanal: weeklyClose,
+      fechamento_semanal: phasePreviousWeek ? weeklyClose : null,
       alertas: alerts,
       semana_atual: currentWeek,
-      encontro_semanal: weeklyMeeting,
+      encontro_semanal: activeMeeting,
       cards_liberados: cardsReleased,
     }
     if (!compact) Object.assign(body, { topicos: diagnoses, revisao_imediata: revisaoImediata })

@@ -96,6 +96,9 @@ describe('evidencias integradas', () => {
 })
 
 describe('mentorPhase', () => {
+  it('prioriza o contexto atual sobre datas historicas de liberacao da pratica', () => {
+    expect(mentorPhase('2026-09-24', { fase: 'construcao_habito_base_teorica', vigente_desde: '2026-09-24' })).toMatchObject({ id: 'construcao_base' })
+  })
   it('nao cria uma fase de pratica antes do inicio da mentoria', () => {
     expect(mentorPhase('2026-08-12').id).toBe('aguardando_inicio')
   })

@@ -24,4 +24,9 @@ describe('politica canonica do mentor', () => {
     const files = ['api/mentor.js', 'api/_lib/plano-handler.js', 'shared/mentor.js', 'shared/planner.js'].map((path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')).join('\n')
     expect(files).not.toMatch(/GEMINI_API_KEY|generateContent|googleSearch/)
   })
+
+  it('nao executa o ciclo quinzenal antigo de expansao de questoes', () => {
+    const cron = readFileSync(new URL('../api/cron/mentor.js', import.meta.url), 'utf8')
+    expect(cron).not.toMatch(/planejar_expansao_questoes_bacen|p_alvo:\s*2250/)
+  })
 })
