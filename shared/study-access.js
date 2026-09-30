@@ -4,10 +4,7 @@ export async function currentPracticeFlags(supabase) {
   const { data, error } = await supabase.from('mentor_contexto').select('fase,dados').eq('id', 1).single()
   if (error) throw error
   const flags = data?.dados?.rotina_pratica || {}
-  if (data?.fase === 'adaptacao_teorica_1') {
-    return { questoes: flags.questoes === true, question_cards: flags.question_cards === true, revisao_pratica: flags.revisao_pratica === true, simulados: flags.simulados === true }
-  }
-  return { questoes: true, question_cards: true, revisao_pratica: true, simulados: true }
+  return { questoes: flags.questoes === true, question_cards: flags.question_cards === true, revisao_pratica: flags.revisao_pratica === true, simulados: flags.simulados === true }
 }
 
 export function isBacenPracticeOpen(today) {

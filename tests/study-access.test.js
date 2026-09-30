@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { allowedStudiedTopics, canAccessBacenItem, isBacenPracticeOpen } from '../shared/study-access.js'
+import { allowedStudiedTopics, canAccessBacenItem, currentPracticeFlags, isBacenPracticeOpen } from '../shared/study-access.js'
+
+const contextClient = (fase, rotina_pratica = {}) => ({ from: () => ({ select: () => ({ eq: () => ({ single: async () => ({ data: { fase, dados: { rotina_pratica } }, error: null }) }) }) }) })
+
+describe('bloqueio operacional da prática', () => {
+  it('não libera prática ao mudar apenas o nome da fase', async () => {
+    expect(await currentPracticeFlags(contextClient('fase_11', { questoes: true, question_cards: false }))).toEqual({ questoes: true, question_cards: false, revisao_pratica: false, simulados: false })
+    expect(await currentPracticeFlags(contextClient('outra_fase'))).toEqual({ questoes: false, question_cards: false, revisao_pratica: false, simulados: false })
+  })
+})
 
 describe('liberação progressiva da prática BACEN', () => {
   it('mantém questões e cards bloqueados durante a construção de base', () => {

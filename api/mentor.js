@@ -62,7 +62,7 @@ export default async function handler(req, res) {
 
     const policy = modularKnowledge.conteudo?.politica || {}
     const context = { ...menteeContext.dados, fase: menteeContext.fase, vigente_desde: menteeContext.vigente_desde, semana_inicio: menteeContext.semana_inicio }
-    const practiceActive = context.fase !== 'construcao_habito_base_teorica' && context.fase !== 'adaptacao_teorica_1'
+    const practiceActive = context.rotina_pratica?.questoes === true || context.rotina_pratica?.question_cards === true || context.rotina_pratica?.revisao_pratica === true
     const topicMap = new Map()
     for (const topic of topics || []) {
       if (objetivoId && topic.materia?.objetivo?.id !== objetivoId) continue

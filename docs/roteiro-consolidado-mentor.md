@@ -1,10 +1,10 @@
 # Roteiro consolidado da plataforma
 
-Data: 30/09/2026. O ciclo operacional vigente inicia em 02/10/2026. O roteiro A-H abaixo é histórico conceitual, não define a sequência de execução. Apenas a Fase 1 está autorizada agora.
+Data: 30/09/2026. O ciclo operacional vigente inicia em 02/10/2026. O roteiro A-H abaixo é histórico conceitual, não define a sequência de execução. A Fase 1 foi validada; fases seguintes dependem de autorização própria.
 
 ## Sequência operacional vigente
 
-1. Saneamento da base e fontes de verdade: bloco comum de Estudo exatamente 50 minutos; período 02/10 a 08/10 com 2 BACEN + 1 Faculdade; 09/10 a 15/10 com 3 BACEN + 1 Faculdade; apenas teoria; contexto em `mentor_contexto`, princípios em `conhecimento_modulo`, decisão no planner. A Fase 1 só termina após testes, lint, build, migração, publicação e verificação da produção.
+1. Saneamento da base e fontes de verdade: concluído em 30/09. Bloco comum de Estudo exatamente 50 minutos; período 02/10 a 08/10 com 2 BACEN + 1 Faculdade; 09/10 a 15/10 com 3 BACEN + 1 Faculdade; apenas teoria; contexto em `mentor_contexto`, princípios em `conhecimento_modulo`, decisão no planner. Migration 0063 aplicada após código compatível publicado; 02/10 a 04/10 têm nove demandas de 50 minutos no banco e na Semana. As dez sessões historicamente concluídas continuam preservadas. Testes, lint, build e leitura da produção passaram. A etapa 09/10 a 15/10 foi validada por testes, mas seus dias futuros ainda não foram materializados pelo cron normal.
 2. Fase 2: reservada ao roteiro do novo ciclo; não iniciar automaticamente.
 3. Fase 3: reservada ao roteiro do novo ciclo; não iniciar automaticamente.
 4. Fase 4: reservada ao roteiro do novo ciclo; não iniciar automaticamente.
