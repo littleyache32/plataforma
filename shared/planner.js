@@ -3,6 +3,16 @@ import { resolveMentorPolicy } from './mentor-policy.js'
 const DAY_MS = 86_400_000
 export const MENTORSHIP_START = '2026-08-17'
 export const ACTIVE_PLANNING_START = '2026-09-21'
+export const NEW_CYCLE_START = '2026-10-02'
+const NEW_CYCLE_STAGE_1_END = '2026-10-08'
+const NEW_CYCLE_STAGE_2_END = '2026-10-15'
+
+export function newCycleStage(date, menteeContext) {
+  if (menteeContext?.fase !== 'adaptacao_teorica_1' || date < (menteeContext.inicio || menteeContext.semana_inicio || NEW_CYCLE_START)) return null
+  if (date <= (menteeContext.fim_etapa_1 || NEW_CYCLE_STAGE_1_END)) return { concurso: Number(menteeContext.etapa_1?.concurso || 2), faculdade: Number(menteeContext.etapa_1?.faculdade || 1), duration: 50 }
+  if (date <= (menteeContext.fim_etapa_2 || NEW_CYCLE_STAGE_2_END)) return { concurso: Number(menteeContext.etapa_2?.concurso || 3), faculdade: Number(menteeContext.etapa_2?.faculdade || 1), duration: 50 }
+  return null
+}
 
 function isoDate(date) {
   return date.toISOString().slice(0, 10)
@@ -72,6 +82,14 @@ export function adherenceAdjustment(history = [], weeklyMeeting = null) {
 
 export function weeklyLoadProfile(weekStart, history = [], customPolicy = {}, weeklyMeeting = null, menteeContext = null) {
   const policy = resolveMentorPolicy(customPolicy)
+  if (menteeContext?.fase === 'adaptacao_teorica_1' && weekStart >= '2026-10-12') {
+    const recent = history.filter((week) => week.inicio >= NEW_CYCLE_START)
+    const adjustment = adherenceAdjustment(recent, weeklyMeeting)
+    const previousBlocks = Math.max(2, Number(menteeContext?.carga_atual?.concurso || 3))
+    const change = adjustment.nivel === 'aumentar' ? 1 : adjustment.nivel === 'reduzir' ? -1 : 0
+    const daily = (Math.max(2, previousBlocks + change) + 1) * 50
+    return { segunda_sexta: daily, sabado: daily, domingo: daily, nivel: adjustment.nivel, motivo: adjustment.motivo }
+  }
   if (menteeContext?.fase === 'construcao_habito_base_teorica' && weekStart >= menteeContext.semana_inicio) {
     const block = Number(menteeContext.carga_atual?.minutos_bloco || 50)
     const base = Number(menteeContext.carga_atual?.blocos_dia || 3) * block
@@ -133,6 +151,7 @@ export function validateMentorPlan(demands, { dailyLimit = null } = {}) {
   const load = new Map()
   for (const item of demands) {
     if (!item?.chave_mentor || keys.has(item.chave_mentor)) return { valid: false, reason: 'demanda_duplicada' }
+    if (item.tipo === 'estudo' && Number(item.duracao_estimada) !== 50) return { valid: false, reason: 'duracao_estudo_invalida' }
     keys.add(item.chave_mentor)
     load.set(item.data, (load.get(item.data) || 0) + Number(item.duracao_estimada || 0))
   }
@@ -294,21 +313,50 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     map.set(item.subjectId, group)
     return map
   }, new Map()).values()].map((group) => group.sort((a, b) => Number(a.order || 9999) - Number(b.order || 9999) || a.name.localeCompare(b.name)))
-  const lessonCursors = new Map()
   let lessonSelection = 0
   function nextBacenLesson() {
     if (!lessonGroups.length) return null
     for (let attempt = 0; attempt < lessonGroups.length; attempt += 1) {
       const groupIndex = (lessonSelection + attempt) % lessonGroups.length
       const group = lessonGroups[groupIndex]
-      const cursor = lessonCursors.get(groupIndex) || 0
-      if (cursor >= group.length) continue
-      lessonCursors.set(groupIndex, cursor + 1)
       lessonSelection = groupIndex + 1
-      const item = group[cursor]
+      // Um bloco concluído não conclui a aula. Só o progresso explícito avança o PDF.
+      const item = group[0]
       return { objectiveId: item.objectiveId, context: item.context, subjectId: item.subjectId, subject: item.subject, topicId: null, topic: '', materialId: item.id, materialName: item.name, materialOrder: item.order }
     }
     return null
+  }
+
+  // O ciclo vigente é decidido por data, inclusive nas semanas que cruzam etapas.
+  // O planejamento anterior a 02/10 permanece histórico e não é reconstruído.
+  if (menteeContext?.fase === 'adaptacao_teorica_1') {
+    const orderByDay = new Map()
+    for (let day = 0; day < 7; day += 1) {
+      const date = isoDate(new Date(new Date(`${weekStart}T12:00:00Z`).getTime() + day * DAY_MS))
+      if (date < (menteeContext.inicio || menteeContext.semana_inicio || NEW_CYCLE_START)) continue
+      const stage = newCycleStage(date, menteeContext)
+      const concursoBlocks = stage?.concurso ?? Math.max(2, Math.round(loadProfile.segunda_sexta / 50) - 1)
+      const facultyBlocksForDay = stage?.faculdade ?? 1
+      const nearbyExam = commitments
+        .filter((item) => !item.concluido && item.tipo === 'prova' && item.materia_id && item.data >= date)
+        .sort((a, b) => a.data.localeCompare(b.data))[0]
+      const regularFaculty = facultyTargetForDay(targets, priorities, day, rotationSeed, policy) || pick(byContext.faculdade, rotationSeed + day)
+      const examWithinTwoDays = nearbyExam && nearbyExam.data <= isoDate(new Date(new Date(`${date}T12:00:00Z`).getTime() + 2 * DAY_MS))
+      const facultyTarget = subjectOnly((examWithinTwoDays && byContext.faculdade.find((item) => item.subjectId === nearbyExam.materia_id)) || regularFaculty)
+      for (let block = 0; block < facultyBlocksForDay; block += 1) {
+        rows.push(demand({ weekStart, day, slot: `ciclo-faculdade-${block + 1}`, target: facultyTarget, title: nearbyExam && facultyTarget?.subjectId === nearbyExam.materia_id ? `Preparar prova: ${facultyTarget.subject}` : `Aula dada, aula estudada: ${facultyTarget?.subject || ''}`, type: 'estudo', duration: 50, priority: 2 }))
+      }
+      for (let block = 0; block < concursoBlocks; block += 1) {
+        const target = nextBacenLesson() || pickSequentiallyDistributed(byContext.concurso, day * concursoBlocks + block)
+        const label = target?.materialName ? `Aula ${target.materialOrder}: ${target.materialName.replace(/\.pdf$/i, '').replace(/^(\s*\d+\.\s*)+/, '').trim()}` : (target?.topic || target?.subject)
+        rows.push(demand({ weekStart, day, slot: `ciclo-bacen-${block + 1}`, target, title: `BACEN · ${target?.subject || ''} · ${label || ''}`, type: 'estudo', duration: 50, priority: 1 }))
+      }
+    }
+    return rows.filter(Boolean).map((item) => {
+      const ordem = orderByDay.get(item.data) || 0
+      orderByDay.set(item.data, ordem + 1)
+      return { ...item, ordem }
+    })
   }
 
   if (isMentorResumptionWeek(weekStart, policy)) {
@@ -496,18 +544,21 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     }
     const prepDay = Math.min(6, Math.max(0, eventDay - (commitment.peso >= 4 ? 2 : 1)))
     if (!currentBase && eventDay >= 1 && eventDay <= 13) {
+      const prepBlocks = commitment.peso >= 4 ? 2 : 1
+      for (let block = 0; block < prepBlocks; block += 1) {
       const prep = demand({
         weekStart,
         day: prepDay,
-        slot: `preparo:${commitment.id}`,
+        slot: `preparo:${commitment.id}:${block + 1}`,
         target,
         title: priorityIds.has(target.topicId) ? `Revisar: ${target.topic || target.subject}` : `Estudar: ${target.topic || target.subject}`,
         type: priorityIds.has(target.topicId) ? 'revisao' : 'estudo',
-        duration: Math.min(90, commitment.peso >= 4 ? studyBlock * 2 : studyBlock),
+        duration: 50,
         priority: commitment.peso >= 4 ? 1 : 2,
       })
-      if (prep) prep.chave_mentor = `${weekStart}:preparo:${commitment.id}`
+      if (prep) prep.chave_mentor = `${weekStart}:preparo:${commitment.id}:${block + 1}`
       rows.push(prep)
+      }
     }
   }
 

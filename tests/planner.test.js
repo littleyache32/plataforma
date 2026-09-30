@@ -10,8 +10,43 @@ const currentContext = {
   fase: 'construcao_habito_base_teorica', vigente_desde: '2026-09-24', semana_inicio: '2026-09-28',
   carga_atual: { blocos_dia: 3, concurso: 2, faculdade: 1, minutos_bloco: 50 },
 }
+const newCycleContext = {
+  fase: 'adaptacao_teorica_1', vigente_desde: '2026-10-02', semana_inicio: '2026-10-02',
+  carga_atual: { concurso: 3, faculdade: 1, minutos_bloco: 50 },
+}
 
 describe('buildMentorWeek', () => {
+  it('não reconstrói dias antes de 02/10 e aplica 2+1 até 08/10', () => {
+    const result = buildMentorWeek({ weekStart: '2026-09-28', catalog, menteeContext: newCycleContext, commitments: [{ id: 'prova-1', objetivo_id: 'facul', materia_id: 'civil', titulo: 'Prova 01/10', tipo: 'prova', data: '2026-10-01', peso: 5, duracao_minutos: 90 }] })
+    expect(result).toHaveLength(9)
+    expect(result.every((item) => item.data >= '2026-10-02' && item.tipo === 'estudo' && item.duracao_estimada === 50)).toBe(true)
+    for (const date of ['2026-10-02', '2026-10-03', '2026-10-04']) {
+      expect(result.filter((item) => item.data === date && item.objetivo_id === 'bacen')).toHaveLength(2)
+      expect(result.filter((item) => item.data === date && item.objetivo_id === 'facul')).toHaveLength(1)
+    }
+  })
+  it('aplica 3+1 de 09/10 a 15/10 sem prática, e mantém a mesma aula até conclusão explícita', () => {
+    const studyUnits = [
+      { id: 'aula-1', objectiveId: 'bacen', context: 'concurso', subjectId: 'cont', subject: 'Contabilidade', name: 'Aula 1.pdf', order: 1 },
+      { id: 'aula-2', objectiveId: 'bacen', context: 'concurso', subjectId: 'cont', subject: 'Contabilidade', name: 'Aula 2.pdf', order: 2 },
+    ]
+    const result = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext, studyUnits })
+    expect(result.filter((item) => item.data === '2026-10-08')).toHaveLength(3)
+    for (const date of ['2026-10-09', '2026-10-10', '2026-10-11']) {
+      expect(result.filter((item) => item.data === date)).toHaveLength(4)
+    }
+    expect(result.filter((item) => item.objetivo_id === 'bacen').every((item) => item.material_id === 'aula-1')).toBe(true)
+    expect(result.every((item) => item.tipo === 'estudo' && item.duracao_estimada === 50)).toBe(true)
+    const advanced = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext, studyUnits, completedMaterialIds: ['aula-1'] })
+    expect(advanced.filter((item) => item.objetivo_id === 'bacen').every((item) => item.material_id === 'aula-2')).toBe(true)
+  })
+  it('recusa estudo comum de 60, 90 ou 100 minutos', () => {
+    for (const duration of [60, 90, 100]) {
+      expect(validateMentorPlan([{ chave_mentor: `estudo-${duration}`, data: '2026-10-02', tipo: 'estudo', duracao_estimada: duration }])).toMatchObject({ valid: false, reason: 'duracao_estudo_invalida' })
+    }
+    expect(validateMentorPlan([{ chave_mentor: 'estudo-50', data: '2026-10-02', tipo: 'estudo', duracao_estimada: 50 }]).valid).toBe(true)
+    expect(validateMentorPlan([{ chave_mentor: 'prova-100', data: '2026-10-02', tipo: 'prova', duracao_estimada: 100 }]).valid).toBe(true)
+  })
   it('nao transporta pendencias anteriores ao contexto atual para a nova semana', () => {
     const prior = { id: 'anterior', data: '2026-09-21', status: 'planejada', duracao_estimada: 50 }
     const current = { id: 'atual', data: '2026-09-28', status: 'planejada', duracao_estimada: 50 }
@@ -169,22 +204,23 @@ describe('buildMentorWeek', () => {
       commitments: [{ id: 'prova-1', objetivo_id: 'facul', materia_id: 'civil', titulo: 'Prova de Direito Civil', tipo: 'prova', data: '2026-08-20', peso: 5, duracao_minutos: 120, concluido: false }],
     })
     const exam = result.find((item) => item.chave_mentor.endsWith('compromisso:prova-1'))
-    const preparation = result.find((item) => item.chave_mentor.endsWith('preparo:prova-1'))
+    const preparation = result.filter((item) => item.chave_mentor.includes('preparo:prova-1:'))
     expect(exam).toMatchObject({ data: '2026-08-20', tipo: 'prova', duracao_estimada: 120, prioridade: 1 })
-    expect(preparation).toMatchObject({ data: '2026-08-18', tipo: 'estudo', duracao_estimada: 90, materia_id: 'civil' })
+    expect(preparation).toHaveLength(2)
+    expect(preparation.every((item) => item.data === '2026-08-18' && item.tipo === 'estudo' && item.duracao_estimada === 50 && item.materia_id === 'civil')).toBe(true)
     expect(result.filter((item) => !['prova', 'simulado'].includes(item.tipo)).every((item) => item.duracao_estimada <= 90)).toBe(true)
     const bacenOnPreparationDay = result.filter((item) => item.data === '2026-08-18' && item.objetivo_id === 'bacen')
     expect(bacenOnPreparationDay).toHaveLength(2)
   })
 
-  it('na semana de 05/10 limita a preparacao academica comum a 90 minutos', () => {
+  it('divide a preparacao academica pesada em dois registros de 50 minutos', () => {
     const result = buildMentorWeek({
       weekStart: '2026-10-05',
       catalog,
       commitments: [{ id: 'prova-outubro', objetivo_id: 'facul', materia_id: 'civil', titulo: 'Prova de Direito Civil', tipo: 'prova', data: '2026-10-14', peso: 5, duracao_minutos: 120, concluido: false }],
     })
-    expect(result.find((item) => item.chave_mentor.endsWith('preparo:prova-outubro'))).toMatchObject({ tipo: 'estudo', duracao_estimada: 90 })
-    expect(result.filter((item) => !['prova', 'simulado'].includes(item.tipo)).every((item) => item.duracao_estimada <= 90)).toBe(true)
+    expect(result.filter((item) => item.chave_mentor.includes('preparo:prova-outubro:')).map((item) => item.duracao_estimada)).toEqual([50, 50])
+    expect(result.filter((item) => item.tipo === 'estudo').every((item) => item.duracao_estimada === 50)).toBe(true)
   })
 
   it('prepara compromisso pelo topico explicitamente vinculado', () => {
@@ -194,7 +230,7 @@ describe('buildMentorWeek', () => {
       catalog: expanded,
       commitments: [{ id: 'prova-2', objetivo_id: 'facul', materia_id: 'civil', titulo: 'Prova', tipo: 'prova', data: '2026-09-10', peso: 5, duracao_minutos: 120, concluido: false, topicos: [{ topico_id: 'negocios' }] }],
     })
-    expect(result.find((item) => item.chave_mentor.endsWith('preparo:prova-2'))).toMatchObject({ topico_id: 'negocios' })
+    expect(result.find((item) => item.chave_mentor.endsWith('preparo:prova-2:1'))).toMatchObject({ topico_id: 'negocios' })
   })
 
   it('remaneja toda pendencia vencida, inclusive entre semanas', () => {
@@ -375,7 +411,7 @@ describe('buildMentorWeek', () => {
     const expanded = [{ id: 'bacen', tipo: 'concurso', materias: [{ id: 'cont', nome: 'Contabilidade', topicos: [{ id: 'c', nome: 'Tópico' }] }, { id: 'dir', nome: 'Direito', topicos: [{ id: 'd', nome: 'Tópico' }] }] }, catalog[1]]
     const result = buildMentorWeek({ weekStart: '2026-08-24', catalog: expanded, studyUnits })
     const bacen = result.filter((item) => item.objetivo_id === 'bacen')
-    expect(bacen.slice(0, 3).map((item) => item.material_id)).toEqual(['c1', 'd1', 'c2'])
+    expect(bacen.slice(0, 3).map((item) => item.material_id)).toEqual(['c1', 'd1', 'c1'])
     expect(bacen[0].titulo).toContain('Aula 1')
   })
 

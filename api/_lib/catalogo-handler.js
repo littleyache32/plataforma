@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from './supabase.js'
 import { allowMethods, fail, queryParam, requireAccess } from './http.js'
 import studyHandler from './estudo-handler.js'
-import { isBacenPracticeOpen } from '../../shared/study-access.js'
+import { isBacenPracticeOpen, currentPracticeFlags } from '../../shared/study-access.js'
 
 const countPageSize = 1000
 
@@ -42,6 +42,7 @@ export default async function handler(req, res) {
       const somenteCaderno = queryParam(req, 'caderno') === '1'
       if (!objetivoId) return res.status(400).json({ error: 'Objetivo obrigatorio.' })
       const supabase = getSupabaseAdmin()
+      const practiceFlags = await currentPracticeFlags(supabase)
       const [{ data: subjects, error: subjectsError }, { data: objective, error: objectiveError }] = await Promise.all([
         supabase.from('materia').select('topicos:topico(id)').eq('objetivo_id', objetivoId),
         supabase.from('objetivo').select('tipo').eq('id', objetivoId).maybeSingle(),
@@ -69,7 +70,10 @@ export default async function handler(req, res) {
       const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
       const questionCounts = groupCounts(questions)
       const cardCounts = groupCounts(cards)
-      const topics = Object.fromEntries(topicIds.map((id) => [id, { questoes: questionCounts[id] || 0, cards: cardCounts[id] || 0, bloqueado: objective?.tipo === 'concurso' && (!isBacenPracticeOpen(today) || !studied.has(id)) }]))
+      const topics = Object.fromEntries(topicIds.map((id) => {
+        const materialLocked = objective?.tipo === 'concurso' && (!isBacenPracticeOpen(today) || !studied.has(id))
+        return [id, { questoes: questionCounts[id] || 0, cards: cardCounts[id] || 0, bloqueado: !practiceFlags.questoes || materialLocked, cards_bloqueados: !practiceFlags.question_cards || materialLocked }]
+      }))
       return res.status(200).json({ topicos: topics, totais: { questoes: questions.length, cards: cards.length } })
     }
     const { data, error } = await getSupabaseAdmin().from('objetivo')

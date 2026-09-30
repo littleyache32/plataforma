@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from './supabase.js'
 import { allowMethods, fail, queryParam, requireAccess } from './http.js'
 import { cardTransition } from '../../shared/cards.js'
-import { BACEN_PRACTICE_START, allowedStudiedTopics, isBacenPracticeOpen } from '../../shared/study-access.js'
+import { BACEN_PRACTICE_START, allowedStudiedTopics, isBacenPracticeOpen, currentPracticeFlags } from '../../shared/study-access.js'
 
 const reportReasons = ['gabarito_incorreto', 'questao_ambigua', 'fonte_insuficiente', 'conteudo_desatualizado', 'erro_formatacao']
 const cardReportReasons = ['card_ambiguo', 'card_incompleto', 'card_incorreto']
@@ -19,6 +19,8 @@ export default async function handler(req, res) {
   try {
     const supabase = getSupabaseAdmin()
     if (queryParam(req, 'recurso') === 'cards') {
+      const practiceFlags = await currentPracticeFlags(supabase)
+      if (!practiceFlags.question_cards && req.method !== 'POST') return res.status(423).json({ error: 'Question Cards ainda não foram liberados pelo Mentor neste ciclo.' })
       if (req.method === 'GET') {
         const filters = { objetivoId: queryParam(req, 'objetivoId'), materiaId: queryParam(req, 'materiaId'), topicoId: queryParam(req, 'topicoId') }
         const fields = 'id,frente,verso,resposta_direta,explicacao_curta,dica_escopo,modelo_card,apoio_memoria,fonte,trecho_fonte,ocorrencias,repeticoes,intervalo_dias,fator_facilidade,lapsos,proxima_revisao,ultima_revisao,introduzido_em,criado_em,materia:materia_id(id,nome),topico:topico_id(id,nome),objetivo:objetivo_id(nome,tipo)'

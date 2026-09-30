@@ -43,6 +43,7 @@ export default function Week({ catalog, target, onTargetApplied, onOpenQuestions
   const [planningNotice, setPlanningNotice] = useState('')
   const [draggingId, setDraggingId] = useState('')
   const [selected, setSelected] = useState(null)
+  const [materialCompleted, setMaterialCompleted] = useState(false)
   const [contextFilter, setContextFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const draggedRecently = useRef(false)
@@ -79,6 +80,16 @@ export default function Week({ catalog, target, onTargetApplied, onOpenQuestions
     onTargetApplied?.()
   }, [target?.id])
 
+  useEffect(() => {
+    if (!selected?.material_id || !selected.objetivo?.id) return
+    let active = true
+    setMaterialCompleted(false)
+    api(`/api/estudo?objetivoId=${encodeURIComponent(selected.objetivo.id)}&materialId=${encodeURIComponent(selected.material_id)}&progresso=1`)
+      .then((data) => { if (active) setMaterialCompleted(data.concluido) })
+      .catch((error) => { if (active) setMessage(error.message) })
+    return () => { active = false }
+  }, [selected?.material_id, selected?.objetivo?.id])
+
   async function reorderDemand(day, targetId, event) {
     event.preventDefault()
     event.stopPropagation()
@@ -112,6 +123,21 @@ export default function Week({ catalog, target, onTargetApplied, onOpenQuestions
       await api('/api/sessoes', { method: 'PATCH', body: JSON.stringify({ id: selected.id, status }) })
       setSessions((items) => items.map((item) => item.id === selected.id ? { ...item, status } : item))
       setSelected(null)
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
+  async function toggleMaterial() {
+    if (!selected?.material_id || !selected.objetivo?.id) return
+    try {
+      const concluido = !materialCompleted
+      await api('/api/estudo', { method: 'PATCH', body: JSON.stringify({ objetivoId: selected.objetivo.id, materialId: selected.material_id, concluido }) })
+      setMaterialCompleted(concluido)
+      await api('/api/plano', { method: 'POST', body: JSON.stringify({ inicio: range.start, force: true }) })
+      const updated = await api(`/api/sessoes?inicio=${range.start}&fim=${range.end}`)
+      setSessions(updated.sessoes || [])
+      setMessage(concluido ? 'Aula/PDF concluído. O Mentor avançará para a próxima aula no próximo planejamento.' : 'Aula/PDF reaberto.')
     } catch (error) {
       setMessage(error.message)
     }
@@ -156,7 +182,7 @@ export default function Week({ catalog, target, onTargetApplied, onOpenQuestions
       <div className="week-board-heading"><div><span>QUADRO SEMANAL</span><b>Suas próximas demandas</b></div><small>{sessions.length} demandas nesta semana</small></div>
       <div className="week-grid mentor-week-grid">{days.map((day) => <article key={day.iso} className={`day-column demand-day ${day.iso === range.today ? 'today' : ''}`} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }} onDrop={(event) => reorderDemand(day.iso, null, event)}><header><div><span>{day.label}</span><b>{day.number}</b>{day.iso === range.today && <small>Hoje</small>}</div><em>{day.demands.length} demandas</em></header><div>{day.demands.map((item) => <article className={`demand-card ${item.objetivo?.tipo || ''} ${typeClasses[item.tipo] || 'estudo'} ${item.status === 'feita' ? 'feita' : ''}`} key={item.id} draggable onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }} onDrop={(event) => reorderDemand(day.iso, item.id, event)} onClick={() => { if (draggedRecently.current) { draggedRecently.current = false; return }; setSelected(item) }} onDragStart={(event) => { draggedRecently.current = true; setDraggingId(item.id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', item.id) }} onDragEnd={() => setDraggingId('')}><div className="demand-card-top"><span>{item.objetivo?.tipo === 'faculdade' ? 'Faculdade' : 'BACEN'}</span><i>{typeLabels[item.tipo] || 'Estudo'}</i></div><b>{item.titulo}</b><p>{item.materia?.nome || 'Matéria a definir'}</p>{item.topico?.nome && <small>{item.topico.nome}</small>}<footer><span>{minutesLabel(item.duracao_estimada)}</span><span className={`priority p${item.prioridade || 2}`}>{priorities[item.prioridade || 2]}</span></footer></article>)}{!day.demands.length && <p className="day-empty">Solte uma demanda aqui.</p>}</div></article>)}</div>
       <footer className="week-footnote"><span>{subjectCount} disciplinas conectadas</span><span>O mentor distribui estudo, revisão, exercício e atividades especiais conforme a fase e as evidências disponíveis.</span></footer>
-      {selected && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null) }}><div className="modal panel" role="dialog" aria-modal="true" aria-labelledby="demand-title"><span className="eyebrow">DEMANDA DA SEMANA</span><h2 id="demand-title">{selected.titulo}</h2><p>{selected.materia?.nome}{selected.topico?.nome ? ` · ${selected.topico.nome}` : ''}</p><div className="modal-actions"><button className="secondary" onClick={() => { setSelected(null); onOpenQuestions(selected) }}>Resolver questões</button><button className="secondary" onClick={() => { setSelected(null); onOpenCards(selected) }}>Estudar com Question Cards</button><button className={selected.status === 'feita' ? 'secondary' : 'primary'} onClick={toggleDemand}>{selected.status === 'feita' ? 'Desmarcar conclusão' : 'Marcar como concluída'}</button><button className="ghost danger" onClick={deleteDemand}>Apagar demanda</button></div></div></div>}
+      {selected && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null) }}><div className="modal panel" role="dialog" aria-modal="true" aria-labelledby="demand-title"><span className="eyebrow">DEMANDA DA SEMANA</span><h2 id="demand-title">{selected.titulo}</h2><p>{selected.materia?.nome}{selected.topico?.nome ? ` · ${selected.topico.nome}` : ''}</p>{selected.material_id && <p>Concluir este bloco não conclui a aula/PDF. Marque a aula separadamente quando terminar o material.</p>}<div className="modal-actions"><button className="secondary" onClick={() => { setSelected(null); onOpenQuestions(selected) }}>Resolver questões</button><button className="secondary" onClick={() => { setSelected(null); onOpenCards(selected) }}>Estudar com Question Cards</button><button className={selected.status === 'feita' ? 'secondary' : 'primary'} onClick={toggleDemand}>{selected.status === 'feita' ? 'Desmarcar conclusão' : 'Marcar como concluída'}</button>{selected.material_id && <button className="secondary" onClick={toggleMaterial}>{materialCompleted ? 'Reabrir aula/PDF' : 'Concluir aula/PDF'}</button>}<button className="ghost danger" onClick={deleteDemand}>Apagar demanda</button></div></div></div>}
     </section>
   )
 }

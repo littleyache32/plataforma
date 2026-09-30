@@ -2,7 +2,7 @@ import { getSupabaseAdmin } from './supabase.js'
 import { allowMethods, fail, queryParam, requireAccess } from './http.js'
 import { practiceTransition, selectPracticeQuestion, shouldShowExplanation } from '../../shared/practice.js'
 import { buildQuestionCard, cardKey, cardTransition, shouldCreateQuestionCard } from '../../shared/cards.js'
-import { BACEN_PRACTICE_START, canAccessBacenItem } from '../../shared/study-access.js'
+import { BACEN_PRACTICE_START, canAccessBacenItem, currentPracticeFlags } from '../../shared/study-access.js'
 
 const classifications = ['certeza', 'duvida', 'eliminacao', 'sem_conhecimento']
 
@@ -10,6 +10,8 @@ export default async function handler(req, res) {
   if (!allowMethods(req, res, ['GET', 'POST']) || !requireAccess(req, res)) return
   const supabase = getSupabaseAdmin()
   try {
+    const practiceFlags = await currentPracticeFlags(supabase)
+    if (!practiceFlags.questoes) return res.status(423).json({ error: 'Questões ainda não foram liberadas pelo Mentor neste ciclo.' })
     if (req.method === 'GET') {
       const topicoId = queryParam(req, 'topicoId')
       const materiaId = queryParam(req, 'materiaId')

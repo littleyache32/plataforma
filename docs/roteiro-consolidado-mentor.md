@@ -1,11 +1,29 @@
 # Roteiro consolidado da plataforma
 
-Data: 30/09/2026. Estado: aprovado conceitualmente; Fase A ainda não validada em produção. Este documento não autoriza executar as Fases B-H, gerar acervo ou liberar prática.
+Data: 30/09/2026. O ciclo operacional vigente inicia em 02/10/2026. O roteiro A-H abaixo é histórico conceitual, não define a sequência de execução. Apenas a Fase 1 está autorizada agora.
+
+## Sequência operacional vigente
+
+1. Saneamento da base e fontes de verdade: bloco comum de Estudo exatamente 50 minutos; período 02/10 a 08/10 com 2 BACEN + 1 Faculdade; 09/10 a 15/10 com 3 BACEN + 1 Faculdade; apenas teoria; contexto em `mentor_contexto`, princípios em `conhecimento_modulo`, decisão no planner. A Fase 1 só termina após testes, lint, build, migração, publicação e verificação da produção.
+2. Fase 2: reservada ao roteiro do novo ciclo; não iniciar automaticamente.
+3. Fase 3: reservada ao roteiro do novo ciclo; não iniciar automaticamente.
+4. Fase 4: reservada ao roteiro do novo ciclo; não iniciar automaticamente.
+5. Fase 5: reservada ao roteiro do novo ciclo; não iniciar automaticamente.
+6. Fase 6: reservada ao roteiro do novo ciclo; não iniciar automaticamente.
+7. Fase 7: reservada ao roteiro do novo ciclo; não iniciar automaticamente.
+8. Fase 8: reservada ao roteiro do novo ciclo; não iniciar automaticamente.
+9. Fase 9: reservada ao roteiro do novo ciclo; não iniciar automaticamente.
+10. Fase 10: reservada ao roteiro do novo ciclo; Questões, Question Cards e Simulados continuam bloqueados para prática normal até aqui.
+11. Fase 11: somente Questões poderão ser liberadas, se a fase for autorizada e validada; Question Cards e Simulados continuam bloqueados.
+
+Não converter pendência em dívida de minutos nem acrescentar blocos para compensar dias perdidos. A partir de 16/10, o Mentor avalia sustentabilidade e pode manter, reduzir ou aumentar em no máximo um bloco por ciclo. O tempo real acima de 50 minutos é contabilizado sem penalizar uma entrega concluída. A conclusão do bloco não conclui automaticamente a aula/PDF.
+
+## Arquivo conceitual anterior (A-H, sem precedência operacional)
 
 ## Regras transversais
 
 - O mentorado fornece fatos; o Mentor principal decide matéria, método, prioridade, carga, revisão e transições de fase. Os seis especialistas fornecem sinais, sem motores independentes.
-- Fase atual: hábito e base teórica, com dois blocos de concurso e um de Faculdade por dia. A carga cresce conforme constância e pode incorporar demandas de 30 ou 50 minutos, inclusive demandas adicionais, sem tratar a duração planejada como teto de tempo real.
+- Fase atual: adaptação teórica em duas etapas a partir de 02/10. Cada demanda comum de Estudo tem exatamente 50 minutos. Demandas futuras de outra natureza poderão ter duração própria, sem alterar a regra do Estudo.
 - O conjunto vigente de aulas e PDFs do Estratégia é fonte de verdade para currículo e teoria. Os 114 PDFs observados em 11/08/2026 são inventário histórico, não constante do produto. Prática, estatísticas e, futuramente, simulados pertencem à plataforma.
 - Questões e Question Cards permanecem zerados até autorização explícita de reconstrução. Prática não entra automaticamente por data. Simulados ficam por último.
 - Meta futura do acervo BACEN: 10.000 questões aprovadas, até 500 novas aprovadas por semana. Qualidade vem antes do volume. Composição-alvo do acervo: dificuldade 60% fácil, 30% média, 10% difícil; incidência comprovada 60% alta, 30% média, 10% baixa. Isso não determina a sequência de resolução.
@@ -16,10 +34,10 @@ Data: 30/09/2026. Estado: aprovado conceitualmente; Fase A ainda não validada e
 1. Objetivo: uma fonte ativa para conhecimento, outra para contexto e uma decisão final centralizada no Mentor.
 2. Já existe: consolidação local em `shared/mentor.js`, `shared/planner.js`, APIs, testes e migration 0062; seis especialistas existentes foram preservados.
 3. Falta: confirmar schema, contexto e código publicados em conjunto.
-4. Corrigir: políticas antigas de data/carga não podem disputar autoridade com `mentor_contexto`. O banco consultado ainda não tem a tabela nem a migration 0062 aplicada. A semana publicada de 28/09 falha porque uma duração planejada viola `sessao_duracao_estimada_check`: estudo/revisão/exercício não podem ultrapassar 90 minutos e há um caminho de preparo acadêmico de 100 minutos no planner.
-5. Dependências: revisar migrations pendentes 0061 e 0062, separar alterações locais não relacionadas, validar migração antes da publicação e conferir produção.
+4. Registro histórico: a preparação acadêmica de 100 minutos foi temporariamente limitada a 90; a Fase 1 do novo ciclo substitui esse comportamento por demandas distintas de 50 minutos. `mentor_contexto` e migrations 0061/0062 já existem no banco.
+5. Dependências históricas: migrations 0061/0062 foram aplicadas; a migration do novo ciclo é 0063. A validação de produção da Fase 1 permanece critério de saída.
 6. Não fazer: criar especialistas, ativar prática, executar o migrador geral sem conferir pendências ou publicar alterações misturadas.
-7. Conclusão: migration e código compatíveis publicados; somente `conhecimento_modulo/mentor` ativo; contexto correto; 2 concurso + 1 Faculdade na semana; testes, lint, build e navegador sem erro no plano. Em 30/09/2026, esta fase está aberta.
+7. Estado histórico: consolidação técnica 0062 realizada. Não usar este item para bloquear ou liberar a sequência operacional 1-11.
 
 ## Fase B: integridade dos dados
 

@@ -51,7 +51,7 @@ export default async function handler(req, res) {
       supabase.from('mentor_contexto').select('fase,vigente_desde,semana_inicio,dados').eq('id', 1).single(),
       objetivoId ? supabase.from('objetivo').select('id,data_alvo,config').eq('id', objetivoId).maybeSingle() : Promise.resolve({ data: null }),
       supabase.from('sessao').select('id,status,data,data_planejada_original,duracao_estimada,topico_id,objetivo_id,concluida_em').eq('origem', 'mentor').gte('data_planejada_original', previousStart).lte('data_planejada_original', previousEnd),
-      supabase.from('sessao').select('id,titulo,data,prioridade,objetivo_id').neq('status','feita').lte('data',addDays(currentWeek,6)).order('data').limit(30),
+      supabase.from('sessao').select('id,titulo,data,prioridade,objetivo_id').neq('status','feita').neq('status','cancelada').lte('data',addDays(currentWeek,6)).order('data').limit(30),
       supabase.from('compromisso').select('id,titulo,data,tipo,objetivo_id').eq('concluido',false).gte('data',new Date().toISOString().slice(0,10)).lte('data',addDays(new Date().toISOString().slice(0,10),14)).order('data').limit(20),
       supabase.from('mentor_encontro_semanal').select('id,semana_inicio,carga_percebida,observacoes,classificacoes,realizado_em,atualizado_em').eq('semana_inicio', currentWeek).maybeSingle(),
       supabase.from('question_card').select('id,topico_id,proxima_revisao,lapsos,ativo'),
@@ -62,7 +62,7 @@ export default async function handler(req, res) {
 
     const policy = modularKnowledge.conteudo?.politica || {}
     const context = { ...menteeContext.dados, fase: menteeContext.fase, vigente_desde: menteeContext.vigente_desde, semana_inicio: menteeContext.semana_inicio }
-    const practiceActive = context.fase !== 'construcao_habito_base_teorica'
+    const practiceActive = context.fase !== 'construcao_habito_base_teorica' && context.fase !== 'adaptacao_teorica_1'
     const topicMap = new Map()
     for (const topic of topics || []) {
       if (objetivoId && topic.materia?.objetivo?.id !== objetivoId) continue
@@ -150,10 +150,10 @@ export default async function handler(req, res) {
     const scopedCommitments=(commitments||[]).filter((item)=>!objetivoId||item.objetivo_id===objetivoId)
     const alerts=[]
     if(activeMeeting?.classificacoes?.includes('problema_material')) alerts.push({tipo:'material',gravidade:'alta',titulo:'Material precisa de verificação',mensagem:'O encontro semanal registrou um problema no material. Revise a fonte antes de avançar neste conteúdo.'})
-    const cardsReleased = practiceActive && today >= (policy.aprendizagem?.inicio_pratica_bacen || '2026-08-31')
+    const cardsReleased = practiceActive && context.rotina_pratica?.question_cards !== false
     if(practiceActive && filteredReviews.length) alerts.push({tipo:'revisao',gravidade:'alta',titulo:`${filteredReviews.length} revisoes vencidas`,mensagem:'A central de revisao ordenou os itens mais urgentes.'})
-    const overdue=scopedPending.filter((item)=>item.data<today); if(overdue.length) alerts.push({tipo:'pendencia',gravidade:'alta',titulo:`${overdue.length} demandas nao concluidas`,mensagem:'O mentor vai redistribuir no fechamento sem ultrapassar o limite.'})
-    if(scopedPending.length>=8) alerts.push({tipo:'acumulo',gravidade:'media',titulo:'Risco de acumulo',mensagem:`Ha ${scopedPending.length} demandas abertas na semana.`})
+    const overdue=scopedPending.filter((item)=>item.data<today); if(overdue.length) alerts.push({tipo:'pendencia',gravidade:'alta',titulo:`${overdue.length} demandas nao concluidas`,mensagem:'O conteúdo volta à fila sem criar dívida de horas.'})
+    if(overdue.length>=8) alerts.push({tipo:'acumulo',gravidade:'media',titulo:'Risco de acumulo',mensagem:`Ha ${overdue.length} demandas vencidas para reavaliar.`})
     const falseCertainty = prioridades.find((item) => item.falsa_certeza >= 10)
     if(falseCertainty) alerts.push({tipo:'preparacao_prova',gravidade:'alta',titulo:`Falsa certeza em ${falseCertainty.materia}`,mensagem:`${falseCertainty.nome} precisa de correção e reteste antes de avançar.`})
     if(trajectory.risco_nao_concluir > 0) alerts.push({tipo:'trajetoria',gravidade:trajectory.risco_nao_concluir >= 35 ? 'alta' : 'media',titulo:'Risco na trajetória até a prova',mensagem:`No ritmo atual, o risco projetado é de ${trajectory.risco_nao_concluir}%.`})
