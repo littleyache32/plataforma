@@ -3,6 +3,7 @@ import { allowMethods, fail, queryParam, requireAccess } from './_lib/http.js'
 import { loadModuleKnowledge } from './_lib/module-knowledge.js'
 import { buildScenarios, calculateCardRetention, calculateStudyEfficiency, calculateTopicDiagnosis, classifyQuestionAttempts, diversifyPriorities, mentorPhase, topicSignals } from '../shared/mentor.js'
 import { adherenceAdjustment } from '../shared/planner.js'
+import { decideMentorCycle } from '../shared/mentor-decision.js'
 
 function monday(date = new Date()) {
   const value = new Date(date); const day = value.getUTCDay() || 7
@@ -42,7 +43,7 @@ export default async function handler(req, res) {
     const currentWeek = monday()
     const previousStart = addDays(currentWeek, -7)
     const previousEnd = addDays(currentWeek, -1)
-    const [{ data: topics, error: topicsError }, { data: records, error: recordsError }, { data: reviewItems, error: reviewError }, { data: inventory, error: inventoryError }, modularKnowledge, { data: menteeContext, error: contextError }, { data: objective }, { data: weeklySessions, error: sessionsError }, { data: pendingSessions, error: pendingError }, { data: commitments, error: commitmentsError }, { data: weeklyMeeting, error: meetingError }, { data: cards, error: cardsError }, { data: cardRecords, error: cardRecordsError }, { data: timers, error: timersError }] = await Promise.all([
+    const [{ data: topics, error: topicsError }, { data: records, error: recordsError }, { data: reviewItems, error: reviewError }, { data: inventory, error: inventoryError }, modularKnowledge, { data: menteeContext, error: contextError }, { data: objective }, { data: weeklySessions, error: sessionsError }, { data: pendingSessions, error: pendingError }, { data: commitments, error: commitmentsError }, { data: weeklyMeeting, error: meetingError }, { data: cards, error: cardsError }, { data: cardRecords, error: cardRecordsError }, { data: timers, error: timersError }, { data: materials, error: materialsError }, { data: materialProgress, error: progressError }, { data: previousMeeting, error: previousMeetingError }] = await Promise.all([
       supabase.from('topico').select('id,nome,incidencia,materia:materia_id(id,nome,peso_prova,objetivo:objetivo_id(id,nome))'),
       supabase.from('registro').select('resultado,classificacao,tempo,criado_em,questao!inner(id,topico_id,topico:topico_id(materia:materia_id(objetivo_id)))').order('criado_em', { ascending: false }),
       supabase.from('revisao_item').select('id,motivo,prioridade,agendada_para,questao:questao_id(id,enunciado,topico_id,topico:topico_id(materia:materia_id(objetivo_id)))').eq('status', 'pendente').order('prioridade').order('agendada_para').limit(20),
@@ -50,15 +51,18 @@ export default async function handler(req, res) {
       loadModuleKnowledge(supabase, 'mentor'),
       supabase.from('mentor_contexto').select('fase,vigente_desde,semana_inicio,dados').eq('id', 1).single(),
       objetivoId ? supabase.from('objetivo').select('id,data_alvo,config').eq('id', objetivoId).maybeSingle() : Promise.resolve({ data: null }),
-      supabase.from('sessao').select('id,status,data,data_planejada_original,duracao_estimada,topico_id,objetivo_id,concluida_em').eq('origem', 'mentor').gte('data_planejada_original', previousStart).lte('data_planejada_original', previousEnd),
+      supabase.from('sessao').select('id,status,data,data_planejada_original,duracao_estimada,topico_id,objetivo_id,concluida_em').eq('origem', 'mentor').gte('data_planejada_original', addDays(previousStart, -7)).lte('data_planejada_original', previousEnd),
       supabase.from('sessao').select('id,titulo,data,prioridade,objetivo_id').neq('status','feita').neq('status','cancelada').lte('data',addDays(currentWeek,6)).order('data').limit(30),
       supabase.from('compromisso').select('id,titulo,data,tipo,objetivo_id').eq('concluido',false).gte('data',new Date().toISOString().slice(0,10)).lte('data',addDays(new Date().toISOString().slice(0,10),14)).order('data').limit(20),
       supabase.from('mentor_encontro_semanal').select('id,semana_inicio,carga_percebida,observacoes,classificacoes,realizado_em,atualizado_em').eq('semana_inicio', currentWeek).maybeSingle(),
       supabase.from('question_card').select('id,topico_id,proxima_revisao,lapsos,ativo'),
       supabase.from('question_card_registro').select('resultado,criado_em,question_card!inner(topico_id)').order('criado_em', { ascending: false }),
       supabase.from('tempo_estudo').select('topico_id,status,segundos_acumulados,finalizado_em').eq('status','concluido').gte('finalizado_em', addDays(new Date().toISOString().slice(0,10), -28)),
+      supabase.from('material').select('id,estado_extracao,objetivo:objetivo_id(tipo)').eq('status', 'aceito'),
+      supabase.from('material_progresso').select('material_id,estado'),
+      supabase.from('mentor_encontro_semanal').select('semana_inicio,carga_percebida').eq('semana_inicio', previousStart).maybeSingle(),
     ])
-    if (topicsError || recordsError || reviewError || inventoryError || contextError || sessionsError || pendingError || commitmentsError || meetingError || cardsError || cardRecordsError || timersError || !modularKnowledge) throw topicsError || recordsError || reviewError || inventoryError || contextError || sessionsError || pendingError || commitmentsError || meetingError || cardsError || cardRecordsError || timersError || new Error('Conhecimento principal do Mentor ausente.')
+    if (topicsError || recordsError || reviewError || inventoryError || contextError || sessionsError || pendingError || commitmentsError || meetingError || cardsError || cardRecordsError || timersError || materialsError || progressError || previousMeetingError || !modularKnowledge) throw topicsError || recordsError || reviewError || inventoryError || contextError || sessionsError || pendingError || commitmentsError || meetingError || cardsError || cardRecordsError || timersError || materialsError || progressError || previousMeetingError || new Error('Conhecimento principal do Mentor ausente.')
 
     const policy = modularKnowledge.conteudo?.politica || {}
     const context = { ...menteeContext.dados, fase: menteeContext.fase, vigente_desde: menteeContext.vigente_desde, semana_inicio: menteeContext.semana_inicio }
@@ -133,7 +137,7 @@ export default async function handler(req, res) {
     const daysRemaining = hasTargetDate ? Math.max(1, Math.ceil((new Date(projectedTarget) - Date.now()) / 86_400_000)) : null
     const phasePreviousWeek = previousStart >= context.semana_inicio
     const activeMeeting = phasePreviousWeek ? weeklyMeeting : null
-    const scopedSessions = phasePreviousWeek ? (weeklySessions || []).filter((item) => !objetivoId || item.objetivo_id === objetivoId) : []
+    const scopedSessions = phasePreviousWeek ? (weeklySessions || []).filter((item) => item.data_planejada_original >= previousStart && !['cancelada'].includes(item.status) && (!objetivoId || item.objetivo_id === objetivoId)) : []
     const planned = scopedSessions.length
     const completedSessions = scopedSessions.filter((item) => item.status === 'feita' && item.concluida_em && brazilDate(item.concluida_em) <= previousEnd)
     const completed = completedSessions.length
@@ -148,6 +152,14 @@ export default async function handler(req, res) {
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
     const scopedPending=(pendingSessions||[]).filter((item)=>(!objetivoId||item.objetivo_id===objetivoId) && item.data>=context.semana_inicio)
     const scopedCommitments=(commitments||[]).filter((item)=>!objetivoId||item.objetivo_id===objetivoId)
+    const finishedMaterials = new Set((materialProgress || []).filter((item) => item.estado === 'concluido').map((item) => item.material_id))
+    const bacenMaterials = (materials || []).filter((item) => item.objetivo?.tipo === 'concurso' && item.estado_extracao !== 'pendente_ocr')
+    const decisionHistory = [addDays(previousStart, -7), previousStart].map((start) => {
+      const end = addDays(start, 6)
+      const items = (weeklySessions || []).filter((item) => item.status !== 'cancelada' && item.data_planejada_original >= start && item.data_planejada_original <= end)
+      return { inicio: start, planejadas: items.length, concluidas: items.filter((item) => item.status === 'feita' && item.concluida_em && brazilDate(item.concluida_em) <= end).length }
+    })
+    const decision = decideMentorCycle({ date: today, cycleKey: currentWeek, context, history: decisionHistory, weeklyMeeting: previousMeeting, curriculum: { remaining: bacenMaterials.length - bacenMaterials.filter((item) => finishedMaterials.has(item.id)).length, baseComplete: bacenMaterials.length > 0 && bacenMaterials.every((item) => finishedMaterials.has(item.id)) }, commitments: scopedCommitments, pendingCount: scopedPending.filter((item) => item.data < today).length, policy })
     const alerts=[]
     if(activeMeeting?.classificacoes?.includes('problema_material')) alerts.push({tipo:'material',gravidade:'alta',titulo:'Material precisa de verificação',mensagem:'O encontro semanal registrou um problema no material. Revise a fonte antes de avançar neste conteúdo.'})
     const cardsReleased = practiceActive && context.rotina_pratica?.question_cards !== false
@@ -161,7 +173,7 @@ export default async function handler(req, res) {
     if(planned) alerts.push({tipo:'carga',gravidade:'baixa',titulo:`Carga da proxima semana: ${adjustment.nivel}`,mensagem:adjustment.motivo})
     const body = {
       fase: mentorPhase(today, context), prioridades, cenarios,
-      politica: { versao: modularKnowledge.versao },
+      politica: { versao: modularKnowledge.versao }, decisao_mentor: decision,
       resumo: { topicos_cobertos: coveredTopics, topicos_totais: diagnoses.length, dias_restantes: hasTargetDate ? daysRemaining : null, revisoes_imediatas: revisaoImediata.length },
       trajetoria: trajectory,
       fechamento_semanal: phasePreviousWeek ? weeklyClose : null,

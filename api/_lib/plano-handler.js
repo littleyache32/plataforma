@@ -3,6 +3,7 @@ import { allowMethods, fail, requireAccess } from './http.js'
 import { calculateCardRetention, calculateStudyEfficiency, calculateTopicDiagnosis, diversifyPriorities, topicSignals } from '../../shared/mentor.js'
 import { NEW_CYCLE_START, adherenceAdjustment, buildMentorWeek, canGenerateMentorWeek, completedMaterialIdsFromProgress, currentPhaseCarryover, isMentorRestartWeek, isMentorResumptionWeek, planOverdueMoves, reconcileMentorDemands, validateMentorPlan, weeklyLoadProfile } from '../../shared/planner.js'
 import { resolveMentorPolicy } from '../../shared/mentor-policy.js'
+import { classifyMentorPriority, decideMentorCycle, mentorCycleState } from '../../shared/mentor-decision.js'
 import { loadModuleKnowledge } from './module-knowledge.js'
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
@@ -130,8 +131,9 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
   const policy = { ...(modularPolicy || {}), versao: knowledgeResult.data.versao }
   const menteeContext = { ...contextResult.data.dados, fase: contextResult.data.fase, vigente_desde: contextResult.data.vigente_desde, semana_inicio: contextResult.data.semana_inicio }
   const newCycle = ['adaptacao_teorica_1', 'base_teorica_adaptativa'].includes(menteeContext.fase)
-  if (today >= '2026-10-16' && menteeContext.fase === 'adaptacao_teorica_1') {
-    const transitioned = await supabase.from('mentor_contexto').update({ fase: 'base_teorica_adaptativa', vigente_desde: '2026-10-16', atualizado_em: new Date().toISOString() }).eq('id', 1).eq('fase', 'adaptacao_teorica_1')
+  const adaptiveStart = addDays(menteeContext.fim_etapa_2 || '2026-10-15', 1)
+  if (today >= adaptiveStart && menteeContext.fase === 'adaptacao_teorica_1') {
+    const transitioned = await supabase.from('mentor_contexto').update({ fase: 'base_teorica_adaptativa', vigente_desde: adaptiveStart, atualizado_em: new Date().toISOString() }).eq('id', 1).eq('fase', 'adaptacao_teorica_1')
     if (transitioned.error) throw transitioned.error
     menteeContext.fase = 'base_teorica_adaptativa'
   }
@@ -188,6 +190,10 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
   const pendingMaterialIds = [...new Set((pendingMaterialsResult.data || []).map((item) => item.material_id))]
   const facultyObjectiveIds = new Set(mentorCatalog.filter((item) => item.tipo === 'faculdade').map((item) => item.id))
   const pendingFacultySubjectIds = [...new Set((pendingMaterialsResult.data || []).filter((item) => facultyObjectiveIds.has(item.objetivo_id)).map((item) => item.materia_id))]
+  const remainingMaterials = studyUnits.filter((item) => item.context === 'concurso' && item.eligible !== false && !completedMaterialIds.includes(item.id)).length
+  const decisionSignals = { curriculum: { remaining: studyUnits.length ? remainingMaterials : undefined, baseComplete: studyUnits.length > 0 && remainingMaterials === 0 }, commitments: commitmentsResult.data || [], pendingCount: pendingMaterialIds.length + pendingFacultySubjectIds.length }
+  const newCycleLoad = newCycle ? weeklyLoadProfile(inicio, history, policy, meetingResult.data, menteeContext, decisionSignals) : null
+  const mentorDecision = newCycle ? (newCycleLoad?.decision || decideMentorCycle({ date: inicio < menteeContext.inicio ? menteeContext.inicio : inicio, cycleKey: inicio, context: menteeContext, history, weeklyMeeting: meetingResult.data, policy, ...decisionSignals })) : null
   const studiedClassIds = new Set((studiedClassesResult.data || []).map((item) => item.aula_origem_id))
   const academicClasses = (classEventsResult.data || []).map((item) => ({ id: item.id, subjectId: item.materia_id, date: item.data, content: item.titulo, studied: studiedClassIds.has(item.id) }))
   const proposedDemands = buildMentorWeek({ weekStart: inicio, catalog: mentorCatalog, priorities, pendingReviews: reviewResult.count || 0, scheduledQuestionReviews, commitments: commitmentsResult.data || [], adherenceHistory: history, studiedTopicIds, studyUnits, completedMaterialIds, pendingMaterialIds, pendingFacultySubjectIds, academicClasses, weeklyMeeting: meetingResult.data, policy, menteeContext })
@@ -196,8 +202,17 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
   if (!demands.length) return { status: 200, body: { criadas: 0, total_planejado: 0, motivo: 'Todas as demandas desta semana foram apagadas.' } }
   const validation = validateMentorPlan(demands)
   if (!validation.valid) throw new Error(`Planejamento incoerente bloqueado: ${validation.reason}.`)
+  const inProgressMaterials = new Set((completedMaterialsResult.data || []).filter((item) => item.estado === 'em_andamento').map((item) => item.material_id))
+  const demandReasons = newCycle ? demands.map((item) => ({ chave_mentor: item.chave_mentor, reason_codes: [...new Set([
+    'UNKNOWN_MASTERY',
+    ...(item.data <= (menteeContext.fim_etapa_2 || '2026-10-15') ? ['ADAPTATION_STAGE'] : []),
+    ...classifyMentorPriority({ materialInProgress: inProgressMaterials.has(item.material_id), backlog: pendingMaterialIds.includes(item.material_id) || pendingFacultySubjectIds.includes(item.materia_id) }),
+    ...(item.titulo.startsWith('Preparar prova:') ? ['EXAM_NEAR'] : []),
+    ...(item.titulo.startsWith('Preparar entrega:') ? ['DELIVERY_NEAR'] : []),
+  ])] })) : []
+  const reasonsByKey = new Map(demandReasons.map((item) => [item.chave_mentor, item.reason_codes]))
   const upsert = recalibrated.length
-    ? await supabase.from('sessao').upsert(recalibrated, { onConflict: 'chave_mentor' }).select('id')
+    ? await supabase.from('sessao').upsert(recalibrated.map((item) => ({ ...item, reason_codes: reasonsByKey.get(item.chave_mentor) || [] })), { onConflict: 'chave_mentor' }).select('id')
     : { data: [], error: null }
   if (upsert.error) throw upsert.error
   const onboardingWithoutBacenPractice = inicio >= '2026-08-17' && inicio < '2026-08-31'
@@ -218,19 +233,24 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
   const sessionsForReallocation = [...(discardPriorBacklog ? [] : currentPhaseCarryover(carryoverResult.data || [], menteeContext)), ...(refreshed.data || [])]
   const reallocationAnchor = today < inicio ? inicio : today
   const moved = !newCycle && reallocationAnchor <= weekEnd ? await reallocateOverdue(supabase, sessionsForReallocation, reallocationAnchor, weekEnd) : 0
-  if (newCycle && today >= '2026-10-16' && inicio >= '2026-10-12' && inicio <= today && (!menteeContext.ultima_avaliacao_semana || inicio > menteeContext.ultima_avaliacao_semana)) {
-    const load = weeklyLoadProfile(inicio, history, policy, meetingResult.data, menteeContext)
+  const currentState = newCycle && today >= NEW_CYCLE_START ? mentorCycleState(today, menteeContext) : null
+  if (newCycle && today >= adaptiveStart && weekEnd >= adaptiveStart && inicio <= today && (!menteeContext.ultima_avaliacao_semana || inicio > menteeContext.ultima_avaliacao_semana)) {
+    const load = newCycleLoad
     const concursoBlocks = Math.max(2, Math.round(load.segunda_sexta / 50) - 1)
     const updatedContext = {
       ...contextResult.data.dados,
       carga_atual: { ...menteeContext.carga_atual, concurso: concursoBlocks, faculdade: 1, minutos_bloco: 50 },
       ultima_avaliacao_semana: inicio,
+      estado: currentState,
     }
     const saved = await supabase.from('mentor_contexto').update({ dados: updatedContext, atualizado_em: new Date().toISOString() }).eq('id', 1)
     if (saved.error) throw saved.error
+  } else if (currentState && contextResult.data.dados?.estado !== currentState) {
+    const saved = await supabase.from('mentor_contexto').update({ dados: { ...contextResult.data.dados, estado: currentState }, atualizado_em: new Date().toISOString() }).eq('id', 1)
+    if (saved.error) throw saved.error
   }
   const meetingSignals = meetingResult.data?.classificacoes || []
-  return { status: 200, body: { atualizadas: upsert.data?.length || 0, removidas: obsoleteIds.length, total_planejado: demands.length, revisoes_espacadas_planejadas: scheduledQuestionReviews.length, revisoes_adiadas: Math.max(0, reviewGroups.size - scheduledQuestionReviews.length), remanejadas: moved, aderencia_analisada: history, ajuste_carga: adjustment, prioridades_aplicadas: priorities.map((item) => ({ topico_id: item.id, acao: item.acao_recomendada, pontuacao: item.prioridade_calculada })), encontro_aplicado: meetingSignals, politica_mentor: policy.versao } }
+  return { status: 200, body: { atualizadas: upsert.data?.length || 0, removidas: obsoleteIds.length, total_planejado: demands.length, revisoes_espacadas_planejadas: scheduledQuestionReviews.length, revisoes_adiadas: Math.max(0, reviewGroups.size - scheduledQuestionReviews.length), remanejadas: moved, aderencia_analisada: history, ajuste_carga: mentorDecision ? { nivel: mentorDecision.action, motivo: mentorDecision.reason_codes[0], semanas: mentorDecision.windows } : adjustment, decisao_mentor: mentorDecision, motivos_demandas: newCycle ? demandReasons : [], prioridades_aplicadas: priorities.map((item) => ({ topico_id: item.id, acao: item.acao_recomendada, pontuacao: item.prioridade_calculada })), encontro_aplicado: meetingSignals, politica_mentor: policy.versao } }
 }
 
 export default async function planHandler(req, res) {

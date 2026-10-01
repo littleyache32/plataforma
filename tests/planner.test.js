@@ -179,12 +179,13 @@ describe('buildMentorWeek', () => {
     const low = weeklyLoadProfile('2026-10-19', [{ inicio: '2026-10-09', planejadas: 28, concluidas: 4, pendencias: 24 }], {}, null, adaptive)
     expect(low.segunda_sexta).toBe(150)
     const highHistory = ['2026-10-02', '2026-10-09'].map((inicio) => ({ inicio, planejadas: 21, concluidas: 21, pendencias: 0, media_real_segunda_sexta: 230, media_segunda_sexta: 150 }))
-    const high = weeklyLoadProfile('2026-10-19', highHistory, {}, null, adaptive)
+    const coverage = { curriculum: { remaining: 5 } }
+    const high = weeklyLoadProfile('2026-10-19', highHistory, {}, null, adaptive, coverage)
     expect(high.segunda_sexta).toBe(250)
     expect(high.segunda_sexta - maintain.segunda_sexta).toBe(50)
     const evaluated = { ...adaptive, carga_atual: { concurso: 4, faculdade: 1, minutos_bloco: 50 }, ultima_avaliacao_semana: '2026-10-19' }
-    expect(weeklyLoadProfile('2026-10-19', highHistory, {}, null, evaluated).segunda_sexta).toBe(250)
-    expect(weeklyLoadProfile('2026-10-26', highHistory, {}, null, evaluated).segunda_sexta).toBe(300)
+    expect(weeklyLoadProfile('2026-10-19', highHistory, {}, null, evaluated, coverage).segunda_sexta).toBe(250)
+    expect(weeklyLoadProfile('2026-10-26', highHistory, {}, null, evaluated, coverage).segunda_sexta).toBe(300)
   })
   it('mantém a ordem do pacote original mesmo quando o catálogo legado o divide em matérias', () => {
     const studyUnits = [

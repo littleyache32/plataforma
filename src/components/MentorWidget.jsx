@@ -77,6 +77,7 @@ export default function MentorWidget({ objectiveId, onOpenQuestions, onOpenCards
   const restrictedPhase = basePhase || !cardsReleased
   const close = mentor?.fechamento_semanal
   const trajectory = mentor?.trajetoria
+  const decision = mentor?.decisao_mentor
   const alerts = mentor?.alertas || []
   const visibleAlerts = cardsReleased ? alerts : alerts.filter((alert) => !/card/i.test(`${alert.tipo} ${alert.titulo} ${alert.mensagem}`))
   const summary = mentor?.resumo || {}
@@ -118,6 +119,7 @@ export default function MentorWidget({ objectiveId, onOpenQuestions, onOpenCards
         </div>}
 
         {activePanel === 'progresso' && <div className="mentor-panel-content mentor-progress">
+          {decision && <section><small>DECISÃO DO MENTOR</small><strong>{decision.action === 'aumentar' ? 'Carga elegível para aumento' : decision.action === 'reduzir' ? 'Carga ajustada para baixo' : 'Carga mantida'}</strong><span>{decision.explanation}</span></section>}
           <section><small>FECHAMENTO SEMANAL</small><strong>{close?.planejado > 0 ? `${close.realizado} de ${close.planejado} demandas` : 'Ainda sem fechamento'}</strong><span>{close?.planejado > 0 ? `${close.pendencias} pendências · ${close.minutos_realizados || 0} minutos realizados` : 'O primeiro resultado aparecerá após uma semana de uso.'}</span></section>
           <section><small>PRIORIDADE DE CORREÇÃO</small><strong>{priority && !restrictedPhase ? priority.nome : 'Nenhuma prioridade liberada'}</strong><span>{priority && !restrictedPhase ? priority.motivo : 'O mentor aguardará dados suficientes e conteúdos liberados.'}</span></section>
           <section><small>TRAJETÓRIA ATÉ A PROVA</small><strong>{trajectory?.data_alvo_definida && probable ? `${probable.cobertura_estimada}% de cobertura provável` : 'Projeção em calibração'}</strong><span>{trajectory?.data_alvo_definida ? `${trajectory.conteudo_restante} tópicos restantes${trajectory.data_provisoria ? ' · data provisória até o edital' : ''}` : 'A projeção será atualizada com os dados de estudo.'}</span></section>

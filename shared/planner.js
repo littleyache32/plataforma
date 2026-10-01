@@ -1,4 +1,5 @@
 import { resolveMentorPolicy } from './mentor-policy.js'
+import { decideMentorCycle } from './mentor-decision.js'
 export { completedMaterialIdsFromProgress } from './material-progress.js'
 
 const DAY_MS = 86_400_000
@@ -122,19 +123,16 @@ export function adherenceAdjustment(history = [], weeklyMeeting = null) {
   return { nivel: 'manter', motivo: 'aderencia_sustentavel', semanas: measured }
 }
 
-export function weeklyLoadProfile(weekStart, history = [], customPolicy = {}, weeklyMeeting = null, menteeContext = null) {
+export function weeklyLoadProfile(weekStart, history = [], customPolicy = {}, weeklyMeeting = null, menteeContext = null, signals = {}) {
   const policy = resolveMentorPolicy(customPolicy)
-  if (['adaptacao_teorica_1', 'base_teorica_adaptativa'].includes(menteeContext?.fase) && weekStart >= '2026-10-12') {
-    if (menteeContext?.ultima_avaliacao_semana === weekStart) {
-      const daily = (Math.max(2, Number(menteeContext?.carga_atual?.concurso || 3)) + 1) * 50
-      return { segunda_sexta: daily, sabado: daily, domingo: daily, nivel: 'manter', motivo: 'avaliacao_da_semana_ja_aplicada' }
-    }
-    const recent = history.filter((week) => week.inicio >= NEW_CYCLE_START)
-    const adjustment = adherenceAdjustment(recent, weeklyMeeting)
-    const previousBlocks = Math.max(2, Number(menteeContext?.carga_atual?.concurso || 3))
-    const change = adjustment.nivel === 'aumentar' ? 1 : adjustment.nivel === 'reduzir' ? -1 : 0
-    const daily = (Math.max(2, previousBlocks + change) + 1) * 50
-    return { segunda_sexta: daily, sabado: daily, domingo: daily, nivel: adjustment.nivel, motivo: adjustment.motivo }
+  const stageTwoEnd = menteeContext?.fim_etapa_2 || NEW_CYCLE_STAGE_2_END
+  const weekEnd = isoDate(new Date(Date.parse(`${weekStart}T12:00:00Z`) + 6 * DAY_MS))
+  if (['adaptacao_teorica_1', 'base_teorica_adaptativa'].includes(menteeContext?.fase) && weekEnd > stageTwoEnd) {
+    const evaluationDate = weekStart <= stageTwoEnd
+      ? isoDate(new Date(Date.parse(`${stageTwoEnd}T12:00:00Z`) + DAY_MS)) : weekStart
+    const decision = decideMentorCycle({ date: evaluationDate, cycleKey: weekStart, context: menteeContext, history, weeklyMeeting, policy, ...signals })
+    const daily = (decision.bacenBlocks + decision.facultyBlocks) * 50
+    return { segunda_sexta: daily, sabado: daily, domingo: daily, nivel: decision.action, motivo: decision.reason_codes[0], decision }
   }
   if (menteeContext?.fase === 'construcao_habito_base_teorica' && weekStart >= menteeContext.semana_inicio) {
     const block = Number(menteeContext.carga_atual?.minutos_bloco || 50)
@@ -343,7 +341,8 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
   const baseOnly = currentBase || (adaptiveStudyPeriod
     ? !practice.eligible
     : weekStart >= MENTORSHIP_START && weekStart < policy.fase_inicial.question_cards_inicio)
-  const loadProfile = weeklyLoadProfile(weekStart, adherenceHistory, policy, weeklyMeeting, menteeContext)
+  const remainingMaterials = studyUnits.filter((item) => item.context === 'concurso' && item.eligible !== false && !completedMaterialIds.includes(item.id)).length
+  const loadProfile = weeklyLoadProfile(weekStart, adherenceHistory, policy, weeklyMeeting, menteeContext, { curriculum: { remaining: studyUnits.length ? remainingMaterials : undefined, baseComplete: studyUnits.length > 0 && remainingMaterials === 0 }, commitments, pendingCount: pendingMaterialIds.length + pendingFacultySubjectIds.length })
   const studyBlock = policy.fase_inicial.bloco_estudo_minutos || 50
   const catchUpActive = currentBase ? false : adaptiveStudyPeriod
     ? facultyCatchUpActive(weeklyMeeting, policy)

@@ -96,6 +96,13 @@ export const DEFAULT_MENTOR_POLICY = Object.freeze({
     maximo_pendencias_para_aumentar: 3,
     ignorar_tempo_excedente_quando_concluida: true,
   },
+  motor_decisao: {
+    minimo_demandas_janela: 5,
+    aderencia_reducao: 0.7,
+    aderencia_aumento: 0.85,
+    maximo_pendencias_aumento: 3,
+    minimo_bacen_blocos: 2,
+  },
   decisao_semanal: {
     fontes: ['aderencia_ponderada', 'pendencias', 'revisoes_vencidas', 'dominio', 'falsa_certeza', 'recencia', 'provas_faculdade', 'conteudo_estudado'],
     amostra_minima_desempenho: 10,
@@ -207,6 +214,7 @@ export function resolveMentorPolicy(policy = {}) {
     retomada: { ...DEFAULT_MENTOR_POLICY.retomada, ...(policy.retomada || {}) },
     adaptacao_estudo: { ...DEFAULT_MENTOR_POLICY.adaptacao_estudo, ...(policy.adaptacao_estudo || {}) },
     progressao_carga: { ...DEFAULT_MENTOR_POLICY.progressao_carga, ...(policy.progressao_carga || {}) },
+    motor_decisao: { ...DEFAULT_MENTOR_POLICY.motor_decisao, ...(policy.motor_decisao || {}) },
     decisao_semanal: { ...DEFAULT_MENTOR_POLICY.decisao_semanal, ...(policy.decisao_semanal || {}) },
     retencao_cards: { ...DEFAULT_MENTOR_POLICY.retencao_cards, ...(policy.retencao_cards || {}) },
     eficiencia_estudo: { ...DEFAULT_MENTOR_POLICY.eficiencia_estudo, ...(policy.eficiencia_estudo || {}) },
