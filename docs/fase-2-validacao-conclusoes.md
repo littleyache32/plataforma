@@ -36,6 +36,8 @@ Demandas ativas com a mesma `chave_mentor`: **0**. Demandas planejadas repetidas
 
 Sexta, sábado e domingo mantêm um bloco acadêmico como **Estudo**, sem fingir aula presencial. Segunda a quinta só identificam a aula ministrada se houver registro real ainda não estudado; sem registro, apresentam Estudo genérico. Prova próxima muda a disciplina acadêmica, não adiciona bloco. Faltas não elevam os blocos do fim de semana.
 
+Validação final: 122 testes, lint e build passaram. A migration 0065 foi aplicada e confirmada. O commit de código `44d319a` chegou à produção; a Semana autenticada exibiu 02, 03 e 04/10 com três blocos de 50 minutos e título acadêmico genérico. Após a correção restrita dos três títulos já persistidos, restaram zero títulos de aula fictícia e zero duplicidades ativas nesses dias. A consulta de erros da Vercel não encontrou falhas na última hora. A semana futura de 09 a 15/10 foi simulada em teste, sem antecipar o cron.
+
 ## Regra canônica
 
 `material_progresso.estado = concluido` com `concluido_em` válido determina conclusão. Uma sessão de estudo feita deixa o material `em_andamento`, não concluído. Um material concluído sai da trilha normal mesmo se a conclusão ocorreu antes de 02/10. Sem PDF elegível, o planner não volta ao catálogo antigo. Revisão futura exige demanda com modalidade e motivo de revisão.
