@@ -200,7 +200,9 @@ export default async function handler(req, res) {
     const body = {
       fase: mentorPhase(today, context), prioridades, cenarios,
       politica: { versao: modularKnowledge.versao }, decisao_mentor: decision,
-      resumo: { topicos_cobertos: coveredTopics, topicos_totais: diagnoses.length, dias_restantes: hasTargetDate ? daysRemaining : null, revisoes_imediatas: revisaoImediata.length },
+      resumo: currentCycle ? { materiais_concluidos: specialistSignals.trilha.concluidos, materiais_totais: specialistSignals.trilha.total,
+        revisoes_imediatas: 0, dominio: 'UNKNOWN' }
+        : { topicos_cobertos: coveredTopics, topicos_totais: diagnoses.length, dias_restantes: hasTargetDate ? daysRemaining : null, revisoes_imediatas: revisaoImediata.length },
       trajetoria: trajectory,
       fechamento_semanal: phasePreviousWeek ? weeklyClose : null,
       alertas: alerts,

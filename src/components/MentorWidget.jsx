@@ -101,7 +101,9 @@ export default function MentorWidget({ objectiveId, onOpenQuestions, onOpenCards
           <div className="mentor-summary-grid">
             <article><small>AVISOS</small><strong>{visibleAlerts.length}</strong><span>{visibleAlerts.length === 1 ? 'item para acompanhar' : 'itens para acompanhar'}</span></article>
             <article><small>REVISÕES</small><strong>{summary.revisoes_imediatas || 0}</strong><span>prioridade imediata</span></article>
-            <article><small>ESTÁVEIS</small><strong>{summary.topicos_cobertos || 0}<i>/{summary.topicos_totais || 0}</i></strong><span>tópicos com amostra e estabilidade</span></article>
+            {trajectory?.unidade === 'materiais'
+              ? <article><small>COBERTURA</small><strong>{summary.materiais_concluidos || 0}<i>/{summary.materiais_totais || 0}</i></strong><span>materiais concluídos; domínio ainda desconhecido</span></article>
+              : <article><small>ESTÁVEIS</small><strong>{summary.topicos_cobertos || 0}<i>/{summary.topicos_totais || 0}</i></strong><span>tópicos com amostra e estabilidade</span></article>}
             <article><small>ADERÊNCIA</small><strong>{adherence === null ? '...' : `${adherence}%`}</strong><span>último fechamento</span></article>
           </div>
           <div className="chat-message received"><img src={avatar} alt=""/><div className="chat-bubble"><small>LEITURA DO MENTOR</small><strong>{visibleAlerts.length ? 'Há pontos que merecem atenção' : 'Nenhum risco urgente agora'}</strong><span>{visibleAlerts[0]?.mensagem || 'Continue executando as demandas planejadas. O mentor atualizará a leitura com seus resultados.'}</span></div></div>
@@ -135,7 +137,7 @@ export default function MentorWidget({ objectiveId, onOpenQuestions, onOpenCards
         </form>}
       </>}
 
-      <footer><span>Direcionamento baseado em rotina, desempenho e recência.</span><i aria-label="Gemini desativado">IA desativada</i></footer>
+      <footer><span>{trajectory?.unidade === 'materiais' ? 'Direcionamento baseado em rotina, cobertura e prazos.' : 'Direcionamento baseado em rotina, desempenho e recência.'}</span><i aria-label="Gemini desativado">IA desativada</i></footer>
     </section>}
     <button className="mentor-trigger" onClick={() => setOpen((value) => !value)} aria-label={open ? 'Fechar mentor' : 'Abrir mentor'} aria-expanded={open}><img src={avatar} alt=""/><span aria-hidden="true"/>{visibleAlerts.length > 0 && <b className="mentor-alert-count">{visibleAlerts.length}</b>}</button>
   </aside>
