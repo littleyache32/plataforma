@@ -34,6 +34,36 @@ describe('encontro e fechamento da Fase 6', () => {
     expect(revised.filter((item) => item.data === '2026-10-14')).toHaveLength(provisional.filter((item) => item.data === '2026-10-14').length)
   })
 
+  it('mantém o plano provisório estável quando recalculado antes do encontro', () => {
+    const provisional = buildMentorWeek({ weekStart: '2026-10-12', catalog, menteeContext: context })
+    const existing = provisional.map((item) => ({ ...item, status: 'planejada' }))
+    const repeated = buildMentorWeek({ weekStart: '2026-10-12', catalog, menteeContext: context })
+    const result = reconcileMentorDemands(repeated, existing)
+    expect(result.demands).toHaveLength(provisional.length)
+    expect(result.recalibrated).toEqual([])
+    expect(new Set(result.demands.map((item) => item.chave_mentor)).size).toBe(provisional.length)
+  })
+
+  it('distingue falta, cancelamento do Mentor e exclusão manual sem recriar sessão antiga', () => {
+    const previous = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: context })
+    const missed = { ...previous.find((item) => item.objetivo_id === 'bacen'), status: 'nao_concluida', material_id: 'pdf-pendente' }
+    const proposed = buildMentorWeek({ weekStart: '2026-10-12', catalog, menteeContext: context,
+      studyUnits: [{ id: 'pdf-pendente', objectiveId: 'bacen', context: 'concurso', subjectId: 'portugues', subject: 'Português', name: 'Aula 1.pdf', order: 1 }],
+      pendingMaterialIds: ['pdf-pendente'] })
+    const mentorCancelled = { ...proposed[0], status: 'cancelada', cancelamento_origem: 'mentor' }
+    const manuallyDeleted = { ...proposed[1], status: 'cancelada', cancelamento_origem: 'usuario' }
+    const result = reconcileMentorDemands(proposed, [missed, mentorCancelled, manuallyDeleted])
+    expect(missed.status).toBe('nao_concluida')
+    expect(result.demands.some((item) => item.chave_mentor === missed.chave_mentor)).toBe(false)
+    expect(result.demands.some((item) => item.chave_mentor === manuallyDeleted.chave_mentor)).toBe(false)
+    expect(result.demands).toHaveLength(proposed.length - 1)
+    expect(result.recalibrated.find((item) => item.chave_mentor === mentorCancelled.chave_mentor))
+      .toMatchObject({ status: 'planejada', cancelamento_origem: null })
+    expect(result.demands.some((item) => item.material_id === 'pdf-pendente')).toBe(true)
+    expect(result.demands.every((item) => item.data >= '2026-10-12' && item.duracao_estimada === 50)).toBe(true)
+    expect(new Set(result.demands.map((item) => item.chave_mentor)).size).toBe(result.demands.length)
+  })
+
   it('fecha apenas semana vencida e repetir o fechamento não duplica faltas', async () => {
     let rows = [{ id: 'missed' }]
     const calls = []
