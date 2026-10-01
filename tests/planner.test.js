@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { adherenceAdjustment, buildMentorWeek, canGenerateMentorWeek, completedMaterialIdsFromProgress, currentPhaseCarryover, dailyCapacity, equivalentActiveDemand, planOverdueMoves, practiceEligibility, validateMentorPlan, weeklyLoadProfile } from '../shared/planner.js'
+import { adherenceAdjustment, buildMentorWeek, canGenerateMentorWeek, completedMaterialIdsFromProgress, currentPhaseCarryover, dailyCapacity, equivalentActiveDemand, planOverdueMoves, practiceEligibility, reconcileMentorDemands, validateMentorPlan, weeklyLoadProfile } from '../shared/planner.js'
 
 const catalog = [
   { id: 'bacen', tipo: 'concurso', materias: [{ id: 'cont', nome: 'Contabilidade', topicos: [{ id: 'cont-1', nome: 'Balanço' }] }] },
@@ -97,12 +97,94 @@ describe('buildMentorWeek', () => {
     const nextBlock = plan.find((item) => item.objetivo_id === 'bacen' && item.data === first.data && item.ordem !== first.ordem)
     expect(equivalentActiveDemand(nextBlock, [equivalent])).toBeNull()
   })
+  it('recalcula sem recriar demanda apagada ou sobrescrever concluída', () => {
+    const proposed = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext }).slice(0, 3)
+    const existing = [
+      { ...proposed[0], status: 'cancelada' },
+      { ...proposed[1], status: 'feita' },
+      { ...proposed[2], status: 'planejada' },
+    ]
+    const reconciled = reconcileMentorDemands(proposed, existing)
+    expect(reconciled.demands.map((item) => item.chave_mentor)).toEqual(proposed.slice(1).map((item) => item.chave_mentor))
+    expect(reconciled.recalibrated.map((item) => item.chave_mentor)).toEqual([proposed[2].chave_mentor])
+    expect(reconcileMentorDemands(proposed, existing).recalibrated.map((item) => item.chave_mentor)).toEqual([proposed[2].chave_mentor])
+  })
   it('bloqueia carga normal acima do teto diário sem transformar teto em meta', () => {
     for (const [date, max] of [['2026-10-05', 9], ['2026-10-10', 5], ['2026-10-11', 4]]) {
       const items = Array.from({ length: max + 1 }, (_, index) => ({ chave_mentor: `${date}:${index}`, data: date, tipo: 'estudo', duracao_estimada: 50 }))
       expect(validateMentorPlan(items).reason).toBe('capacidade_diaria_excedida')
       expect(validateMentorPlan(items.slice(0, max)).valid).toBe(true)
     }
+  })
+  it('mantém duas demandas independentes de 50 minutos para um material de 100 minutos', () => {
+    const studyUnits = [{ id: 'pdf-100', objectiveId: 'bacen', context: 'concurso', subjectId: 'cont', subject: 'Contabilidade', name: 'Aula 1.pdf', order: 1 }]
+    const day = buildMentorWeek({ weekStart: '2026-09-28', catalog, menteeContext: newCycleContext, studyUnits }).filter((item) => item.data === '2026-10-02' && item.objetivo_id === 'bacen')
+    expect(day).toHaveLength(2)
+    expect(day.map((item) => item.duracao_estimada)).toEqual([50, 50])
+    expect(new Set(day.map((item) => item.chave_mentor)).size).toBe(2)
+    expect(day.every((item) => item.material_id === 'pdf-100')).toBe(true)
+  })
+  it('usa prioridade do Mentor e conteúdo perdido para substituir seleção futura, sem aumentar blocos', () => {
+    const expanded = [{ id: 'bacen', tipo: 'concurso', materias: [
+      { id: 'a', nome: 'A', topicos: [{ id: 'ta', nome: 'A' }] },
+      { id: 'b', nome: 'B', topicos: [{ id: 'tb', nome: 'B' }] },
+      { id: 'c', nome: 'C', topicos: [{ id: 'tc', nome: 'C' }] },
+    ] }, catalog[1]]
+    const units = ['a', 'b', 'c'].map((id) => ({ id: `pdf-${id}`, objectiveId: 'bacen', context: 'concurso', subjectId: id, subject: id, name: `Aula ${id}.pdf`, order: 1 }))
+    const baseline = buildMentorWeek({ weekStart: '2026-10-05', catalog: expanded, menteeContext: newCycleContext, studyUnits: units })
+    const prioritized = buildMentorWeek({ weekStart: '2026-10-05', catalog: expanded, menteeContext: newCycleContext, studyUnits: units, priorities: [{ id: 'tb', materia_id: 'b' }] })
+    const pending = buildMentorWeek({ weekStart: '2026-10-05', catalog: expanded, menteeContext: newCycleContext, studyUnits: units, pendingMaterialIds: ['pdf-c'] })
+    expect(prioritized.find((item) => item.objetivo_id === 'bacen').material_id).toBe('pdf-b')
+    expect(pending.find((item) => item.objetivo_id === 'bacen').material_id).toBe('pdf-c')
+    for (const date of ['2026-10-05', '2026-10-10', '2026-10-11']) {
+      expect(pending.filter((item) => item.data === date)).toHaveLength(baseline.filter((item) => item.data === date).length)
+    }
+  })
+  it('após 15/10 usa fase adaptativa sem liberar prática nem voltar ao planejamento antigo', () => {
+    const adaptive = { ...newCycleContext, fase: 'base_teorica_adaptativa' }
+    const result = buildMentorWeek({ weekStart: '2026-10-12', catalog, menteeContext: adaptive })
+    for (const date of ['2026-10-12', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18']) {
+      expect(result.filter((item) => item.data === date)).toHaveLength(4)
+    }
+    expect(result.every((item) => item.tipo === 'estudo' && item.duracao_estimada === 50)).toBe(true)
+  })
+  it('prova de Justiça muda a disciplina acadêmica sem criar bloco extra', () => {
+    const expanded = [catalog[0], { id: 'facul', tipo: 'faculdade', materias: [
+      { id: 'civil', nome: 'Direito Civil', topicos: [{ id: 'civil-1', nome: 'Pessoas' }] },
+      { id: 'justica', nome: 'Teorias da Justiça', topicos: [{ id: 'justica-1', nome: 'Justiça' }] },
+    ] }]
+    const result = buildMentorWeek({ weekStart: '2026-10-12', catalog: expanded, menteeContext: newCycleContext, commitments: [{ id: 'prova', tipo: 'prova', materia_id: 'justica', data: '2026-10-14', concluido: false }] })
+    for (const date of ['2026-10-12', '2026-10-13', '2026-10-14']) {
+      const faculty = result.filter((item) => item.data === date && item.objetivo_id === 'facul')
+      expect(faculty).toHaveLength(1)
+      expect(faculty[0].materia_id).toBe('justica')
+    }
+  })
+  it('conteúdo acadêmico pendente volta ao bloco existente, salvo compromisso próximo', () => {
+    const expanded = [catalog[0], { id: 'facul', tipo: 'faculdade', materias: [
+      { id: 'civil', nome: 'Direito Civil', topicos: [{ id: 'civil-1', nome: 'Pessoas' }] },
+      { id: 'justica', nome: 'Teorias da Justiça', topicos: [{ id: 'justica-1', nome: 'Justiça' }] },
+    ] }]
+    const baseline = buildMentorWeek({ weekStart: '2026-10-05', catalog: expanded, menteeContext: newCycleContext })
+    const pending = buildMentorWeek({ weekStart: '2026-10-05', catalog: expanded, menteeContext: newCycleContext, pendingFacultySubjectIds: ['justica'] })
+    expect(pending.find((item) => item.data === '2026-10-05' && item.objetivo_id === 'facul').materia_id).toBe('justica')
+    expect(pending.filter((item) => item.data === '2026-10-05')).toHaveLength(baseline.filter((item) => item.data === '2026-10-05').length)
+    const exam = buildMentorWeek({ weekStart: '2026-10-12', catalog: expanded, menteeContext: newCycleContext, pendingFacultySubjectIds: ['civil'], commitments: [{ tipo: 'prova', materia_id: 'justica', data: '2026-10-14', concluido: false }] })
+    expect(exam.find((item) => item.data === '2026-10-12' && item.objetivo_id === 'facul').materia_id).toBe('justica')
+  })
+  it('depois de 15/10 a carga só muda por sinal de aderência e no máximo um bloco', () => {
+    const adaptive = { ...newCycleContext, fase: 'base_teorica_adaptativa' }
+    const maintain = weeklyLoadProfile('2026-10-19', [], {}, null, adaptive)
+    expect(maintain.segunda_sexta).toBe(200)
+    const low = weeklyLoadProfile('2026-10-19', [{ inicio: '2026-10-09', planejadas: 28, concluidas: 4, pendencias: 24 }], {}, null, adaptive)
+    expect(low.segunda_sexta).toBe(150)
+    const highHistory = ['2026-10-02', '2026-10-09'].map((inicio) => ({ inicio, planejadas: 21, concluidas: 21, pendencias: 0, media_real_segunda_sexta: 230, media_segunda_sexta: 150 }))
+    const high = weeklyLoadProfile('2026-10-19', highHistory, {}, null, adaptive)
+    expect(high.segunda_sexta).toBe(250)
+    expect(high.segunda_sexta - maintain.segunda_sexta).toBe(50)
+    const evaluated = { ...adaptive, carga_atual: { concurso: 4, faculdade: 1, minutos_bloco: 50 }, ultima_avaliacao_semana: '2026-10-19' }
+    expect(weeklyLoadProfile('2026-10-19', highHistory, {}, null, evaluated).segunda_sexta).toBe(250)
+    expect(weeklyLoadProfile('2026-10-26', highHistory, {}, null, evaluated).segunda_sexta).toBe(300)
   })
   it('mantém a ordem do pacote original mesmo quando o catálogo legado o divide em matérias', () => {
     const studyUnits = [

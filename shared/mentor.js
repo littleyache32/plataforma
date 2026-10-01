@@ -1,9 +1,9 @@
 import { resolveMentorPolicy } from './mentor-policy.js'
 
 export function mentorPhase(date = new Date().toISOString().slice(0, 10), context = null) {
-  if (context?.fase === 'adaptacao_teorica_1') {
+  if (['adaptacao_teorica_1', 'base_teorica_adaptativa'].includes(context?.fase)) {
     if (date < (context.inicio || context.semana_inicio || '2026-10-02')) return { id: 'aguardando_novo_ciclo', titulo: 'Novo ciclo em preparação', descricao: 'O planejamento teórico começa em 02/10. O histórico anterior está preservado.' }
-    if (date > (context.fim_etapa_2 || '2026-10-15')) return { id: 'adaptacao_avaliada', titulo: 'Adaptação avaliada pelo Mentor', descricao: 'O Mentor avalia a constância antes de alterar a carga. Prática permanece bloqueada.' }
+    if (date > (context.fim_etapa_2 || '2026-10-15')) return { id: 'base_teorica_adaptativa', titulo: 'Base teórica adaptativa', descricao: 'O Mentor avalia a constância e ajusta a carga sem progressão fixa. Prática permanece bloqueada.' }
     const secondStage = date > (context.fim_etapa_1 || '2026-10-08')
     return { id: 'adaptacao_teorica', titulo: 'Adaptação teórica', descricao: secondStage ? 'Três blocos BACEN e um de Faculdade por dia até 15/10. Prática permanece bloqueada.' : 'Dois blocos BACEN e um de Faculdade por dia até 08/10. Prática permanece bloqueada.' }
   }
