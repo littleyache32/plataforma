@@ -313,7 +313,7 @@ function facultyStudyTitle(target, block, catchUpActive) {
  * Cria uma semana por demandas. O bloco normal tem 50 minutos de estudo.
  * Question Cards mantêm os 30 minutos explicitamente definidos pelo usuário.
  */
-export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingReviews = 0, scheduledQuestionReviews = [], commitments = [], adherenceHistory = [], studiedTopicIds = null, studyUnits = [], completedMaterialIds = [], pendingMaterialIds = [], pendingFacultySubjectIds = [], academicClasses = [], weeklyMeeting = null, policy: customPolicy = {}, menteeContext = null }) {
+export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingReviews = 0, scheduledQuestionReviews = [], commitments = [], adherenceHistory = [], studiedTopicIds = null, studyUnits = [], completedMaterialIds = [], pendingMaterialIds = [], pendingFacultySubjectIds = [], academicClasses = [], weeklyMeeting = null, policy: customPolicy = {}, menteeContext = null, mentorDecision = null, materialPriorities = [] }) {
   const policy = resolveMentorPolicy(customPolicy)
   const targets = catalog.flatMap((objective) => (objective.materias || []).flatMap((subject) => {
     const topics = subject.topicos?.length ? subject.topicos : [{ id: null, nome: '' }]
@@ -348,7 +348,8 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     ? !practice.eligible
     : weekStart >= MENTORSHIP_START && weekStart < policy.fase_inicial.question_cards_inicio)
   const remainingMaterials = studyUnits.filter((item) => item.context === 'concurso' && item.eligible !== false && !completedMaterialIds.includes(item.id)).length
-  const loadProfile = weeklyLoadProfile(weekStart, adherenceHistory, policy, weeklyMeeting, menteeContext, { curriculum: { remaining: studyUnits.length ? remainingMaterials : undefined, baseComplete: studyUnits.length > 0 && remainingMaterials === 0 }, commitments, pendingCount: pendingMaterialIds.length + pendingFacultySubjectIds.length })
+  const loadProfile = mentorDecision ? { segunda_sexta: (mentorDecision.bacenBlocks + mentorDecision.facultyBlocks) * 50 }
+    : weeklyLoadProfile(weekStart, adherenceHistory, policy, weeklyMeeting, menteeContext, { curriculum: { remaining: studyUnits.length ? remainingMaterials : undefined, baseComplete: studyUnits.length > 0 && remainingMaterials === 0 }, commitments, pendingCount: pendingMaterialIds.length + pendingFacultySubjectIds.length })
   const studyBlock = policy.fase_inicial.bloco_estudo_minutos || 50
   const catchUpActive = currentBase ? false : adaptiveStudyPeriod
     ? facultyCatchUpActive(weeklyMeeting, policy)
@@ -372,6 +373,7 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     return map
   }, new Map()).values()].map((group) => group.sort((a, b) => Number(a.order || 9999) - Number(b.order || 9999) || a.name.localeCompare(b.name)))
   const priorityRank = new Map(priorities.filter((item) => item.materia_id).map((item, index) => [item.materia_id, Math.max(1.5, 3 - index * 0.5)]))
+  const materialPriority = new Map(materialPriorities.map((item) => [item.material_id, item.score]))
   const pendingMaterials = new Set(pendingMaterialIds)
   const lessonPicks = new Map()
   let lessonSelection = 0
@@ -380,7 +382,8 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
     const candidates = lessonGroups.map((group, index) => ({ item: group[0], index })).filter(({ item }) => item.eligible !== false)
     if (!candidates.length) return null
     candidates.sort((a, b) => {
-      const score = ({ item, index }) => (priorityRank.get(item.subjectId) || 1) + (pendingMaterials.has(item.id) ? 2 : 0) - (lessonPicks.get(index) || 0) * 1.5
+      const score = ({ item, index }) => (materialPriority.get(item.id) ?? priorityRank.get(item.subjectId) ?? 1)
+        + (pendingMaterials.has(item.id) ? 2 : 0) - (lessonPicks.get(index) || 0) * 1.5
       return score(b) - score(a) || ((a.index - lessonSelection + lessonGroups.length) % lessonGroups.length) - ((b.index - lessonSelection + lessonGroups.length) % lessonGroups.length)
     })
     const { item, index } = candidates[0]

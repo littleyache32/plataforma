@@ -31,6 +31,8 @@ const EXPLANATIONS = Object.freeze({
   UNSUSTAINABLE_BACKLOG: 'O acúmulo impede aumentar a carga.',
   INSUFFICIENT_AVAILABILITY: 'A disponibilidade informada não comporta mais um bloco diário.',
   MINIMUM_LOAD: 'A carga BACEN já está no mínimo operacional e não pode ser reduzida neste ciclo.',
+  COVERAGE_RISK: 'O ritmo medido indica risco de não concluir a cobertura até a data de referência.',
+  PRACTICE_DISABLED: 'Revisão prática e questões continuam desligadas nesta fase.',
 })
 
 export function explainMentorReasons(reasonCodes = []) {
@@ -55,16 +57,55 @@ export function classifyMentorPriority({ incidence, incidenceEvidence = false, p
   return reasons
 }
 
+const PRIORITY_SCORE = Object.freeze({ P0: 5, P1: 4, P2: 3, P3: 2, P4: 1 })
+
+export function rankMentorMaterials({ studyUnits = [], completedMaterialIds = [], metadata = [], subjectWeights = {}, pendingMaterialIds = [], prerequisites = [], commitments = [], date = null } = {}) {
+  const completed = new Set(completedMaterialIds)
+  const pending = new Set(pendingMaterialIds)
+  const evidenceByMaterial = new Map(metadata.map((item) => [item.material_id, item]))
+  const prerequisiteIds = new Set(prerequisites.filter((item) => item.fonte && item.evidencia).map((item) => item.material_id))
+  return studyUnits.filter((item) => item.eligible !== false && !completed.has(item.id)).map((item) => {
+    const meta = evidenceByMaterial.get(item.id) || {}
+    const evidenced = Boolean(meta.fonte && meta.evidencia && meta.atualizado_em)
+    const incidence = evidenced && ['LOW', 'MEDIUM', 'HIGH'].includes(meta.incidencia) ? meta.incidencia : 'UNKNOWN'
+    const difficulty = evidenced && ['LOW', 'MEDIUM', 'HIGH'].includes(meta.dificuldade) ? meta.dificuldade : 'UNKNOWN'
+    const weight = Number(subjectWeights[item.subjectId] || 0)
+    const hardDeadline = item.hardDeadline || (item.context === 'faculdade' && date && commitments.some((commitment) =>
+      !commitment.concluido && commitment.materia_id === item.subjectId && ['prova', 'entrega'].includes(commitment.tipo)
+      && commitment.data >= date && commitment.data <= new Date(Date.parse(`${date}T12:00:00Z`) + 2 * 86_400_000).toISOString().slice(0, 10)))
+    const reasons = []
+    let level = 'P3'
+    if (hardDeadline) { level = 'P0'; reasons.push('EXAM_NEAR') }
+    else if (incidence === 'HIGH' || prerequisiteIds.has(item.id)) {
+      level = 'P1'; reasons.push(incidence === 'HIGH' ? 'HIGH_INCIDENCE' : 'PREREQUISITE')
+    } else if (incidence === 'MEDIUM' || weight >= 4 || pending.has(item.id)) {
+      level = 'P2'; reasons.push(pending.has(item.id) ? 'BACKLOG' : 'CURRICULUM_GAP')
+    } else if (incidence === 'LOW') { level = 'P4'; reasons.push('LOW_PRIORITY') }
+    else reasons.push('CURRICULUM_GAP')
+    const score = PRIORITY_SCORE[level] + Math.min(1, Math.max(0, weight) / 5) + (difficulty === 'HIGH' ? 0.2 : 0)
+    return { material_id: item.id, nivel: level, score: Number(score.toFixed(3)), incidencia: incidence, dificuldade: difficulty,
+      fonte: evidenced ? meta.fonte : null, evidencia: evidenced ? meta.evidencia : null, atualizado_em: evidenced ? meta.atualizado_em : null,
+      reason_codes: reasons }
+  }).sort((a, b) => b.score - a.score || String(a.material_id).localeCompare(String(b.material_id)))
+}
+
 function completeWindows(history = [], minimumDemands = 5) {
   return history.filter((week) => week.inicio && Number(week.planejadas) >= minimumDemands)
     .map((week) => ({ ...week, rate: Number(week.planejadas) > 0 ? Number(week.concluidas || 0) / Number(week.planejadas) : 0 }))
     .sort((a, b) => a.inicio.localeCompare(b.inicio)).slice(-2)
 }
 
-export function decideMentorCycle({ date, cycleKey = date, context = {}, history = [], weeklyMeeting = null, curriculum = {}, commitments = [], pendingCount = 0, availability = context.disponibilidade || {}, policy: customPolicy = {} }) {
+export function decideMentorCycle({ date, cycleKey = date, context = {}, history = [], weeklyMeeting = null, curriculum = {}, commitments = [], pendingCount = 0, availability = context.disponibilidade || {}, policy: customPolicy = {}, specialistSignals = null }) {
   const policy = resolveMentorPolicy(customPolicy).motor_decisao
   const state = mentorCycleState(date, context)
   if (!state) return null
+  if (specialistSignals) {
+    history = specialistSignals.planejamento?.janelas || history
+    pendingCount = specialistSignals.planejamento?.backlog ?? pendingCount
+    curriculum = { ...curriculum, remaining: specialistSignals.trilha?.restantes ?? curriculum.remaining,
+      baseComplete: specialistSignals.trilha?.total > 0 && specialistSignals.trilha?.restantes === 0 }
+    weeklyMeeting = { ...weeklyMeeting, carga_percebida: specialistSignals.planejamento?.carga_percebida || weeklyMeeting?.carga_percebida }
+  }
   const currentBacen = Math.max(policy.minimo_bacen_blocos, Number(context.carga_atual?.concurso || 3))
   const stageBacen = state === MENTOR_STATES.ADAPTACAO_1 ? Number(context.etapa_1?.concurso || 2)
     : state === MENTOR_STATES.ADAPTACAO_2 ? Number(context.etapa_2?.concurso || 3) : null
@@ -104,6 +145,10 @@ export function decideMentorCycle({ date, cycleKey = date, context = {}, history
   if (curriculum.baseComplete === true && remaining === 0) reasonCodes.push('BASE_COMPLETED_PENDING_TRANSITION')
   const nextCommitment = commitments.filter((item) => !item.concluido && item.data >= date && ['prova', 'entrega'].includes(item.tipo)).sort((a, b) => a.data.localeCompare(b.data))[0]
   if (nextCommitment && nextCommitment.data <= new Date(Date.parse(`${date}T12:00:00Z`) + 2 * 86_400_000).toISOString().slice(0, 10)) reasonCodes.push(nextCommitment.tipo === 'prova' ? 'EXAM_NEAR' : 'DELIVERY_NEAR')
-  reasonCodes.push('UNKNOWN_MASTERY')
+  if (specialistSignals?.academico?.proxima_prova?.dias <= 2) reasonCodes.push('EXAM_NEAR')
+  if (specialistSignals?.academico?.proxima_entrega?.dias <= 2) reasonCodes.push('DELIVERY_NEAR')
+  if (specialistSignals?.previsao?.risco_nao_concluir === 'HIGH') reasonCodes.push('COVERAGE_RISK')
+  if (specialistSignals?.revisao?.operacional === false) reasonCodes.push('PRACTICE_DISABLED')
+  if (!specialistSignals || specialistSignals.desempenho?.mastery === 'UNKNOWN') reasonCodes.push('UNKNOWN_MASTERY')
   return { state, action, bacenBlocks, facultyBlocks: 1, mastery: 'UNKNOWN', windows: windows.map((week) => ({ inicio: week.inicio, planejadas: week.planejadas, concluidas: week.concluidas, aderencia: Number(week.rate.toFixed(4)) })), reason_codes: [...new Set(reasonCodes)], explanation: explainMentorReasons([...new Set(reasonCodes)]) }
 }
