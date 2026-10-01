@@ -8,7 +8,7 @@ const context = {
 const window = (inicio, concluidas, planejadas = 20) => ({ inicio, concluidas, planejadas })
 const highOne = [window('2026-10-12', 18)]
 const highTwo = [window('2026-10-12', 18), window('2026-10-19', 19)]
-const decide = (changes = {}) => decideMentorCycle({ date: '2026-10-26', context, curriculum: { remaining: 50 }, ...changes })
+const decide = (changes = {}) => decideMentorCycle({ date: '2026-10-26', context, curriculum: { remaining: 50 }, weeklyMeeting: { semana_inicio: '2026-10-19', carga_percebida: 'adequada' }, ...changes })
 
 describe('motor determinístico do Mentor', () => {
   it('ativa somente os três estados teóricos nesta fase', () => {
@@ -22,6 +22,16 @@ describe('motor determinístico do Mentor', () => {
     expect(decide({ history: highOne }).reason_codes).toContain('FIRST_HIGH_WINDOW')
     expect(decide({ history: highTwo })).toMatchObject({ action: 'aumentar', bacenBlocks: 4 })
     expect(decide({ history: highTwo }).reason_codes).toContain('LOAD_INCREASE_ELIGIBLE')
+  })
+  it('sem encontro não aumenta mesmo com duas janelas altas', () => {
+    const result = decide({ history: highTwo, weeklyMeeting: null })
+    expect(result).toMatchObject({ action: 'manter', bacenBlocks: 3 })
+    expect(result.reason_codes).toContain('MEETING_NOT_HELD')
+  })
+  it('dificuldade alta informada no encontro impede aumento por uma janela favorável', () => {
+    const result = decide({ history: highTwo, weeklyMeeting: { semana_inicio: '2026-10-19', fatos: { dificuldade_nivel: 'alta' } } })
+    expect(result.action).toBe('manter')
+    expect(result.reason_codes).toContain('HIGH_REPORTED_DIFFICULTY')
   })
   it('faixa de 70% a 84% mantém a carga e não herda semanas históricas', () => {
     expect(decide({ history: [window('2026-10-19', 14)] }).action).toBe('manter')

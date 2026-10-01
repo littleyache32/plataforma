@@ -30,6 +30,8 @@ const EXPLANATIONS = Object.freeze({
   INSUFFICIENT_HISTORY: 'Ainda não há janelas completas suficientes para mudar a carga.',
   UNSUSTAINABLE_BACKLOG: 'O acúmulo impede aumentar a carga.',
   INSUFFICIENT_AVAILABILITY: 'A disponibilidade informada não comporta mais um bloco diário.',
+  MEETING_NOT_HELD: 'Sem encontro semanal, o plano permanece conservador e não aumenta a carga.',
+  HIGH_REPORTED_DIFFICULTY: 'A dificuldade percebida foi alta; o Mentor mantém a carga enquanto observa a execução.',
   MINIMUM_LOAD: 'A carga BACEN já está no mínimo operacional e não pode ser reduzida neste ciclo.',
   COVERAGE_RISK: 'O ritmo medido indica risco de não concluir a cobertura até a data de referência.',
   PRACTICE_DISABLED: 'Revisão prática e questões continuam desligadas nesta fase.',
@@ -132,10 +134,12 @@ export function decideMentorCycle({ date, cycleKey = date, context = {}, history
     reasonCodes.push('HEAVY_SELF_REPORTED_LOAD', 'BACKLOG', ...(action === 'manter' ? ['MINIMUM_LOAD'] : []))
   } else if (heavy) reasonCodes.push('HEAVY_SELF_REPORTED_LOAD', 'STABLE_LOAD')
   else if (highBacklog) reasonCodes.push('UNSUSTAINABLE_BACKLOG', 'BACKLOG', 'STABLE_LOAD')
+  else if (weeklyMeeting?.fatos?.dificuldade_nivel === 'alta') reasonCodes.push('HIGH_REPORTED_DIFFICULTY', 'STABLE_LOAD')
   else if (!twoHigh) reasonCodes.push(latest.rate >= policy.aderencia_aumento ? 'FIRST_HIGH_WINDOW' : 'STABLE_LOAD')
   else if (remaining === 0) reasonCodes.push('NO_COVERAGE_BENEFIT', 'STABLE_LOAD')
   else if (remaining === null) reasonCodes.push('INSUFFICIENT_HISTORY', 'STABLE_LOAD')
   else if (availability.max_blocos_dia != null && Number.isFinite(Number(availability.max_blocos_dia)) && Number(availability.max_blocos_dia) < currentBacen + 2) reasonCodes.push('INSUFFICIENT_AVAILABILITY', 'STABLE_LOAD')
+  else if (!weeklyMeeting?.semana_inicio) reasonCodes.push('MEETING_NOT_HELD', 'STABLE_LOAD')
   else {
     action = 'aumentar'
     bacenBlocks = currentBacen + 1

@@ -111,8 +111,26 @@ describe('buildMentorWeek', () => {
     ]
     const reconciled = reconcileMentorDemands(proposed, existing)
     expect(reconciled.demands.map((item) => item.chave_mentor)).toEqual(proposed.slice(1).map((item) => item.chave_mentor))
-    expect(reconciled.recalibrated.map((item) => item.chave_mentor)).toEqual([proposed[2].chave_mentor])
-    expect(reconcileMentorDemands(proposed, existing).recalibrated.map((item) => item.chave_mentor)).toEqual([proposed[2].chave_mentor])
+    expect(reconciled.recalibrated).toEqual([])
+    expect(reconcileMentorDemands(proposed, existing).recalibrated).toEqual([])
+  })
+  it('reabre somente cancelamento automático quando o encontro muda o plano', () => {
+    const proposed = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext }).slice(0, 2)
+    const existing = [
+      { ...proposed[0], status: 'cancelada', cancelamento_origem: 'mentor' },
+      { ...proposed[1], status: 'cancelada', cancelamento_origem: 'usuario' },
+    ]
+    const result = reconcileMentorDemands(proposed, existing)
+    expect(result.demands.map((item) => item.chave_mentor)).toEqual([proposed[0].chave_mentor])
+    expect(result.recalibrated).toMatchObject([{ chave_mentor: proposed[0].chave_mentor, status: 'planejada', cancelamento_origem: null }])
+  })
+  it('encontro com indisponibilidade retira o dia sem deslocar a carga para os seguintes', () => {
+    const baseline = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext })
+    const meeting = { semana_inicio: '2026-09-28', fatos: { indisponivel_em: ['2026-10-06'] } }
+    const planned = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext, weeklyMeeting: meeting })
+    expect(planned.filter((item) => item.data === '2026-10-06')).toHaveLength(0)
+    expect(planned.filter((item) => item.data === '2026-10-07')).toHaveLength(baseline.filter((item) => item.data === '2026-10-07').length)
+    expect(planned.length).toBe(baseline.length - baseline.filter((item) => item.data === '2026-10-06').length)
   })
   it('bloqueia carga normal acima do teto diário sem transformar teto em meta', () => {
     for (const [date, max] of [['2026-10-05', 9], ['2026-10-10', 5], ['2026-10-11', 4]]) {
@@ -185,12 +203,13 @@ describe('buildMentorWeek', () => {
     expect(low.segunda_sexta).toBe(150)
     const highHistory = ['2026-10-02', '2026-10-09'].map((inicio) => ({ inicio, planejadas: 21, concluidas: 21, pendencias: 0, media_real_segunda_sexta: 230, media_segunda_sexta: 150 }))
     const coverage = { curriculum: { remaining: 5 } }
-    const high = weeklyLoadProfile('2026-10-19', highHistory, {}, null, adaptive, coverage)
+    const meeting = { semana_inicio: '2026-10-12', carga_percebida: 'adequada' }
+    const high = weeklyLoadProfile('2026-10-19', highHistory, {}, meeting, adaptive, coverage)
     expect(high.segunda_sexta).toBe(250)
     expect(high.segunda_sexta - maintain.segunda_sexta).toBe(50)
     const evaluated = { ...adaptive, carga_atual: { concurso: 4, faculdade: 1, minutos_bloco: 50 }, ultima_avaliacao_semana: '2026-10-19' }
-    expect(weeklyLoadProfile('2026-10-19', highHistory, {}, null, evaluated, coverage).segunda_sexta).toBe(250)
-    expect(weeklyLoadProfile('2026-10-26', highHistory, {}, null, evaluated, coverage).segunda_sexta).toBe(300)
+    expect(weeklyLoadProfile('2026-10-19', highHistory, {}, meeting, evaluated, coverage).segunda_sexta).toBe(250)
+    expect(weeklyLoadProfile('2026-10-26', highHistory, {}, meeting, evaluated, coverage).segunda_sexta).toBe(300)
   })
   it('mantém a ordem do pacote original mesmo quando o catálogo legado o divide em matérias', () => {
     const studyUnits = [

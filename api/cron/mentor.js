@@ -25,11 +25,8 @@ export default async function handler(req, res) {
     const backup = await supabase.rpc('criar_backup_snapshot', { p_tipo: 'automatico' })
     if (backup.error) throw backup.error
     const expansionCycle = null
-    const result = await prepareMentorWeek({ inicio: weekStart, today, force: true })
+    const result = await prepareMentorWeek({ inicio: weekStart, today, force: true, source: isSunday ? 'cron_domingo' : 'cron_diario' })
     const executionResult = { ...result.body, ciclo_expansao_questoes: expansionCycle }
-    const decision = result.body.decisao_mentor
-    const audit = await supabase.from('mentor_decisao').insert({ execucao_id: run.data.id, tipo: 'planejamento_semanal', decisao: isSunday ? 'Criar a próxima semana' : 'Recalibrar a semana em curso', justificativa: decision?.explanation || 'Planejamento determinado pelos dados e pela política vigente.', confianca: null, dados: { today, weekStart, itens: result.body.total_planejado || 0, estado: decision?.state || null, reason_codes: decision?.reason_codes || [], motivos_demandas: result.body.motivos_demandas || [], ajuste_carga: result.body.ajuste_carga, remanejadas: result.body.remanejadas || 0, ciclo_expansao_questoes: expansionCycle } })
-    if (audit.error) throw audit.error
     await supabase.from('mentor_execucao').update({ status: 'concluida', politica_versao: result.body.politica_mentor, resultado: executionResult, concluido_em: new Date().toISOString() }).eq('id', run.data.id)
     return res.status(200).json({ ok: true, semana: weekStart, backup_id: backup.data, ...executionResult })
   } catch (error) {

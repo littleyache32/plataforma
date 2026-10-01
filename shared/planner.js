@@ -29,12 +29,21 @@ export function equivalentActiveDemand(candidate, existing = []) {
 
 export function reconcileMentorDemands(proposed, existing = []) {
   const existingByKey = new Map(existing.map((item) => [item.chave_mentor, item]))
-  const cancelledKeys = new Set(existing.filter((item) => item.status === 'cancelada').map((item) => item.chave_mentor).filter(Boolean))
+  const cancelledKeys = new Set(existing.filter((item) => item.status === 'cancelada' && item.cancelamento_origem !== 'mentor').map((item) => item.chave_mentor).filter(Boolean))
   const demands = proposed.filter((item) => !cancelledKeys.has(item.chave_mentor))
   const equivalentKeys = new Set()
   const recalibrated = demands.filter((item) => {
     const previous = existingByKey.get(item.chave_mentor)
-    if (previous) return previous.status === 'planejada'
+    if (previous) {
+      if (previous.status === 'cancelada') return previous.cancelamento_origem === 'mentor'
+      if (previous.status !== 'planejada') return false
+      const date = previous.movida_pelo_mentor_em ? previous.data : item.data
+      const order = previous.ordenada_em ? previous.ordem : item.ordem
+      return previous.data !== date || Number(previous.ordem) !== Number(order)
+        || previous.titulo !== item.titulo || previous.material_id !== item.material_id
+        || Number(previous.duracao_estimada) !== Number(item.duracao_estimada)
+        || Number(previous.prioridade) !== Number(item.prioridade)
+    }
     const equivalent = equivalentActiveDemand(item, existing)
     if (equivalent) equivalentKeys.add(equivalent.chave_mentor)
     return !equivalent
@@ -43,6 +52,8 @@ export function reconcileMentorDemands(proposed, existing = []) {
     if (!previous) return item
     return {
       ...item,
+      cancelamento_origem: null,
+      ...(previous.status === 'cancelada' ? { status: 'planejada' } : {}),
       ...(previous.movida_pelo_mentor_em ? { data: previous.data } : {}),
       ...(previous.ordenada_em ? { ordem: previous.ordem } : {}),
     }
@@ -395,12 +406,14 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
   // O ciclo vigente é decidido por data, inclusive nas semanas que cruzam etapas.
   // O planejamento anterior a 02/10 permanece histórico e não é reconstruído.
   if (['adaptacao_teorica_1', 'base_teorica_adaptativa'].includes(menteeContext?.fase)) {
+    const unavailableDates = new Set(weeklyMeeting?.fatos?.indisponivel_em || [])
     const orderByDay = new Map()
     const selectedClasses = new Set()
     const selectedPendingFaculty = new Set()
     for (let day = 0; day < 7; day += 1) {
       const date = isoDate(new Date(new Date(`${weekStart}T12:00:00Z`).getTime() + day * DAY_MS))
       if (date < (menteeContext.inicio || menteeContext.semana_inicio || NEW_CYCLE_START)) continue
+      if (unavailableDates.has(date)) continue
       const stage = newCycleStage(date, menteeContext)
       const requestedConcurso = stage?.concurso ?? Math.max(2, Math.round(loadProfile.segunda_sexta / 50) - 1)
       const facultyBlocksForDay = stage?.faculdade ?? 1

@@ -25,10 +25,10 @@ function planningSignals({ history = [], context = {}, pendingCount = 0, weeklyM
     aderencia: adherence, janelas: windows, carga_atual: { bacen: currentBacen, faculdade: finite(context.carga_atual?.faculdade || 1) },
     capacidade_observada_blocos_dia: latest ? Number((finite(latest.concluidas) / 7).toFixed(2)) : null,
     demandas_perdidas: latest ? Math.max(0, finite(latest.planejadas) - finite(latest.concluidas)) : null,
-    backlog: pendingCount, carga_percebida: weeklyMeeting?.carga_percebida || null,
+    backlog: pendingCount, carga_percebida: weeklyMeeting?.carga_percebida || null, dificuldade_percebida: weeklyMeeting?.fatos?.dificuldade_nivel || null,
     possibilidades: {
       manter: true,
-      aumentar: twoHigh && !heavy && !backlogHigh,
+      aumentar: twoHigh && Boolean(weeklyMeeting?.semana_inicio) && !heavy && !backlogHigh && weeklyMeeting?.fatos?.dificuldade_nivel !== 'alta',
       reduzir: currentBacen > rules.minimo_bacen_blocos && (adherence !== null && adherence < rules.aderencia_reducao || heavy && backlogHigh),
     },
   }

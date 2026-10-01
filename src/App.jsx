@@ -34,9 +34,18 @@ export default function App() {
 
   useEffect(() => {
     api('/api/auth')
-      .then(async (auth) => { if (!auth.authenticated) { setCadastroDisponivel(auth.cadastroDisponivel === true); setStatus('guest'); return }; await loadCatalog(); setStatus('ready') })
+      .then(async (auth) => { if (!auth.authenticated) { setCadastroDisponivel(auth.cadastroDisponivel === true); setStatus('guest'); return }; await loadCatalog(); setStatus('ready'); prepareCurrentWeek() })
       .catch(() => setStatus('guest'))
   }, [])
+
+  function prepareCurrentWeek() {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+    if (today < '2026-10-05') return
+    const date = new Date(`${today}T12:00:00Z`)
+    date.setUTCDate(date.getUTCDate() - (date.getUTCDay() || 7) + 1)
+    const inicio = date.toISOString().slice(0, 10)
+    api('/api/plano', { method: 'POST', body: JSON.stringify({ inicio }) }).catch(() => {})
+  }
 
   async function logout() {
     await api('/api/auth', { method: 'DELETE' })
@@ -81,7 +90,7 @@ export default function App() {
   }
 
   if (status === 'loading') return <main className="loading"><span className="brand-mark">ME</span><p>Organizando sua plataforma...</p></main>
-  if (status === 'guest') return <AccessGate cadastroDisponivel={cadastroDisponivel} onSuccess={async () => { await loadCatalog(); setStatus('ready') }} />
+  if (status === 'guest') return <AccessGate cadastroDisponivel={cadastroDisponivel} onSuccess={async () => { await loadCatalog(); setStatus('ready'); prepareCurrentWeek() }} />
 
   const contextCatalog = catalog.filter((item) => item.tipo === context)
   const objective = contextCatalog.find((item) => item.id === objectiveId) || contextCatalog[0]
@@ -101,7 +110,7 @@ export default function App() {
       {area === 'simulados' && <Simulations objective={objective} />}
       {area === 'desempenho' && <Performance objective={objective} onReview={openReview} />}
       </Suspense>
-      <MentorWidget objectiveId={objective?.id || ''} onOpenQuestions={(item) => openMentorTarget(item, 'questoes')} onOpenCards={(item) => openMentorTarget(item, 'cards')} />
+      <MentorWidget objectiveId={objective?.id || ''} catalog={catalog} onOpenQuestions={(item) => openMentorTarget(item, 'questoes')} onOpenCards={(item) => openMentorTarget(item, 'cards')} />
     </Layout>
   )
 }

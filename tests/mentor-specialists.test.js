@@ -24,10 +24,12 @@ describe('seis especialistas como calculadores de sinais', () => {
   })
 
   it('planejamento calcula aderência, carga, capacidade, perdas e backlog sem executar decisão', () => {
-    const result = signals({ history: [{ inicio: '2026-10-12', planejadas: 20, concluidas: 18 }, { inicio: '2026-10-19', planejadas: 20, concluidas: 19 }], pendingCount: 2 })
+    const history = [{ inicio: '2026-10-12', planejadas: 20, concluidas: 18 }, { inicio: '2026-10-19', planejadas: 20, concluidas: 19 }]
+    const result = signals({ history, pendingCount: 2, weeklyMeeting: { semana_inicio: '2026-10-19' } })
     expect(result.planejamento).toMatchObject({ aderencia: 0.95, carga_atual: { bacen: 3, faculdade: 1 },
       demandas_perdidas: 1, backlog: 2, possibilidades: { manter: true, aumentar: true, reduzir: false } })
     expect(result.planejamento.capacidade_observada_blocos_dia).toBeCloseTo(19 / 7, 1)
+    expect(signals({ history, pendingCount: 2 }).planejamento.possibilidades.aumentar).toBe(false)
   })
 
   it('trilha preserva material atual e próximo, cobertura por disciplina e pré-requisito evidenciado', () => {

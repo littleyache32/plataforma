@@ -10,10 +10,10 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       if (queryParam(req, 'recurso') === 'proxima') {
         const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
-        const next = await supabase.from('sessao').select('id,titulo,tipo,data,duracao_estimada,prioridade,objetivo:objetivo_id(id,nome,tipo),materia:materia_id(id,nome),topico:topico_id(id,nome)').neq('status','feita').neq('status','cancelada').lte('data', today).order('data').order('prioridade').order('ordem').limit(1).maybeSingle()
+        const next = await supabase.from('sessao').select('id,titulo,tipo,data,duracao_estimada,prioridade,objetivo:objetivo_id(id,nome,tipo),materia:materia_id(id,nome),topico:topico_id(id,nome)').eq('status','planejada').lte('data', today).order('data').order('prioridade').order('ordem').limit(1).maybeSingle()
         if (next.error) throw next.error
         if (next.data) return res.status(200).json({ demanda: next.data })
-        const future = await supabase.from('sessao').select('id,titulo,tipo,data,duracao_estimada,prioridade,objetivo:objetivo_id(id,nome,tipo),materia:materia_id(id,nome),topico:topico_id(id,nome)').neq('status','feita').neq('status','cancelada').gt('data', today).order('data').order('prioridade').order('ordem').limit(1).maybeSingle()
+        const future = await supabase.from('sessao').select('id,titulo,tipo,data,duracao_estimada,prioridade,objetivo:objetivo_id(id,nome,tipo),materia:materia_id(id,nome),topico:topico_id(id,nome)').eq('status','planejada').gt('data', today).order('data').order('prioridade').order('ordem').limit(1).maybeSingle()
         if (future.error) throw future.error
         return res.status(200).json({ demanda: future.data || null })
       }
@@ -31,7 +31,7 @@ export default async function handler(req, res) {
     if (req.method === 'DELETE') {
       const id = queryParam(req, 'id') || req.body?.id
       if (!id) return res.status(400).json({ error: 'Demanda obrigatoria.' })
-      const { data, error } = await supabase.from('sessao').update({ status: 'cancelada', concluida_em: null, duracao_realizada: null }).eq('id', id).select('id').maybeSingle()
+      const { data, error } = await supabase.from('sessao').update({ status: 'cancelada', cancelamento_origem: 'usuario', concluida_em: null, duracao_realizada: null }).eq('id', id).select('id').maybeSingle()
       if (error) throw error
       if (!data) return res.status(404).json({ error: 'Demanda nao encontrada.' })
       return res.status(200).json({ ok: true })
