@@ -40,6 +40,11 @@ describe('buildMentorWeek', () => {
     const advanced = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext, studyUnits, completedMaterialIds: ['aula-1'] })
     expect(advanced.filter((item) => item.objetivo_id === 'bacen').every((item) => item.material_id === 'aula-2')).toBe(true)
   })
+  it('perfil do novo ciclo não consulta a escada histórica durante as duas etapas', () => {
+    const oldHistory = [{ inicio: '2026-09-21', planejadas: 50, concluidas: 0, pendencias: 50 }]
+    expect(weeklyLoadProfile('2026-09-28', oldHistory, {}, null, newCycleContext).segunda_sexta).toBe(150)
+    expect(weeklyLoadProfile('2026-10-05', oldHistory, {}, null, newCycleContext).segunda_sexta).toBe(200)
+  })
   it('separa carga planejada de capacidade e não inventa aula presencial de sexta a domingo', () => {
     const first = buildMentorWeek({ weekStart: '2026-09-28', catalog, menteeContext: newCycleContext })
     const second = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext })

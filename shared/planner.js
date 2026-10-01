@@ -97,9 +97,10 @@ export function canGenerateMentorWeek({ weekStart, today }) {
   return current.getUTCDay() === 0 && isoDate(tomorrow) === weekStart
 }
 
-export function adherenceAdjustment(history = [], weeklyMeeting = null) {
+export function adherenceAdjustment(history = [], weeklyMeeting = null, customPolicy = {}) {
+  const rules = resolveMentorPolicy(customPolicy).motor_decisao
   const measured = history
-    .filter((week) => Number(week.planejadas) >= 5)
+    .filter((week) => Number(week.planejadas) >= rules.minimo_demandas_janela)
     .map((week) => ({
       ...week,
       taxa: Number(week.minutos_planejados) > 0
@@ -112,10 +113,10 @@ export function adherenceAdjustment(history = [], weeklyMeeting = null) {
     return { nivel: 'manter', motivo: 'coletando_aderencia', semanas: [] }
   }
   const recent = measured[measured.length - 1]
-  if (recent.taxa < 0.7) return { nivel: 'reduzir', motivo: 'aderencia_abaixo_de_70', semanas: measured }
+  if (recent.taxa < rules.aderencia_reducao) return { nivel: 'reduzir', motivo: 'aderencia_abaixo_do_limiar', semanas: measured }
   if (weeklyMeeting?.carga_percebida === 'pesada') return { nivel: 'reduzir', motivo: 'encontro_semanal_indica_sobrecarga', semanas: measured }
-  if (Number(recent.pendencias || 0) > 3) return { nivel: 'manter', motivo: 'acumulo_impede_aumento', semanas: measured }
-  if (measured.length === 2 && measured.every((week) => week.taxa >= 0.85)) {
+  if (Number(recent.pendencias || 0) > rules.maximo_pendencias_aumento) return { nivel: 'manter', motivo: 'acumulo_impede_aumento', semanas: measured }
+  if (measured.length === 2 && measured.every((week) => week.taxa >= rules.aderencia_aumento)) {
     const capacityDemonstrated = measured.every((week) => Number(week.media_real_segunda_sexta || 0) >= Number(week.media_segunda_sexta || 0) + 30)
     if (!capacityDemonstrated) return { nivel: 'manter', motivo: 'tempo_real_nao_sustenta_aumento', semanas: measured }
     return { nivel: 'aumentar', motivo: 'aderencia_acima_de_85_por_duas_semanas', semanas: measured }
@@ -127,6 +128,11 @@ export function weeklyLoadProfile(weekStart, history = [], customPolicy = {}, we
   const policy = resolveMentorPolicy(customPolicy)
   const stageTwoEnd = menteeContext?.fim_etapa_2 || NEW_CYCLE_STAGE_2_END
   const weekEnd = isoDate(new Date(Date.parse(`${weekStart}T12:00:00Z`) + 6 * DAY_MS))
+  if (['adaptacao_teorica_1', 'base_teorica_adaptativa'].includes(menteeContext?.fase) && weekEnd <= stageTwoEnd) {
+    const stage = newCycleStage(weekEnd, menteeContext)
+    const daily = ((stage?.concurso || 2) + (stage?.faculdade || 1)) * 50
+    return { segunda_sexta: daily, sabado: daily, domingo: daily, nivel: 'manter', motivo: 'ADAPTATION_STAGE' }
+  }
   if (['adaptacao_teorica_1', 'base_teorica_adaptativa'].includes(menteeContext?.fase) && weekEnd > stageTwoEnd) {
     const evaluationDate = weekStart <= stageTwoEnd
       ? isoDate(new Date(Date.parse(`${stageTwoEnd}T12:00:00Z`) + DAY_MS)) : weekStart

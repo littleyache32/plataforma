@@ -144,11 +144,12 @@ export default async function handler(req, res) {
     const completedMinutes = completedSessions.reduce((sum, item) => sum + (item.duracao_estimada || 0), 0)
     const cenarios = buildScenarios({ coveredTopics, totalTopics: diagnoses.length, daysRemaining, weeklyMinutes: completedMinutes })
     const adherence = planned ? completed / planned : 0
-    const adjustment = adherenceAdjustment(planned ? [{ inicio: previousStart, planejadas: planned, concluidas: completed }] : [], activeMeeting)
+    const currentCycle = ['adaptacao_teorica_1', 'base_teorica_adaptativa'].includes(context.fase)
+    const adjustment = currentCycle ? null : adherenceAdjustment(planned ? [{ inicio: previousStart, planejadas: planned, concluidas: completed }] : [], activeMeeting)
     const probable = cenarios.find((item) => item.cenario === 'provavel')
     const remainingTopics = Math.max(0, diagnoses.length - coveredTopics)
     const trajectory = { conteudo_restante: remainingTopics, topicos_totais: diagnoses.length, ritmo_atual: planned ? `${completed} de ${planned} demandas` : 'coletando dados', capacidade_projetada: hasTargetDate ? probable?.cobertura_estimada || 0 : null, risco_nao_concluir: hasTargetDate && probable ? Math.round(probable.risco_atraso * 100) : null, data_alvo_definida: hasTargetDate, data_provisoria: !objective?.data_alvo && Boolean(projectedTarget), data_referencia: projectedTarget || null }
-    const weeklyClose = { semana_inicio: previousStart, semana_fim: previousEnd, planejado: planned, realizado: completed, minutos_realizados: completedMinutes, pendencias: Math.max(0, planned - completed), revisoes_pendentes: filteredReviews.length, aderencia: Math.round(adherence * 100), ajuste_proxima_semana: adjustment.nivel }
+    const weeklyClose = { semana_inicio: previousStart, semana_fim: previousEnd, planejado: planned, realizado: completed, minutos_realizados: completedMinutes, pendencias: Math.max(0, planned - completed), revisoes_pendentes: filteredReviews.length, aderencia: Math.round(adherence * 100), ajuste_proxima_semana: adjustment?.nivel || 'manter' }
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
     const scopedPending=(pendingSessions||[]).filter((item)=>(!objetivoId||item.objetivo_id===objetivoId) && item.data>=context.semana_inicio)
     const scopedCommitments=(commitments||[]).filter((item)=>!objetivoId||item.objetivo_id===objetivoId)
@@ -160,6 +161,8 @@ export default async function handler(req, res) {
       return { inicio: start, planejadas: items.length, concluidas: items.filter((item) => item.status === 'feita' && item.concluida_em && brazilDate(item.concluida_em) <= end).length }
     })
     const decision = decideMentorCycle({ date: today, cycleKey: currentWeek, context, history: decisionHistory, weeklyMeeting: previousMeeting, curriculum: { remaining: bacenMaterials.length - bacenMaterials.filter((item) => finishedMaterials.has(item.id)).length, baseComplete: bacenMaterials.length > 0 && bacenMaterials.every((item) => finishedMaterials.has(item.id)) }, commitments: scopedCommitments, pendingCount: scopedPending.filter((item) => item.data < today).length, policy })
+    if (decision) weeklyClose.ajuste_proxima_semana = decision.action
+    const effectiveAdjustment = decision ? { nivel: decision.action, motivo: decision.reason_codes[0] } : adjustment
     const alerts=[]
     if(activeMeeting?.classificacoes?.includes('problema_material')) alerts.push({tipo:'material',gravidade:'alta',titulo:'Material precisa de verificação',mensagem:'O encontro semanal registrou um problema no material. Revise a fonte antes de avançar neste conteúdo.'})
     const cardsReleased = practiceActive && context.rotina_pratica?.question_cards !== false
@@ -170,7 +173,7 @@ export default async function handler(req, res) {
     if(falseCertainty) alerts.push({tipo:'preparacao_prova',gravidade:'alta',titulo:`Falsa certeza em ${falseCertainty.materia}`,mensagem:`${falseCertainty.nome} precisa de correção e reteste antes de avançar.`})
     if(trajectory.risco_nao_concluir > 0) alerts.push({tipo:'trajetoria',gravidade:trajectory.risco_nao_concluir >= 35 ? 'alta' : 'media',titulo:'Risco na trajetória até a prova',mensagem:`No ritmo atual, o risco projetado é de ${trajectory.risco_nao_concluir}%.`})
     for(const item of scopedCommitments.slice(0,3)) alerts.push({tipo:'prazo',gravidade:'media',titulo:item.titulo,mensagem:`${item.tipo} em ${new Date(`${item.data}T12:00:00`).toLocaleDateString('pt-BR')}.`})
-    if(planned) alerts.push({tipo:'carga',gravidade:'baixa',titulo:`Carga da proxima semana: ${adjustment.nivel}`,mensagem:adjustment.motivo})
+    if(planned && effectiveAdjustment) alerts.push({tipo:'carga',gravidade:'baixa',titulo:`Carga da proxima semana: ${effectiveAdjustment.nivel}`,mensagem:decision?.explanation || effectiveAdjustment.motivo})
     const body = {
       fase: mentorPhase(today, context), prioridades, cenarios,
       politica: { versao: modularKnowledge.versao }, decisao_mentor: decision,

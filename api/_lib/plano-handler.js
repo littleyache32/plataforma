@@ -181,7 +181,7 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
   }
   const scheduledQuestionReviews = allocateQuestionReviews(reviewGroups.values(), inicio, weekEnd)
   const history = adherenceHistory(adherenceResult.data || [], timersResult.data || [], inicio)
-  const adjustment = inicio >= '2026-08-17' && inicio < '2026-09-07'
+  const adjustment = newCycle ? null : inicio >= '2026-08-17' && inicio < '2026-09-07'
     ? { nivel: 'carga_inicial_fixa', motivo: 'fase_de_construcao_de_base', semanas: history }
     : adherenceAdjustment(history, meetingResult.data)
   const studiedTopicIds = [...new Set((studiedTopicsResult.data || []).map((item) => item.topico_id))]
