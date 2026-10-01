@@ -107,8 +107,8 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
     supabase.from('tempo_estudo').select('status,finalizado_em,segundos_acumulados,objetivo_id,materia_id,topico_id,contexto').eq('status', 'concluido').gte('finalizado_em', `${adherenceStart}T00:00:00-03:00`).lt('finalizado_em', `${inicio}T00:00:00-03:00`),
     supabase.from('question_card').select('id,topico_id,proxima_revisao,lapsos,ativo'),
     supabase.from('question_card_registro').select('resultado,criado_em,question_card!inner(topico_id)').order('criado_em', { ascending: false }),
-    supabase.from('material').select('id,objetivo_id,materia_id,nome,ordem_estudo,materia:materia_id(nome),objetivo:objetivo_id(tipo)').eq('status', 'aceito').order('materia_id').order('ordem_estudo').order('nome'),
-    supabase.from('material_progresso').select('material_id'),
+    supabase.from('material').select('id,objetivo_id,materia_id,nome,ordem_estudo,ordem_curso,disciplina_curso,estado_extracao,materia:materia_id(nome),objetivo:objetivo_id(tipo)').eq('status', 'aceito').order('materia_id').order('ordem_estudo').order('nome'),
+    supabase.from('material_progresso').select('material_id,estado').eq('estado', 'concluido'),
     supabase.from('mentor_contexto').select('fase,vigente_desde,semana_inicio,dados').eq('id', 1).single(),
   ])
   const error = results.find((item) => item.error)?.error
@@ -174,7 +174,7 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
     ? { nivel: 'carga_inicial_fixa', motivo: 'fase_de_construcao_de_base', semanas: history }
     : adherenceAdjustment(history, meetingResult.data)
   const studiedTopicIds = [...new Set((studiedTopicsResult.data || []).map((item) => item.topico_id))]
-  const studyUnits = (materialsResult.data || []).map((item) => ({ id: item.id, objectiveId: item.objetivo_id, context: item.objetivo?.tipo, subjectId: item.materia_id, subject: item.materia?.nome, name: item.nome || 'Material', order: item.ordem_estudo || 9999 }))
+  const studyUnits = (materialsResult.data || []).filter((item) => item.estado_extracao !== 'pendente_ocr').map((item) => ({ id: item.id, objectiveId: item.objetivo_id, context: item.objetivo?.tipo, subjectId: item.materia_id, subject: item.disciplina_curso || item.materia?.nome, courseSubject: item.disciplina_curso || item.materia?.nome, name: item.nome || 'Material', order: item.ordem_curso || item.ordem_estudo || 9999 }))
   const completedMaterialIds = (completedMaterialsResult.data || []).map((item) => item.material_id)
   const proposedDemands = buildMentorWeek({ weekStart: inicio, catalog: mentorCatalog, priorities, pendingReviews: reviewResult.count || 0, scheduledQuestionReviews, commitments: commitmentsResult.data || [], adherenceHistory: history, studiedTopicIds, studyUnits, completedMaterialIds, weeklyMeeting: meetingResult.data, policy, menteeContext })
   if (!proposedDemands.length) return { status: 200, body: { criadas: 0, motivo: 'Nenhuma disciplina disponivel.' } }

@@ -16,6 +16,27 @@ const PACKAGE_SUBJECT = {
   'd746c4ea': 'Raciocínio Lógico',
 }
 
+// Disciplina do curso original, distinta das matérias do catálogo legado.
+export const STRATEGY_COURSE_SUBJECT = {
+  '0f62a2ad': 'Arquivologia',
+  '2bd2158c': 'Ética Profissional',
+  '576a47da': 'Informática',
+  '5dfff807': 'Gestão Pública',
+  '79918b2b': 'Direito Constitucional',
+  '8093d0d0': 'Português',
+  '8815a19a': 'Administração de Materiais',
+  '8a3ddcb7': 'Gestão de Pessoas',
+  '9c1f14ec': 'Direito Administrativo',
+  'd5e20f19': 'Fundamentos de Contabilidade',
+  'd746c4ea': 'Raciocínio Lógico',
+}
+
+export function courseSubjectForStrategyDocument(relativePath) {
+  const normalized = normalizeStrategyText(relativePath)
+  const packageKey = Object.keys(STRATEGY_COURSE_SUBJECT).find((key) => normalized.includes(key))
+  return STRATEGY_COURSE_SUBJECT[packageKey] || null
+}
+
 export function subjectForStrategyDocument(relativePath) {
   const normalized = normalizeStrategyText(relativePath)
   const packageKey = Object.keys(PACKAGE_SUBJECT).find((key) => normalized.includes(key))

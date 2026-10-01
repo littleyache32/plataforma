@@ -308,9 +308,10 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
   const rows = []
   const completedMaterials = new Set(completedMaterialIds)
   const lessonGroups = [...studyUnits.filter((item) => item.context === 'concurso' && !completedMaterials.has(item.id)).reduce((map, item) => {
-    const group = map.get(item.subjectId) || []
+    const courseSubject = item.courseSubject || item.subject || item.subjectId
+    const group = map.get(courseSubject) || []
     group.push(item)
-    map.set(item.subjectId, group)
+    map.set(courseSubject, group)
     return map
   }, new Map()).values()].map((group) => group.sort((a, b) => Number(a.order || 9999) - Number(b.order || 9999) || a.name.localeCompare(b.name)))
   let lessonSelection = 0

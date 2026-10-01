@@ -5,7 +5,7 @@ Data: 30/09/2026. O ciclo operacional vigente inicia em 02/10/2026. O roteiro A-
 ## Sequência operacional vigente
 
 1. Saneamento da base e fontes de verdade: concluído em 30/09. Bloco comum de Estudo exatamente 50 minutos; período 02/10 a 08/10 com 2 BACEN + 1 Faculdade; 09/10 a 15/10 com 3 BACEN + 1 Faculdade; apenas teoria; contexto em `mentor_contexto`, princípios em `conhecimento_modulo`, decisão no planner. Migration 0063 aplicada após código compatível publicado; 02/10 a 04/10 têm nove demandas de 50 minutos no banco e na Semana. As dez sessões historicamente concluídas continuam preservadas. Testes, lint, build e leitura da produção passaram. A etapa 09/10 a 15/10 foi validada por testes, mas seus dias futuros ainda não foram materializados pelo cron normal.
-2. Fase 2: reservada ao roteiro do novo ciclo; não iniciar automaticamente.
+2. Fase 2: currículo e materiais como fonte de verdade. Inventário vigente de 11 pacotes e 114 PDFs auditado por SHA-256, sem constante de quantidade no produto. Registrar disciplina e ordem originais, metadados, unidade curricular no nível do PDF e progresso não iniciado/em andamento/concluído. A conclusão do bloco não conclui o PDF. Pipeline pessoal para PDF e ZIP, com deduplicação e pendência de OCR. A publicação e validação de produção são critérios de saída; nenhuma prática é liberada.
 3. Fase 3: reservada ao roteiro do novo ciclo; não iniciar automaticamente.
 4. Fase 4: reservada ao roteiro do novo ciclo; não iniciar automaticamente.
 5. Fase 5: reservada ao roteiro do novo ciclo; não iniciar automaticamente.

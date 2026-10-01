@@ -40,6 +40,17 @@ describe('buildMentorWeek', () => {
     const advanced = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext, studyUnits, completedMaterialIds: ['aula-1'] })
     expect(advanced.filter((item) => item.objetivo_id === 'bacen').every((item) => item.material_id === 'aula-2')).toBe(true)
   })
+  it('mantém a ordem do pacote original mesmo quando o catálogo legado o divide em matérias', () => {
+    const studyUnits = [
+      { id: 'aula-3', objectiveId: 'bacen', context: 'concurso', subjectId: 'antiga-b', subject: 'Gestão Pública', courseSubject: 'Gestão Pública', name: '3. Governança.pdf', order: 3 },
+      { id: 'aula-1', objectiveId: 'bacen', context: 'concurso', subjectId: 'antiga-a', subject: 'Gestão Pública', courseSubject: 'Gestão Pública', name: '1. Introdução.pdf', order: 1 },
+      { id: 'aula-2', objectiveId: 'bacen', context: 'concurso', subjectId: 'antiga-b', subject: 'Gestão Pública', courseSubject: 'Gestão Pública', name: '2. Estado.pdf', order: 2 },
+    ]
+    const first = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext, studyUnits })
+    expect(first.filter((item) => item.objetivo_id === 'bacen').every((item) => item.material_id === 'aula-1')).toBe(true)
+    const second = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext, studyUnits, completedMaterialIds: ['aula-1'] })
+    expect(second.filter((item) => item.objetivo_id === 'bacen').every((item) => item.material_id === 'aula-2')).toBe(true)
+  })
   it('recusa estudo comum de 60, 90 ou 100 minutos', () => {
     for (const duration of [60, 90, 100]) {
       expect(validateMentorPlan([{ chave_mentor: `estudo-${duration}`, data: '2026-10-02', tipo: 'estudo', duracao_estimada: duration }])).toMatchObject({ valid: false, reason: 'duracao_estudo_invalida' })
