@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { adherenceAdjustment, buildMentorWeek, canGenerateMentorWeek, currentPhaseCarryover, planOverdueMoves, practiceEligibility, validateMentorPlan, weeklyLoadProfile } from '../shared/planner.js'
+import { adherenceAdjustment, buildMentorWeek, canGenerateMentorWeek, completedMaterialIdsFromProgress, currentPhaseCarryover, dailyCapacity, equivalentActiveDemand, planOverdueMoves, practiceEligibility, validateMentorPlan, weeklyLoadProfile } from '../shared/planner.js'
 
 const catalog = [
   { id: 'bacen', tipo: 'concurso', materias: [{ id: 'cont', nome: 'Contabilidade', topicos: [{ id: 'cont-1', nome: 'Balanço' }] }] },
@@ -39,6 +39,70 @@ describe('buildMentorWeek', () => {
     expect(result.every((item) => item.tipo === 'estudo' && item.duracao_estimada === 50)).toBe(true)
     const advanced = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext, studyUnits, completedMaterialIds: ['aula-1'] })
     expect(advanced.filter((item) => item.objetivo_id === 'bacen').every((item) => item.material_id === 'aula-2')).toBe(true)
+  })
+  it('separa carga planejada de capacidade e não inventa aula presencial de sexta a domingo', () => {
+    const first = buildMentorWeek({ weekStart: '2026-09-28', catalog, menteeContext: newCycleContext })
+    const second = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext })
+    for (const date of ['2026-10-02', '2026-10-03', '2026-10-04', '2026-10-09', '2026-10-10', '2026-10-11']) {
+      const items = [...first, ...second].filter((item) => item.data === date)
+      const capacity = dailyCapacity(date, items.length)
+      expect(capacity.academicAvailability).toBe('NON_CLASS_DAY')
+      expect(items.find((item) => item.objetivo_id === 'facul').titulo).toMatch(/^Estudo:/)
+      expect(items.find((item) => item.objetivo_id === 'facul').titulo).not.toMatch(/aula dada|aula estudada|aula de sexta|aula de sábado|aula de domingo/i)
+      expect(items).toHaveLength(date < '2026-10-09' ? 3 : 4)
+      expect(capacity.max_blocks).toBe(date.endsWith('03') || date.endsWith('10') ? 5 : date.endsWith('04') || date.endsWith('11') ? 4 : 9)
+      expect(capacity.scheduled_blocks).toBeLessThanOrEqual(capacity.max_blocks)
+    }
+    expect(dailyCapacity('2026-10-05').academicAvailability).toBe('CLASS_DAY')
+    expect(validateMentorPlan(second).valid).toBe(true)
+  })
+  it('só associa uma demanda à aula presencial realmente registrada e ainda não estudada', () => {
+    const known = [{ date: '2026-10-05', subjectId: 'civil', content: 'Pessoas naturais', studied: false }]
+    const withClass = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext, academicClasses: known })
+    expect(withClass.find((item) => item.data === '2026-10-05' && item.objetivo_id === 'facul').titulo).toContain('aula ministrada em 2026-10-05: Pessoas naturais')
+    const studied = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext, academicClasses: [{ ...known[0], studied: true }] })
+    expect(studied.find((item) => item.data === '2026-10-05' && item.objetivo_id === 'facul').titulo).toMatch(/^Estudo:/)
+  })
+  it('não transforma faltas da semana ou de sábado em blocos extras de fim de semana', () => {
+    const baseline = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext })
+    const failures = [{ inicio: '2026-10-02', planejadas: 21, concluidas: 1, pendencias: 20 }]
+    const retry = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext, adherenceHistory: failures })
+    for (const date of ['2026-10-10', '2026-10-11']) {
+      expect(retry.filter((item) => item.data === date)).toHaveLength(baseline.filter((item) => item.data === date).length)
+    }
+  })
+  it('usa conclusão explícita do PDF como única fonte de avanço e preserva conclusões anteriores ao ciclo', () => {
+    const progress = [
+      { material_id: 'old', estado: 'concluido', concluido_em: '2026-09-20T12:00:00Z' },
+      { material_id: 'current', estado: 'em_andamento', concluido_em: null },
+    ]
+    expect(completedMaterialIdsFromProgress(progress)).toEqual(['old'])
+    const units = ['old', 'current', 'next'].map((id, index) => ({ id, objectiveId: 'bacen', context: 'concurso', subjectId: 'cont', subject: 'Contabilidade', name: `${index + 1}. Aula.pdf`, order: index + 1 }))
+    const finished = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext, studyUnits: units, completedMaterialIds: ['old', 'current', 'next'] })
+    expect(finished.filter((item) => item.objetivo_id === 'bacen')).toHaveLength(0)
+    const awaitingOcr = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext, studyUnits: [{ ...units[0], eligible: false }, ...units.slice(1)] })
+    expect(awaitingOcr.filter((item) => item.objetivo_id === 'bacen')).toHaveLength(0)
+    const continuing = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext, studyUnits: units, completedMaterialIds: completedMaterialIdsFromProgress(progress) })
+    expect(continuing.filter((item) => item.objetivo_id === 'bacen').every((item) => item.material_id === 'current')).toBe(true)
+    const advanced = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext, studyUnits: units, completedMaterialIds: ['old', 'current'] })
+    expect(advanced.filter((item) => item.objetivo_id === 'bacen').every((item) => item.material_id === 'next')).toBe(true)
+    expect(completedMaterialIdsFromProgress(progress)).toEqual(['old'])
+  })
+  it('reexecução mantém chaves estáveis e reconhece demanda ativa equivalente sem fundir dois blocos', () => {
+    const plan = buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext })
+    expect(buildMentorWeek({ weekStart: '2026-10-05', catalog, menteeContext: newCycleContext }).map((item) => item.chave_mentor)).toEqual(plan.map((item) => item.chave_mentor))
+    const first = plan.find((item) => item.objetivo_id === 'bacen')
+    const equivalent = { ...first, chave_mentor: 'legacy-key', status: 'planejada' }
+    expect(equivalentActiveDemand(first, [equivalent])).toEqual(equivalent)
+    const nextBlock = plan.find((item) => item.objetivo_id === 'bacen' && item.data === first.data && item.ordem !== first.ordem)
+    expect(equivalentActiveDemand(nextBlock, [equivalent])).toBeNull()
+  })
+  it('bloqueia carga normal acima do teto diário sem transformar teto em meta', () => {
+    for (const [date, max] of [['2026-10-05', 9], ['2026-10-10', 5], ['2026-10-11', 4]]) {
+      const items = Array.from({ length: max + 1 }, (_, index) => ({ chave_mentor: `${date}:${index}`, data: date, tipo: 'estudo', duracao_estimada: 50 }))
+      expect(validateMentorPlan(items).reason).toBe('capacidade_diaria_excedida')
+      expect(validateMentorPlan(items.slice(0, max)).valid).toBe(true)
+    }
   })
   it('mantém a ordem do pacote original mesmo quando o catálogo legado o divide em matérias', () => {
     const studyUnits = [
@@ -426,7 +490,7 @@ describe('buildMentorWeek', () => {
     expect(bacen[0].titulo).toContain('Aula 1')
   })
 
-  it('bloqueia duplicidade e so aplica teto quando ele for explicitamente fornecido', () => {
+  it('bloqueia duplicidade e aceita um teto explícito mais restritivo', () => {
     expect(validateMentorPlan([{ chave_mentor: 'a', data: '2026-09-01', duracao_estimada: 60 }, { chave_mentor: 'a', data: '2026-09-01', duracao_estimada: 60 }]).reason).toBe('demanda_duplicada')
     expect(validateMentorPlan([{ chave_mentor: 'a', data: '2026-09-01', duracao_estimada: 300 }, { chave_mentor: 'b', data: '2026-09-01', duracao_estimada: 200 }]).valid).toBe(true)
     expect(validateMentorPlan([{ chave_mentor: 'a', data: '2026-09-01', duracao_estimada: 300 }, { chave_mentor: 'b', data: '2026-09-01', duracao_estimada: 200 }], { dailyLimit: 480 }).reason).toBe('limite_diario_excedido')

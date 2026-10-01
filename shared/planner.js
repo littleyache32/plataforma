@@ -1,4 +1,5 @@
 import { resolveMentorPolicy } from './mentor-policy.js'
+export { completedMaterialIdsFromProgress } from './material-progress.js'
 
 const DAY_MS = 86_400_000
 export const MENTORSHIP_START = '2026-08-17'
@@ -6,6 +7,24 @@ export const ACTIVE_PLANNING_START = '2026-09-21'
 export const NEW_CYCLE_START = '2026-10-02'
 const NEW_CYCLE_STAGE_1_END = '2026-10-08'
 const NEW_CYCLE_STAGE_2_END = '2026-10-15'
+const MAX_BLOCKS_BY_WEEKDAY = [4, 9, 9, 9, 9, 9, 5]
+
+export function dailyCapacity(date, scheduledBlocks = 0) {
+  const weekday = new Date(`${date}T12:00:00Z`).getUTCDay()
+  return {
+    academicAvailability: weekday >= 1 && weekday <= 4 ? 'CLASS_DAY' : 'NON_CLASS_DAY',
+    scheduled_blocks: scheduledBlocks,
+    max_blocks: MAX_BLOCKS_BY_WEEKDAY[weekday],
+  }
+}
+
+export function equivalentActiveDemand(candidate, existing = []) {
+  return existing.find((item) => item.status !== 'cancelada' && item.data === candidate.data
+    && item.tipo === candidate.tipo && item.objetivo_id === candidate.objetivo_id
+    && item.materia_id === candidate.materia_id && item.material_id === candidate.material_id
+    && Number(item.ordem) === Number(candidate.ordem)
+    && (candidate.material_id || item.titulo === candidate.titulo)) || null
+}
 
 export function newCycleStage(date, menteeContext) {
   if (menteeContext?.fase !== 'adaptacao_teorica_1' || date < (menteeContext.inicio || menteeContext.semana_inicio || NEW_CYCLE_START)) return null
@@ -149,14 +168,18 @@ export function practiceEligibility(weekStart, history = [], customPolicy = {}) 
 export function validateMentorPlan(demands, { dailyLimit = null } = {}) {
   const keys = new Set()
   const load = new Map()
+  const blocks = new Map()
   for (const item of demands) {
     if (!item?.chave_mentor || keys.has(item.chave_mentor)) return { valid: false, reason: 'demanda_duplicada' }
     if (item.tipo === 'estudo' && Number(item.duracao_estimada) !== 50) return { valid: false, reason: 'duracao_estudo_invalida' }
     keys.add(item.chave_mentor)
     load.set(item.data, (load.get(item.data) || 0) + Number(item.duracao_estimada || 0))
+    if (item.tipo === 'estudo') blocks.set(item.data, (blocks.get(item.data) || 0) + 1)
   }
   const overloaded = Number.isFinite(dailyLimit) && dailyLimit > 0 ? [...load.entries()].find(([, minutes]) => minutes > dailyLimit) : null
-  return overloaded ? { valid: false, reason: 'limite_diario_excedido', data: overloaded[0], minutos: overloaded[1] } : { valid: true }
+  if (overloaded) return { valid: false, reason: 'limite_diario_excedido', data: overloaded[0], minutos: overloaded[1] }
+  const overCapacity = [...blocks.entries()].find(([date, count]) => count > dailyCapacity(date).max_blocks)
+  return overCapacity ? { valid: false, reason: 'capacidade_diaria_excedida', data: overCapacity[0], blocos: overCapacity[1] } : { valid: true }
 }
 
 export function planOverdueMoves(sessions, today, weekEnd, { maxCarryover = 3 } = {}) {
@@ -194,7 +217,7 @@ export function isMentorResumptionWeek(weekStart, customPolicy = {}) {
   return weekStart === resumption.inicio
 }
 
-function demand({ weekStart, day, slot, target, title, type, duration, priority = 2 }) {
+function demand({ weekStart, day, slot, target, title, type, duration, priority = 2, academicClassId = null }) {
   if (!target) return null
   const date = new Date(`${weekStart}T12:00:00Z`)
   date.setUTCDate(date.getUTCDate() + day)
@@ -204,6 +227,7 @@ function demand({ weekStart, day, slot, target, title, type, duration, priority 
     materia_id: target.subjectId,
     topico_id: target.topicId,
     material_id: target.materialId || null,
+    aula_origem_id: academicClassId,
     titulo: title,
     tipo: type,
     data: isoDate(date),
@@ -258,7 +282,7 @@ function facultyStudyTitle(target, block, catchUpActive) {
  * Cria uma semana por demandas. O bloco normal tem 50 minutos de estudo.
  * Question Cards mantêm os 30 minutos explicitamente definidos pelo usuário.
  */
-export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingReviews = 0, scheduledQuestionReviews = [], commitments = [], adherenceHistory = [], studiedTopicIds = null, studyUnits = [], completedMaterialIds = [], weeklyMeeting = null, policy: customPolicy = {}, menteeContext = null }) {
+export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingReviews = 0, scheduledQuestionReviews = [], commitments = [], adherenceHistory = [], studiedTopicIds = null, studyUnits = [], completedMaterialIds = [], academicClasses = [], weeklyMeeting = null, policy: customPolicy = {}, menteeContext = null }) {
   const policy = resolveMentorPolicy(customPolicy)
   const targets = catalog.flatMap((objective) => (objective.materias || []).flatMap((subject) => {
     const topics = subject.topicos?.length ? subject.topicos : [{ id: null, nome: '' }]
@@ -307,6 +331,7 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
   )
   const rows = []
   const completedMaterials = new Set(completedMaterialIds)
+  const hasBacenMaterials = studyUnits.some((item) => item.context === 'concurso')
   const lessonGroups = [...studyUnits.filter((item) => item.context === 'concurso' && !completedMaterials.has(item.id)).reduce((map, item) => {
     const courseSubject = item.courseSubject || item.subject || item.subjectId
     const group = map.get(courseSubject) || []
@@ -323,6 +348,7 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
       lessonSelection = groupIndex + 1
       // Um bloco concluído não conclui a aula. Só o progresso explícito avança o PDF.
       const item = group[0]
+      if (item.eligible === false) continue
       return { objectiveId: item.objectiveId, context: item.context, subjectId: item.subjectId, subject: item.subject, topicId: null, topic: '', materialId: item.id, materialName: item.name, materialOrder: item.order }
     }
     return null
@@ -332,23 +358,35 @@ export function buildMentorWeek({ weekStart, catalog, priorities = [], pendingRe
   // O planejamento anterior a 02/10 permanece histórico e não é reconstruído.
   if (menteeContext?.fase === 'adaptacao_teorica_1') {
     const orderByDay = new Map()
+    const selectedClasses = new Set()
     for (let day = 0; day < 7; day += 1) {
       const date = isoDate(new Date(new Date(`${weekStart}T12:00:00Z`).getTime() + day * DAY_MS))
       if (date < (menteeContext.inicio || menteeContext.semana_inicio || NEW_CYCLE_START)) continue
       const stage = newCycleStage(date, menteeContext)
-      const concursoBlocks = stage?.concurso ?? Math.max(2, Math.round(loadProfile.segunda_sexta / 50) - 1)
+      const requestedConcurso = stage?.concurso ?? Math.max(2, Math.round(loadProfile.segunda_sexta / 50) - 1)
       const facultyBlocksForDay = stage?.faculdade ?? 1
+      const capacity = dailyCapacity(date, requestedConcurso + facultyBlocksForDay)
+      const concursoBlocks = Math.max(0, Math.min(requestedConcurso, capacity.max_blocks - facultyBlocksForDay))
       const nearbyExam = commitments
         .filter((item) => !item.concluido && item.tipo === 'prova' && item.materia_id && item.data >= date)
         .sort((a, b) => a.data.localeCompare(b.data))[0]
       const regularFaculty = facultyTargetForDay(targets, priorities, day, rotationSeed, policy) || pick(byContext.faculdade, rotationSeed + day)
       const examWithinTwoDays = nearbyExam && nearbyExam.data <= isoDate(new Date(new Date(`${date}T12:00:00Z`).getTime() + 2 * DAY_MS))
       const facultyTarget = subjectOnly((examWithinTwoDays && byContext.faculdade.find((item) => item.subjectId === nearbyExam.materia_id)) || regularFaculty)
+      const taughtClass = !examWithinTwoDays && capacity.academicAvailability === 'CLASS_DAY'
+        ? academicClasses.find((item) => item.date <= date && item.subjectId === facultyTarget?.subjectId && item.studied !== true && item.completed !== true && !selectedClasses.has(item.id))
+        : null
+      if (taughtClass) selectedClasses.add(taughtClass.id)
       for (let block = 0; block < facultyBlocksForDay; block += 1) {
-        rows.push(demand({ weekStart, day, slot: `ciclo-faculdade-${block + 1}`, target: facultyTarget, title: nearbyExam && facultyTarget?.subjectId === nearbyExam.materia_id ? `Preparar prova: ${facultyTarget.subject}` : `Aula dada, aula estudada: ${facultyTarget?.subject || ''}`, type: 'estudo', duration: 50, priority: 2 }))
+        const title = nearbyExam && facultyTarget?.subjectId === nearbyExam.materia_id
+          ? `Preparar prova: ${facultyTarget.subject}`
+          : taughtClass
+            ? `Estudar aula ministrada em ${taughtClass.date}: ${taughtClass.content || facultyTarget.subject}`
+            : `Estudo: ${facultyTarget?.subject || ''}`
+        rows.push(demand({ weekStart, day, slot: `ciclo-faculdade-${block + 1}`, target: facultyTarget, title, type: 'estudo', duration: 50, priority: 2, academicClassId: taughtClass?.id }))
       }
       for (let block = 0; block < concursoBlocks; block += 1) {
-        const target = nextBacenLesson() || pickSequentiallyDistributed(byContext.concurso, day * concursoBlocks + block)
+        const target = nextBacenLesson() || (!hasBacenMaterials ? pickSequentiallyDistributed(byContext.concurso, day * concursoBlocks + block) : null)
         const label = target?.materialName ? `Aula ${target.materialOrder}: ${target.materialName.replace(/\.pdf$/i, '').replace(/^(\s*\d+\.\s*)+/, '').trim()}` : (target?.topic || target?.subject)
         rows.push(demand({ weekStart, day, slot: `ciclo-bacen-${block + 1}`, target, title: `BACEN · ${target?.subject || ''} · ${label || ''}`, type: 'estudo', duration: 50, priority: 1 }))
       }

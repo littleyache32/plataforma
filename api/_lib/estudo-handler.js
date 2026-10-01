@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from './supabase.js'
 import { allowMethods, fail, queryParam, requireAccess } from './http.js'
+import { isMaterialCompleted } from '../../shared/material-progress.js'
 
 export default async function studyHandler(req, res) {
   if (!allowMethods(req, res, ['GET', 'PATCH']) || !requireAccess(req, res)) return
@@ -27,11 +28,11 @@ export default async function studyHandler(req, res) {
     }
 
     if (materialId && queryParam(req, 'progresso') === '1') {
-      const { data, error } = await supabase.from('material_progresso').select('material_id,estado').eq('material_id', materialId).maybeSingle()
+      const { data, error } = await supabase.from('material_progresso').select('material_id,estado,concluido_em').eq('material_id', materialId).maybeSingle()
       if (error) throw error
       const { count, error: sessionsError } = await supabase.from('sessao').select('id', { count: 'exact', head: true }).eq('material_id', materialId).eq('tipo', 'estudo').eq('status', 'feita')
       if (sessionsError) throw sessionsError
-      return res.status(200).json({ material_id: materialId, estado: data?.estado || 'nao_iniciado', concluido: data?.estado === 'concluido', blocos_concluidos: count || 0 })
+      return res.status(200).json({ material_id: materialId, estado: data?.estado || 'nao_iniciado', concluido: isMaterialCompleted(data), blocos_concluidos: count || 0 })
     }
 
     if (materialId) {
