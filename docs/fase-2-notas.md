@@ -16,6 +16,11 @@ de aula. Capítulos internos só devem ser acrescentados se identificados no
 sumário ou por curadoria com referência ao próprio PDF. A tabela não libera
 Questões ou Question Cards por si só.
 
+As quatro demandas futuras que ainda mostravam o nome da matéria antiga foram
+relabeladas com o nome do pacote real, sem alterar data, duração, ordem, ID ou
+progresso. A API da Semana expõe `material.disciplina_curso` para que cartões
+e Início usem esse rótulo mesmo quando a matéria legada é diferente.
+
 O progresso do material tem três estados: ausência de linha significa não
 iniciado; `em_andamento` surge quando um bloco vinculado é concluído;
 `concluido` exige marcação explícita da aula/PDF. A quantidade de blocos
