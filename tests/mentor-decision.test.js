@@ -32,6 +32,15 @@ describe('motor determinístico do Mentor', () => {
     expect(decide({ history: [window('2026-10-19', 12)] })).toMatchObject({ action: 'reduzir', bacenBlocks: 2, facultyBlocks: 1 })
     expect(decide({ history: [window('2026-10-19', 12)] }).reason_codes).toContain('LOW_ADHERENCE')
   })
+  it('no piso operacional mantém a carga e explica por que não reduziu', () => {
+    const minimum = { ...context, carga_atual: { concurso: 2, faculdade: 1 } }
+    const low = decide({ context: minimum, history: [window('2026-10-19', 12)] })
+    expect(low).toMatchObject({ action: 'manter', bacenBlocks: 2 })
+    expect(low.reason_codes).toContain('MINIMUM_LOAD')
+    const heavy = decide({ context: minimum, history: highTwo, weeklyMeeting: { carga_percebida: 'pesada' }, pendingCount: 5 })
+    expect(heavy).toMatchObject({ action: 'manter', bacenBlocks: 2 })
+    expect(heavy.reason_codes).toContain('MINIMUM_LOAD')
+  })
   it('carga pesada bloqueia aumento e, com backlog alto, permite recuo', () => {
     const heavy = { history: highTwo, weeklyMeeting: { carga_percebida: 'pesada' } }
     expect(decide(heavy).action).toBe('manter')

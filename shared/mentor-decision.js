@@ -11,7 +11,7 @@ export const MENTOR_STATES = Object.freeze({
 
 const EXPLANATIONS = Object.freeze({
   ADAPTATION_STAGE: 'A carga desta etapa de adaptação permanece fixa.',
-  LOW_ADHERENCE: 'A aderência recente ficou abaixo do limiar operacional; o Mentor reduz um bloco BACEN.',
+  LOW_ADHERENCE: 'A aderência recente ficou abaixo do limiar operacional; o Mentor avalia reduzir um bloco BACEN.',
   STABLE_LOAD: 'A carga foi mantida até existir evidência suficiente para outro ajuste.',
   LOAD_INCREASE_ELIGIBLE: 'Duas janelas consecutivas sustentam aumento de um bloco BACEN.',
   HEAVY_SELF_REPORTED_LOAD: 'A carga foi percebida como pesada e não será aumentada.',
@@ -30,6 +30,7 @@ const EXPLANATIONS = Object.freeze({
   INSUFFICIENT_HISTORY: 'Ainda não há janelas completas suficientes para mudar a carga.',
   UNSUSTAINABLE_BACKLOG: 'O acúmulo impede aumentar a carga.',
   INSUFFICIENT_AVAILABILITY: 'A disponibilidade informada não comporta mais um bloco diário.',
+  MINIMUM_LOAD: 'A carga BACEN já está no mínimo operacional e não pode ser reduzida neste ciclo.',
 })
 
 export function explainMentorReasons(reasonCodes = []) {
@@ -81,13 +82,13 @@ export function decideMentorCycle({ date, cycleKey = date, context = {}, history
   else if (context.ultima_avaliacao_semana === cycleKey) reasonCodes.push('STABLE_LOAD')
   else if (!latest) reasonCodes.push('INSUFFICIENT_HISTORY', 'STABLE_LOAD')
   else if (latest.rate < policy.aderencia_reducao) {
-    action = 'reduzir'
     bacenBlocks = Math.max(policy.minimo_bacen_blocos, currentBacen - 1)
-    reasonCodes.push('LOW_ADHERENCE')
+    action = bacenBlocks < currentBacen ? 'reduzir' : 'manter'
+    reasonCodes.push('LOW_ADHERENCE', ...(action === 'manter' ? ['MINIMUM_LOAD'] : []))
   } else if (heavy && highBacklog) {
-    action = 'reduzir'
     bacenBlocks = Math.max(policy.minimo_bacen_blocos, currentBacen - 1)
-    reasonCodes.push('HEAVY_SELF_REPORTED_LOAD', 'BACKLOG')
+    action = bacenBlocks < currentBacen ? 'reduzir' : 'manter'
+    reasonCodes.push('HEAVY_SELF_REPORTED_LOAD', 'BACKLOG', ...(action === 'manter' ? ['MINIMUM_LOAD'] : []))
   } else if (heavy) reasonCodes.push('HEAVY_SELF_REPORTED_LOAD', 'STABLE_LOAD')
   else if (highBacklog) reasonCodes.push('UNSUSTAINABLE_BACKLOG', 'BACKLOG', 'STABLE_LOAD')
   else if (!twoHigh) reasonCodes.push(latest.rate >= policy.aderencia_aumento ? 'FIRST_HIGH_WINDOW' : 'STABLE_LOAD')
