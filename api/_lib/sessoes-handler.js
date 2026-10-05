@@ -31,13 +31,13 @@ export default async function handler(req, res) {
     if (req.method === 'DELETE') {
       const id = queryParam(req, 'id') || req.body?.id
       if (!id) return res.status(400).json({ error: 'Demanda obrigatoria.' })
-      const { data, error } = await supabase.from('sessao').update({ status: 'cancelada', cancelamento_origem: 'usuario', concluida_em: null, duracao_realizada: null }).eq('id', id).select('id').maybeSingle()
+      const { data, error } = await supabase.from('sessao').update({ status: 'cancelada', cancelamento_origem: 'usuario', concluida_em: null }).eq('id', id).select('id').maybeSingle()
       if (error) throw error
       if (!data) return res.status(404).json({ error: 'Demanda nao encontrada.' })
       return res.status(200).json({ ok: true })
     }
     if (req.method === 'PATCH') {
-      const { id, status, data, duracaoRealizada, orderedIds } = req.body || {}
+      const { id, status, data, orderedIds } = req.body || {}
       if (Array.isArray(orderedIds)) {
         const ids = [...new Set(orderedIds.filter(Boolean))]
         if (!ids.length || ids.length !== orderedIds.length) return res.status(400).json({ error: 'Ordem das demandas invalida.' })
@@ -59,7 +59,6 @@ export default async function handler(req, res) {
       if (status) {
         if (!['planejada', 'feita', 'parcial'].includes(status)) return res.status(400).json({ error: 'Status de conclusao invalido.' })
         update.status = status
-        update.duracao_realizada = status === 'planejada' ? null : Number.isInteger(duracaoRealizada) ? duracaoRealizada : null
         update.concluida_em = status === 'feita' ? new Date().toISOString() : null
       }
       if (data) Object.assign(update, { data, movida_em: new Date().toISOString() })

@@ -3,6 +3,7 @@ import { allowMethods, fail, queryParam, readSession, requireAccess } from './ht
 
 const fields = 'id,operacao_id,sessao_id,objetivo_id,materia_id,topico_id,contexto,titulo,status,segundos_acumulados,duracao_alvo_segundos,iniciado_em,retomado_em,finalizado_em,materia:materia_id(nome),objetivo:objetivo_id(nome,tipo)'
 const elapsed = (item) => item.status === 'rodando' && item.retomado_em ? item.segundos_acumulados + Math.max(0, Math.floor((Date.now() - new Date(item.retomado_em).getTime()) / 1000)) : item.segundos_acumulados
+const transitionSources = { pausar: ['rodando'], retomar: ['pausado'], concluir: ['rodando', 'pausado'] }
 
 export default async function handler(req, res) {
   if (!allowMethods(req, res, ['GET', 'POST', 'PATCH', 'DELETE']) || !requireAccess(req, res)) return
@@ -34,7 +35,7 @@ export default async function handler(req, res) {
     if (req.method === 'DELETE') {
       const id = queryParam(req, 'id')
       if (!id) return res.status(400).json({ error: 'Informe o timer que deseja apagar.' })
-      const removed = await supabase.from('tempo_estudo').delete().eq('id', id).select('id').maybeSingle()
+      const removed = await supabase.from('tempo_estudo').delete().eq('id', id).select('id,sessao_id').maybeSingle()
       if (removed.error) throw removed.error
       return res.status(200).json({ ok: true, removido: Boolean(removed.data) })
     }
@@ -50,7 +51,12 @@ export default async function handler(req, res) {
       }
       const { operacaoId, sessaoId, objetivoId, materiaId, topicoId, contexto = 'livre', titulo, status, segundosAcumulados, duracaoAlvoSegundos, iniciadoEm } = req.body || {}
       if (!titulo || !['demanda','disciplina','questao','card','simulado','livre'].includes(contexto)) return res.status(400).json({ error: 'Contexto e titulo validos sao obrigatorios.' })
-      if (operacaoId) { const prior = await supabase.from('tempo_estudo').select(fields).eq('operacao_id', operacaoId).maybeSingle(); if (prior.data) return res.status(200).json({ timer: prior.data, repetida: true }) }
+      if (operacaoId) {
+        const prior = await supabase.from('tempo_estudo').select(fields).eq('operacao_id', operacaoId).maybeSingle()
+        if (prior.data) {
+          return res.status(200).json({ timer: prior.data, repetida: true })
+        }
+      }
       const existing = await supabase.from('tempo_estudo').select(fields).in('status', ['rodando','pausado']).maybeSingle()
       if (existing.error) throw existing.error
       if (existing.data && status !== 'concluido') return res.status(409).json({ error: 'Pause ou conclua o timer atual antes de iniciar outro.', timer: existing.data })
@@ -72,14 +78,14 @@ export default async function handler(req, res) {
     }
     const { id, acao, operacaoId } = req.body || {}
     if (!id || !['pausar','retomar','concluir'].includes(acao)) return res.status(400).json({ error: 'Timer e acao validos sao obrigatorios.' })
-    if (operacaoId) { const prior = await supabase.from('tempo_estudo').select(fields).eq('operacao_id', operacaoId).maybeSingle(); if (prior.data?.status === 'concluido') return res.status(200).json({ timer: prior.data, repetida: true }) }
     const current = await supabase.from('tempo_estudo').select(fields).eq('id', id).single()
     if (current.error) throw current.error
+    if (!transitionSources[acao].includes(current.data.status)) return res.status(409).json({ error: 'Transicao de timer invalida para o estado atual.', timer: current.data })
     const now = new Date().toISOString(); const seconds = elapsed(current.data)
     const changes = acao === 'retomar' ? { status: 'rodando', retomado_em: now, atualizado_em: now } : { status: acao === 'concluir' ? 'concluido' : 'pausado', segundos_acumulados: seconds, retomado_em: null, finalizado_em: acao === 'concluir' ? now : null, atualizado_em: now, ...(operacaoId && acao === 'concluir' ? { operacao_id: operacaoId } : {}) }
-    const updated = await supabase.from('tempo_estudo').update(changes).eq('id', id).select(fields).single()
+    const updated = await supabase.from('tempo_estudo').update(changes).eq('id', id).eq('status', current.data.status).select(fields).maybeSingle()
     if (updated.error) throw updated.error
-    if (acao === 'concluir' && current.data.sessao_id) await supabase.from('sessao').update({ duracao_realizada: Math.round(seconds / 60) }).eq('id', current.data.sessao_id)
+    if (!updated.data) return res.status(409).json({ error: 'O estado do timer mudou. Atualize antes de tentar novamente.' })
     return res.status(200).json({ timer: updated.data })
   } catch (error) { return fail(res, error, 'Nao foi possivel registrar o tempo de estudo.') }
 }
