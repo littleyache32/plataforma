@@ -41,7 +41,6 @@ export default function App() {
 
   function prepareCurrentWeek() {
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
-    if (today < '2026-10-05') return
     const date = new Date(`${today}T12:00:00Z`)
     date.setUTCDate(date.getUTCDate() - (date.getUTCDay() || 7) + 1)
     const inicio = date.toISOString().slice(0, 10)

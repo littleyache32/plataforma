@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from './supabase.js'
 import { allowMethods, fail, queryParam, requireAccess } from './http.js'
+import { resolveMentorV2Policy } from '../../shared/mentor-v2-policy.js'
 
 function nextCron() {
   const now = new Date()
@@ -67,7 +68,7 @@ export default async function handler(req, res) {
       supabase.from('relato_card').select('id,motivo,detalhe,status,criado_em,card:question_card_id(id,frente,fonte,ativo,topico:topico_id(nome,materia:materia_id(nome)))').eq('status', 'aberto').order('criado_em', { ascending: false }),
       supabase.from('acervo_meta').select('topico_id,expansao_bloqueada,motivo_bloqueio,topico:topico_id(nome,materia:materia_id(nome,objetivo:objetivo_id(nome,tipo)))'),
       supabase.from('mentor_acervo_topico').select('topico_id,total_questoes,total_cards'),
-      supabase.from('mentor_conhecimento').select('versao').eq('ativo', true).order('criado_em', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('conhecimento_modulo').select('id,modulo,versao,conteudo,ativo').eq('modulo', 'mentor').eq('ativo', true),
       supabase.from('sessao').select('data,status,duracao_estimada').eq('origem', 'mentor').order('data', { ascending: false }).limit(300),
     ])
     const error = [runs, failures, questionReports, cardReports, metas, inventory, knowledge, sessions].find((item) => item.error)?.error
@@ -75,10 +76,11 @@ export default async function handler(req, res) {
     const stock = new Map((inventory.data || []).map((item) => [item.topico_id, item]))
     const coverage = (metas.data || []).map((item) => ({ ...item, questoes: stock.get(item.topico_id)?.total_questoes || 0, cards: stock.get(item.topico_id)?.total_cards || 0 }))
     const lastRun = runs.data?.[0] || null
+    const policy = resolveMentorV2Policy(knowledge.data?.length === 1 ? knowledge.data[0] : null)
     return res.status(200).json({
-      saude: { ultima_execucao: lastRun, proxima_execucao: nextCron(), falhas_abertas: (failures.data || []).length, semana_gerada: lastRun?.semana_inicio || null, politica: lastRun?.politica_versao || knowledge.data?.versao || null },
+      saude: { ultima_execucao: lastRun, proxima_execucao: nextCron(), falhas_abertas: (failures.data || []).length, semana_gerada: lastRun?.semana_inicio || null, politica: policy.ref?.versao || null },
       execucoes: runs.data || [], falhas: failures.data || [], relatos_questoes: questionReports.data || [], relatos_cards: cardReports.data || [], cobertura: coverage,
-      protecoes: { carga_minima_segunda_sexta: 180, carga_minima_fim_semana: 120, tempo_real_sem_teto: true, limite_pendencias_transferidas: 3, topicos_bloqueados: coverage.filter((item) => item.expansao_bloqueada).length, chave_unica_demandas: true },
+      protecoes: { carga_minima_segunda_sexta: null, carga_minima_fim_semana: null, tempo_real_sem_teto: true, limite_pendencias_transferidas: null, topicos_bloqueados: coverage.filter((item) => item.expansao_bloqueada).length, chave_unica_demandas: true },
     })
   } catch (error) {
     return fail(res, error, 'Nao foi possivel carregar o controle operacional.')

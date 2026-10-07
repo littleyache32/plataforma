@@ -79,3 +79,33 @@ Essas obrigações são conceituais e podem ser atendidas com estruturas simples
 - Definir thresholds/fórmulas finais sem herdar automaticamente números V1.
 
 Fontes canônicas conceituais foram definidas para os 13 conceitos solicitados. Implementação e migração dessas responsabilidades permanecem futuras. Somente este documento e a memória de trabalho foram atualizados; nenhum código, banco, migration, commit, push ou deploy realizado. Não iniciar a próxima etapa por efeito deste fechamento.
+
+## Atualização delimitada da Fase 3.4, 07/10/2026
+
+A fronteira operacional do Mentor foi implementada em `shared/mentor-v2-policy.js`, com adapter factual único `api/_lib/mentor-v2.js`. `conhecimento_modulo` no módulo mentor continua canônico; o algoritmo não contém outra estratégia/default V1. Somente configuração explicitamente marcada `MENTOR_V2`, contrato `mentor-v2/1`, com regra suportada é aceita. `mentor_contexto` permanece factual; fase/carga antiga e texto livre não são fundamentos operacionais.
+
+Avaliações são persistidas em `mentor_decisao.dados`, com referência da policy, snapshot e contrato de decisão. Texto serve apenas como projeção explicativa. API de leitura não recalcula estratégia quando existe avaliação V2 válida registrada. Planner não consulta os antigos motores. Histórico, migrations e registros V1 não foram apagados.
+
+Isso não conclui migração de todas as 13 fontes acima: a continuidade de demandas existentes é a única decisão executável nesta subfase. Configuração real, geração de novas demandas e thresholds permanecem pendentes. Nenhuma alteração/consulta de banco, migration aplicada ou publicação foi realizada. Detalhes e limitações em [mentor.md](mentor.md#fonte-operacional-implementada-na-fase-34).
+
+## Atualização delimitada da Fase 3.7, 07/10/2026
+
+A mesma policy agora reconhece `PRIORIZACAO_CURRICULAR_SEMANAL` como regra explicitamente habilitável. Seleção canônica lê `material.ordem_curso` + `material_progresso`, nunca conclusão de sessão como conclusão do material. Compromissos/vínculos fornecem prazos; histórico concluído fornece recência de execução, não retenção. Objetivo principal é referência factual opcional em `mentor_contexto.dados.objetivo_principal_id`, não outra policy em objetivo.config.
+
+`PRIORIZAR_MATERIA` registra a seleção de material dentro da capacidade já existente, com alternativas e motivo, sem modificar o plano efetivo ou seu progresso. `priorizacao` é projeção da mesma avaliação, não outro decisor. Filas/tentativas são observadas, mas não autorizam revisão, reteste ou retorno teórico por amostra sem critério aprovado. Ativação da configuração e aplicação das seleções em demandas continuam pendentes; não foram realizadas no banco. Detalhes em [mentor.md](mentor.md#priorização-implementada-na-fase-37).
+
+## Geração e aplicação, Fase 3.8, 07/10/2026
+
+A policy única reconhece slots explicitamente aprovados em `capacidade_semanal` e a regra `GERACAO_PLANO_SEMANAL`; não há defaults de carga inicial ou escada histórica no executor. A avaliação registra carga proposta e decisões `CRIAR_DEMANDA`; `sessao` armazena o plano efetivamente aplicado, ainda separado de execução/progresso.
+
+A PK estável por semana/slot evita duplicações. `chave_mentor` guarda o slot e a referência à decisão específica que criou a demanda; não é trocada quando o usuário move a sessão. Reason codes continuam uma projeção em array, sem se tornarem metadados concorrentes. Reaplicar insere somente demandas ausentes, nunca atualiza registros existentes ou restaura exclusões. Decisão registrada sem aplicação confirmada não significa semana pronta.
+
+Fechamento factual marca não conclusão, preserva história e não vira estratégia de cobrança. Conteúdo pendente pode concorrer novamente dentro da capacidade, sem transportar sessões antigas. Base inicial real, encerramento/reagendamento estratégico explícito, critérios estatísticos e ativação no banco permanecem pendentes. Detalhes e limites em [mentor.md](mentor.md#geração-do-plano-semanal-fase-38).
+
+## Consulta da origem, Fase 3.9, 07/10/2026
+
+A explicação da demanda é derivada da decisão original específica em `mentor_decisao.dados`, localizada por `sessao.chave_mentor`. A consulta autenticada oferece resumo para a UI e auditoria detalhada opcional, sem gravação, nova avaliação ou consulta à policy atual. Evidências e versões são snapshots históricos da decisão; `sessao.reason_codes` permanece cache verificável, nunca segunda fonte estratégica. Ausência ou inconsistência de vínculo é explícita, inclusive em registros V1. Nenhuma fonte histórica foi reconstruída ou alterada. Detalhes em [mentor.md](mentor.md#rastreabilidade-da-demanda-fase-39).
+
+## Integração verificada, Fase 3.10, 07/10/2026
+
+O fluxo de dados/sinais/policy/decisão/planner/demandas/rastreio foi validado em integração controlada. Dependências transitivas dos entrypoints decisórios V2 não alcançam motores V1; políticas históricas no banco/configuração não fornecem defaults. Concorrência de versões ativas impede aplicação em vez de escolher uma silenciosamente. A Semana não usa mais o início histórico de setembro. Contrato da API com Estatísticas foi preservado sem ativar revisão avançada. Validação local completa aprovada; configuração/schema reais e ativação no banco não foram validados ou alterados. Limites em [mentor.md](mentor.md#integração-do-mentor-v2-fase-310).

@@ -107,3 +107,7 @@ Status: PASS COM LIMITAÇÕES. Interface implementada e validada localmente; nã
 Critérios 1–16 comprovados por inspeção de alterações, testes e/ou browser local. Critério 17 comprovado para layout/navegação responsivos, não instalação/offline em aparelho. Critério 18: lint/build aprovados. Critério 19: suíte passou; nenhuma regressão crítica observada no escopo controlado, integração com APIs/banco reais não exercitada.
 
 Não alterados: conhecimento/contexto/policy do Mentor, planner, schema/migrations, dados reais, autenticação, service worker e fila offline. Não foram feitos push, merge em main ou deploy. Documentos anteriores registram arquitetura-alvo, não prova de implementação dessas áreas. A fase seguinte não foi iniciada.
+
+## Motivo discreto da demanda, Fase 3.9, 07/10/2026
+
+A modal existente da Semana apresenta uma única frase curta derivada da decisão original, por exemplo: “Continuidade curricular da disciplina.” Não há painel técnico, códigos, inputs, novos controles ou reformulação visual. Consulta somente ao abrir a demanda; falhas aparecem como aviso curto e não impedem ações. Demandas sem origem recuperável não recebem justificativa inventada. Tipografia e layout existentes são preservados. Validação desta microetapa: renderização estática, consulta controlada e verificações estruturais; sem homologação visual em navegador real ou produção.

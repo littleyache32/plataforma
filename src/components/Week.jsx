@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api.js'
+import DemandReason, { loadDemandReason } from './DemandReason.jsx'
 
 const typeLabels = { estudo: 'Estudo', revisao: 'Revisão', exercicio: 'Exercício', especial: 'Especial', questoes: 'Exercício', simulado: 'Exercício', aula: 'Estudo', prova: 'Exercício', trabalho: 'Estudo' }
 const typeClasses = { estudo: 'estudo', revisao: 'revisao', exercicio: 'exercicio', especial: 'especial', questoes: 'exercicio', simulado: 'exercicio', aula: 'estudo', prova: 'exercicio', trabalho: 'estudo' }
 const priorities = { 1: 'Alta', 2: 'Média', 3: 'Baixa', 4: 'Flexível' }
-const mentorshipStart = '2026-09-14'
 
 function localIso(date) {
   const offset = date.getTimezoneOffset() * 60_000
@@ -13,7 +13,6 @@ function localIso(date) {
 
 function initialWeekOffset() {
   const today = new Date()
-  if (localIso(today) < mentorshipStart) return 1
   return today.getDay() === 0 ? 1 : 0
 }
 
@@ -43,10 +42,18 @@ export default function Week({ catalog, target, onTargetApplied, onOpenQuestions
   const [planningNotice, setPlanningNotice] = useState('')
   const [draggingId, setDraggingId] = useState('')
   const [selected, setSelected] = useState(null)
+  const [reason, setReason] = useState(null)
   const [contextFilter, setContextFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const draggedRecently = useRef(false)
   const modalRef = useRef(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const id = selected?.id
+    if (id) loadDemandReason(id).then((text) => { if (!cancelled) setReason({ id, text }) })
+    return () => { cancelled = true }
+  }, [selected?.id])
 
   useEffect(() => {
     if (!selected) return
@@ -86,7 +93,7 @@ export default function Week({ catalog, target, onTargetApplied, onOpenQuestions
         if (active) {
           setSessions(data.sessoes)
           setMessage('')
-          setPlanningNotice(plan.aguardando_domingo ? (range.end < mentorshipStart ? 'O novo planejamento começa em 14 de setembro.' : 'A próxima semana será preparada no domingo, depois do fechamento da semana atual.') : '')
+          setPlanningNotice(plan.aguardando_domingo ? 'A próxima semana será preparada no domingo, depois do fechamento da semana atual.' : '')
         }
       } catch (error) {
         if (active) setMessage(error.message)
@@ -167,7 +174,7 @@ export default function Week({ catalog, target, onTargetApplied, onOpenQuestions
       <div className="week-board-heading"><div><span>QUADRO SEMANAL</span><b>Suas próximas demandas</b></div><small>{sessions.length} demandas nesta semana</small></div>
       <div className="week-grid mentor-week-grid">{days.map((day) => <article key={day.iso} className={`day-column demand-day ${day.iso === range.today ? 'today' : ''}`} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }} onDrop={(event) => reorderDemand(day.iso, null, event)}><header><div><span>{day.label}</span><b>{day.number}</b>{day.iso === range.today && <small>Hoje</small>}</div><em>{day.demands.length} demandas</em></header><div>{day.demands.map((item) => <article className={`demand-card ${item.objetivo?.tipo || ''} ${typeClasses[item.tipo] || 'estudo'} ${item.status === 'feita' ? 'feita' : ''}`} key={item.id} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelected(item) } }} draggable onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }} onDrop={(event) => reorderDemand(day.iso, item.id, event)} onClick={() => { if (draggedRecently.current) { draggedRecently.current = false; return }; setSelected(item) }} onDragStart={(event) => { draggedRecently.current = true; setDraggingId(item.id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', item.id) }} onDragEnd={() => setDraggingId('')}><div className="demand-card-top"><span>{item.material?.disciplina_curso || item.materia?.nome || 'Matéria a definir'}</span><i>{typeLabels[item.tipo] || 'Estudo'}</i></div><b>{item.titulo}</b><footer><span>{minutesLabel(item.duracao_estimada)}</span>{item.prioridade === 1 && <span className="priority p1">{priorities[1]} prioridade</span>}</footer></article>)}{!day.demands.length && <p className="day-empty">Solte uma demanda aqui.</p>}</div></article>)}</div>
 
-      {selected && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null) }}><div ref={modalRef} className="modal panel" role="dialog" aria-modal="true" aria-labelledby="demand-title"><button className="ghost modal-close" aria-label="Fechar demanda" onClick={() => setSelected(null)}>×</button><small>{selected.material?.disciplina_curso || selected.materia?.nome}</small><h2 id="demand-title">{selected.titulo}</h2><p>{minutesLabel(selected.duracao_estimada)}</p><label>Mover para<select value={selected.data} onChange={async (event) => { const date = event.target.value; await reorderDemand(date, null, { preventDefault() {}, stopPropagation() {}, dataTransfer: { getData: () => selected.id } }); setSelected(null) }}>{days.map((day) => <option key={day.iso} value={day.iso}>{day.label} {day.number}</option>)}</select></label><div className="modal-position-actions"><button className="secondary" onClick={() => shiftSelected(-1)}>Mover acima</button><button className="secondary" onClick={() => shiftSelected(1)}>Mover abaixo</button></div><div className="modal-actions"><button className="secondary" onClick={() => { setSelected(null); onOpenTimer?.(selected) }}>Abrir timer</button><button className="secondary" onClick={() => { setSelected(null); onOpenQuestions(selected) }}>Resolver questões</button><button className="secondary" onClick={() => { setSelected(null); onOpenCards(selected) }}>Estudar com Question Cards</button><button className={selected.status === 'feita' ? 'secondary' : 'primary'} onClick={toggleDemand}>{selected.status === 'feita' ? 'Desmarcar conclusão' : 'Marcar como concluída'}</button></div></div></div>}
+      {selected && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null) }}><div ref={modalRef} className="modal panel" role="dialog" aria-modal="true" aria-labelledby="demand-title"><button className="ghost modal-close" aria-label="Fechar demanda" onClick={() => setSelected(null)}>×</button><small>{selected.material?.disciplina_curso || selected.materia?.nome}</small><h2 id="demand-title">{selected.titulo}</h2><p>{minutesLabel(selected.duracao_estimada)}</p><DemandReason text={reason?.id === selected.id ? reason.text : ''}/><label>Mover para<select value={selected.data} onChange={async (event) => { const date = event.target.value; await reorderDemand(date, null, { preventDefault() {}, stopPropagation() {}, dataTransfer: { getData: () => selected.id } }); setSelected(null) }}>{days.map((day) => <option key={day.iso} value={day.iso}>{day.label} {day.number}</option>)}</select></label><div className="modal-position-actions"><button className="secondary" onClick={() => shiftSelected(-1)}>Mover acima</button><button className="secondary" onClick={() => shiftSelected(1)}>Mover abaixo</button></div><div className="modal-actions"><button className="secondary" onClick={() => { setSelected(null); onOpenTimer?.(selected) }}>Abrir timer</button><button className="secondary" onClick={() => { setSelected(null); onOpenQuestions(selected) }}>Resolver questões</button><button className="secondary" onClick={() => { setSelected(null); onOpenCards(selected) }}>Estudar com Question Cards</button><button className={selected.status === 'feita' ? 'secondary' : 'primary'} onClick={toggleDemand}>{selected.status === 'feita' ? 'Desmarcar conclusão' : 'Marcar como concluída'}</button></div></div></div>}
     </section>
   )
 }

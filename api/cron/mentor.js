@@ -18,14 +18,18 @@ export default async function handler(req, res) {
   const type = isSunday ? 'semanal' : 'diaria'
   const existing = await supabase.from('mentor_execucao').select('id,resultado').eq('tipo', type).eq('semana_inicio', weekStart).eq('data_execucao', today).eq('status', 'concluida').maybeSingle()
   if (existing.error) return res.status(500).json({ error: 'Falha ao verificar execucao.' })
-  if (existing.data) return res.status(200).json({ ok: true, ja_executado: true, semana: weekStart, ...existing.data.resultado })
+  if (existing.data) {
+    if (!existing.data.resultado?.avaliacao_mentor_v2) return res.status(503).json({ planejamento_pendente: true, error: 'Execução histórica preservada. Não representa uma avaliação do Mentor V2.' })
+    return res.status(200).json({ ok: true, ja_executado: true, semana: weekStart, ...existing.data.resultado })
+  }
   const run = await supabase.from('mentor_execucao').upsert({ tipo: type, semana_inicio: weekStart, data_execucao: today, status: 'iniciada', entrada: { today }, resultado: {}, erro: null, iniciado_em: new Date().toISOString(), concluido_em: null }, { onConflict: 'tipo,semana_inicio,data_execucao' }).select('id').single()
   if (run.error) return res.status(500).json({ error: 'Falha ao registrar execucao.' })
   try {
+    const result = await prepareMentorWeek({ inicio: weekStart, today, force: true, supabase })
+    if (result.status !== 200) throw new Error(result.body.motivo || 'Policy V2 indisponível.')
     const backup = await supabase.rpc('criar_backup_snapshot', { p_tipo: 'automatico' })
     if (backup.error) throw backup.error
     const expansionCycle = null
-    const result = await prepareMentorWeek({ inicio: weekStart, today, force: true, source: isSunday ? 'cron_domingo' : 'cron_diario' })
     const executionResult = { ...result.body, ciclo_expansao_questoes: expansionCycle }
     await supabase.from('mentor_execucao').update({ status: 'concluida', politica_versao: result.body.politica_mentor, resultado: executionResult, concluido_em: new Date().toISOString() }).eq('id', run.data.id)
     return res.status(200).json({ ok: true, semana: weekStart, backup_id: backup.data, ...executionResult })
