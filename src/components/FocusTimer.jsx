@@ -47,6 +47,7 @@ export default function FocusTimer({ sessaoId, objetivoId, materiaId, topicoId, 
   const [focus, setFocus] = useState(false)
   const [message, setMessage] = useState('')
   const [targetMinutes, setTargetMinutes] = useState(() => String(Math.max(0, Number(suggestedMinutes) || 0)))
+  const [customDuration, setCustomDuration] = useState(false)
   const [restUntil, setRestUntil] = useState(0)
   const soundedFor = useRef('')
   const audioContext = useRef(null)
@@ -156,7 +157,7 @@ export default function FocusTimer({ sessaoId, objetivoId, materiaId, topicoId, 
   return <>
     <div className="focus-timer">
       <div><small>{restSeconds > 0 ? 'TEMPO DE DESCANSO' : 'TEMPO DE ESTUDO'}</small><b className={displayTime.startsWith('+') ? 'timer-overtime' : ''}>{restSeconds > 0 ? formatTimerValue(restSeconds) : displayTime}</b><span>{restSeconds > 0 ? 'ciclo 50 + 10' : timer ? `${timer.titulo}${targetSeconds ? ` · alvo de ${Math.round(targetSeconds / 60)} min` : ' · contagem livre'}` : 'timer opcional'}</span></div>
-      {!timer && restSeconds === 0 && <div className="focus-duration-wrap"><label className="focus-duration">Tempo de foco<input aria-label="Tempo de foco em minutos" inputMode="numeric" type="number" min="0" max="720" value={targetMinutes} onChange={(event) => setTargetMinutes(event.target.value === '' ? '' : String(Math.max(0, Math.min(720, Number(event.target.value) || 0))))}/><span>min</span></label><button className="timer-preset" type="button" onClick={() => setTargetMinutes(String(studyPresetMinutes))}>50 + 10</button></div>}
+      {!timer && restSeconds === 0 && <div className="focus-duration-wrap"><div className="duration-presets" aria-label="Duração">{[30, 50].map((minutes) => <button key={minutes} className={!customDuration && Number(targetMinutes) === minutes ? 'selected' : 'secondary'} aria-pressed={!customDuration && Number(targetMinutes) === minutes} onClick={() => { setTargetMinutes(String(minutes)); setCustomDuration(false) }}>{minutes} min</button>)}<button className={customDuration ? 'selected' : 'secondary'} aria-pressed={customDuration} onClick={() => setCustomDuration(true)}>Personalizado</button></div>{customDuration && <label className="focus-duration">Duração<input aria-label="Duração em minutos" inputMode="numeric" type="number" min="1" max="720" value={targetMinutes} onChange={(event) => setTargetMinutes(event.target.value)}/><span>minutos</span></label>}</div>}
       <div className="focus-timer-actions">{!timer && restSeconds === 0 && <button className="primary" onClick={start}>Iniciar foco</button>}{restSeconds > 0 && <button className="secondary" onClick={stopRest}>Encerrar descanso</button>}{timer && <><button className="secondary" onClick={() => setFocus(true)}>Modo foco</button>{timer.status === 'rodando' ? <button className="secondary" onClick={() => change('pausar')}>Pausar</button> : <button className="primary" onClick={() => change('retomar')}>Retomar</button>}<button className="secondary" onClick={() => change('concluir')}>Concluir timer</button><button className="ghost danger" onClick={discard}>Apagar horário</button></>}</div>
       {timer && !same && <small className="timer-notice">Há outro foco ativo. Conclua-o antes de iniciar esta atividade.</small>}{message && <small className="timer-notice">{message}</small>}
     </div>

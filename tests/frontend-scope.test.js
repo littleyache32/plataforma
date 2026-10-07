@@ -14,11 +14,13 @@ describe('experiencia pessoal sem modo administrador', () => {
     expect(week).not.toMatch(/FocusTimer/)
   })
 
-  it('permite apagar uma demanda com confirmacao sem apagar tempo registrado', () => {
+  it('retira exclusao e conclusao de material da UI, preservando cancelamento interno', () => {
     const week = readFileSync('src/components/Week.jsx', 'utf8')
     const handler = readFileSync('api/_lib/sessoes-handler.js', 'utf8')
-    expect(week).toMatch(/Apagar demanda/)
-    expect(week).toMatch(/window\.confirm/)
+    expect(week).not.toMatch(/Apagar demanda|Concluir aula\/PDF|Reabrir aula\/PDF/)
+    expect(week).toMatch(/Marcar como concluída/)
+    expect(week).toMatch(/Resolver questões/)
+    expect(week).toMatch(/Estudar com Question Cards/)
     expect(handler).toMatch(/\['GET', 'POST', 'PATCH', 'DELETE'\]/)
     expect(handler).toMatch(/status: 'cancelada'/)
   })

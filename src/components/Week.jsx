@@ -34,7 +34,7 @@ function minutesLabel(minutes) {
   return hours ? `${hours}h${rest ? ` ${rest}min` : ''}` : `${rest} min`
 }
 
-export default function Week({ catalog, target, onTargetApplied, onOpenQuestions, onOpenCards }) {
+export default function Week({ catalog, target, onTargetApplied, onOpenQuestions, onOpenCards, onOpenTimer }) {
   const [weekOffset, setWeekOffset] = useState(initialWeekOffset)
   const range = useMemo(() => weekRange(weekOffset), [weekOffset])
   const [sessions, setSessions] = useState([])
@@ -43,11 +43,34 @@ export default function Week({ catalog, target, onTargetApplied, onOpenQuestions
   const [planningNotice, setPlanningNotice] = useState('')
   const [draggingId, setDraggingId] = useState('')
   const [selected, setSelected] = useState(null)
-  const [materialCompleted, setMaterialCompleted] = useState(false)
-  const [materialState, setMaterialState] = useState('nao_iniciado')
   const [contextFilter, setContextFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const draggedRecently = useRef(false)
+  const modalRef = useRef(null)
+
+  useEffect(() => {
+    if (!selected) return
+    const previousFocus = document.activeElement
+    modalRef.current?.querySelector('button')?.focus()
+    const onKey = (event) => {
+      if (event.key === 'Escape') setSelected(null)
+      if (event.key !== 'Tab') return
+      const controls = [...(modalRef.current?.querySelectorAll('button:not(:disabled), select, input, [tabindex="0"]') || [])]
+      const first = controls[0], last = controls.at(-1)
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('keydown', onKey); previousFocus?.focus() }
+  }, [selected?.id])
+
+  async function shiftSelected(direction) {
+    const items = sessions.filter((item) => item.data === selected.data).sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))
+    const index = items.findIndex((item) => item.id === selected.id)
+    const destination = direction < 0 ? items[index - 1]?.id : items[index + 2]?.id || null
+    if (index + direction < 0 || index + direction >= items.length) return
+    await reorderDemand(selected.data, destination, { preventDefault() {}, stopPropagation() {}, dataTransfer: { getData: () => selected.id } })
+  }
 
   useEffect(() => {
     let active = true
@@ -81,16 +104,6 @@ export default function Week({ catalog, target, onTargetApplied, onOpenQuestions
     onTargetApplied?.()
   }, [target?.id])
 
-  useEffect(() => {
-    if (!selected?.material_id || !selected.objetivo?.id) return
-    let active = true
-    setMaterialCompleted(false)
-    setMaterialState('nao_iniciado')
-    api(`/api/estudo?objetivoId=${encodeURIComponent(selected.objetivo.id)}&materialId=${encodeURIComponent(selected.material_id)}&progresso=1`)
-      .then((data) => { if (active) { setMaterialCompleted(data.concluido); setMaterialState(data.estado) } })
-      .catch((error) => { if (active) setMessage(error.message) })
-    return () => { active = false }
-  }, [selected?.material_id, selected?.objetivo?.id])
 
   async function reorderDemand(day, targetId, event) {
     event.preventDefault()
@@ -130,35 +143,6 @@ export default function Week({ catalog, target, onTargetApplied, onOpenQuestions
     }
   }
 
-  async function toggleMaterial() {
-    if (!selected?.material_id || !selected.objetivo?.id) return
-    try {
-      const concluido = !materialCompleted
-      const result = await api('/api/estudo', { method: 'PATCH', body: JSON.stringify({ objetivoId: selected.objetivo.id, materialId: selected.material_id, concluido }) })
-      setMaterialCompleted(result.concluido)
-      setMaterialState(result.estado)
-      await api('/api/plano', { method: 'POST', body: JSON.stringify({ inicio: range.start, force: true }) })
-      const updated = await api(`/api/sessoes?inicio=${range.start}&fim=${range.end}`)
-      setSessions(updated.sessoes || [])
-      setMessage(concluido ? 'Aula/PDF concluído. O Mentor avançará para a próxima aula no próximo planejamento.' : 'Aula/PDF reaberto.')
-    } catch (error) {
-      setMessage(error.message)
-    }
-  }
-
-  async function deleteDemand() {
-    if (!selected || !window.confirm('Apagar esta demanda da semana? O tempo de estudo registrado não será apagado.')) return
-    try {
-      await api(`/api/sessoes?id=${encodeURIComponent(selected.id)}`, { method: 'DELETE' })
-      setSessions((items) => items.filter((item) => item.id !== selected.id))
-      setSelected(null)
-      setMessage('Demanda apagada da semana.')
-    } catch (error) {
-      setMessage(error.message)
-    }
-  }
-
-
   const days = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(`${range.start}T12:00:00`)
     date.setDate(date.getDate() + index)
@@ -167,25 +151,23 @@ export default function Week({ catalog, target, onTargetApplied, onOpenQuestions
     const total = demands.filter((item) => item.status !== 'feita').reduce((sum, item) => sum + (item.duracao_estimada || 0), 0)
     return { iso, label: date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', ''), number: date.getDate(), demands, total }
   })
-  const today = days.find((day) => day.iso === range.today)
-  const todaySessions = sessions.filter((item) => item.data === range.today)
-  const todayDone = todaySessions.filter((item) => item.status === 'feita').length
-  const todayProgress = todaySessions.length ? Math.round((todayDone / todaySessions.length) * 100) : 0
-  const todayEstimatedMinutes = todaySessions.reduce((sum, item) => sum + Number(item.duracao_estimada || 0), 0)
-  const subjectCount = catalog.reduce((total, objective) => total + (objective.materias?.length || 0), 0)
+  const plannedMinutes = sessions.reduce((sum, item) => sum + Number(item.duracao_estimada || 0), 0)
+  const completedMinutes = sessions.filter((item) => item.status === 'feita').reduce((sum, item) => sum + Number(item.duracao_estimada || 0), 0)
+  const weekProgress = sessions.length ? Math.round(sessions.filter((item) => item.status === 'feita').length / sessions.length * 100) : 0
   const weekLabel = new Date(`${range.start}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 
   return (
     <section className="week-page">
-      <header className="page-title week-title"><div><p className="eyebrow">PLANEJAMENTO AUTOMÁTICO</p><h1>Seu plano de estudos</h1><p>Faculdade e BACEN organizados em demandas objetivas. Reordene os cartões ou mova uma demanda entre os dias quando precisar.</p><div className="week-navigation"><button className="secondary" onClick={() => setWeekOffset((value) => value - 1)} aria-label="Semana anterior">‹</button><button className="secondary" onClick={() => setWeekOffset(0)}>Semana atual</button><span>Semana de {weekLabel}</span><button className="secondary" onClick={() => setWeekOffset((value) => value + 1)} aria-label="Próxima semana">›</button></div></div><div className="today-summary"><div className="today-load"><small>{today ? 'PROGRESSO DE HOJE' : 'PROGRESSO DA SEMANA'}</small><b>{today ? `${todayDone}/${todaySessions.length}` : `${sessions.filter((item) => item.status === 'feita').length}/${sessions.length}`}</b><span>demandas concluídas</span>{today && <div className="today-progress" aria-label={`${todayProgress}% das demandas de hoje concluídas`}><i style={{ width: `${todayProgress}%` }}/></div>}</div>{today && <div className="today-load today-time"><small>TEMPO PLANEJADO</small><b>{minutesLabel(todayEstimatedMinutes)}</b><span>para as demandas de hoje</span></div>}</div></header>
+      <header className="page-title week-title"><div><h1>Meu Plano</h1><p>Semana de {weekLabel}</p></div><div className="week-navigation"><button className="secondary" onClick={() => setWeekOffset((value) => value - 1)} aria-label="Semana anterior">‹</button><button className="secondary" onClick={() => setWeekOffset(0)}>Semana atual</button><button className="secondary" onClick={() => setWeekOffset((value) => value + 1)} aria-label="Próxima semana">›</button></div></header>
+      <div className="week-summary"><span><b>{minutesLabel(plannedMinutes)}</b> planejadas</span><span><b>{minutesLabel(completedMinutes)}</b> de demandas concluídas</span><span><b>{weekProgress}%</b> das demandas</span></div>
       <div className="week-legends" aria-label="Filtros das demandas"><button className={`context-key faculdade ${contextFilter === 'faculdade' ? 'active' : ''}`} aria-pressed={contextFilter === 'faculdade'} onClick={() => setContextFilter((current) => current === 'faculdade' ? '' : 'faculdade')}>Faculdade</button><button className={`context-key concurso ${contextFilter === 'concurso' ? 'active' : ''}`} aria-pressed={contextFilter === 'concurso'} onClick={() => setContextFilter((current) => current === 'concurso' ? '' : 'concurso')}>BACEN</button>{Object.entries({ estudo: 'Estudo', revisao: 'Revisão', exercicio: 'Exercício', especial: 'Especial' }).map(([id, label]) => <button className={`context-key demand-type ${id} ${typeFilter === id ? 'active' : ''}`} aria-pressed={typeFilter === id} key={id} onClick={() => setTypeFilter((current) => current === id ? '' : id)}>{label}</button>)}</div>
       {planning && <p className="mentor-status">Carregando esta semana...</p>}
       {!planning && planningNotice && <p className="mentor-status">{planningNotice}</p>}
       {message && <p className="alert error">{message}</p>}
       <div className="week-board-heading"><div><span>QUADRO SEMANAL</span><b>Suas próximas demandas</b></div><small>{sessions.length} demandas nesta semana</small></div>
-      <div className="week-grid mentor-week-grid">{days.map((day) => <article key={day.iso} className={`day-column demand-day ${day.iso === range.today ? 'today' : ''}`} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }} onDrop={(event) => reorderDemand(day.iso, null, event)}><header><div><span>{day.label}</span><b>{day.number}</b>{day.iso === range.today && <small>Hoje</small>}</div><em>{day.demands.length} demandas</em></header><div>{day.demands.map((item) => <article className={`demand-card ${item.objetivo?.tipo || ''} ${typeClasses[item.tipo] || 'estudo'} ${item.status === 'feita' ? 'feita' : ''}`} key={item.id} draggable onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }} onDrop={(event) => reorderDemand(day.iso, item.id, event)} onClick={() => { if (draggedRecently.current) { draggedRecently.current = false; return }; setSelected(item) }} onDragStart={(event) => { draggedRecently.current = true; setDraggingId(item.id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', item.id) }} onDragEnd={() => setDraggingId('')}><div className="demand-card-top"><span>{item.objetivo?.tipo === 'faculdade' ? 'Faculdade' : 'BACEN'}</span><i>{typeLabels[item.tipo] || 'Estudo'}</i></div><b>{item.titulo}</b><p>{item.material?.disciplina_curso || item.materia?.nome || 'Matéria a definir'}</p>{item.topico?.nome && <small>{item.topico.nome}</small>}<footer><span>{minutesLabel(item.duracao_estimada)}</span><span className={`priority p${item.prioridade || 2}`}>{priorities[item.prioridade || 2]}</span></footer></article>)}{!day.demands.length && <p className="day-empty">Solte uma demanda aqui.</p>}</div></article>)}</div>
-      <footer className="week-footnote"><span>{subjectCount} disciplinas conectadas</span><span>O mentor distribui estudo, revisão, exercício e atividades especiais conforme a fase e as evidências disponíveis.</span></footer>
-      {selected && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null) }}><div className="modal panel" role="dialog" aria-modal="true" aria-labelledby="demand-title"><span className="eyebrow">DEMANDA DA SEMANA</span><h2 id="demand-title">{selected.titulo}</h2><p>{selected.material?.disciplina_curso || selected.materia?.nome}{selected.topico?.nome ? ` · ${selected.topico.nome}` : ''}</p>{selected.material_id && <p>Aula/PDF: {materialState === 'concluido' ? 'concluído' : materialState === 'em_andamento' ? 'em andamento' : 'não iniciado'}. Concluir este bloco não conclui a aula/PDF.</p>}<div className="modal-actions"><button className="secondary" onClick={() => { setSelected(null); onOpenQuestions(selected) }}>Resolver questões</button><button className="secondary" onClick={() => { setSelected(null); onOpenCards(selected) }}>Estudar com Question Cards</button><button className={selected.status === 'feita' ? 'secondary' : 'primary'} onClick={toggleDemand}>{selected.status === 'feita' ? 'Desmarcar conclusão' : 'Marcar como concluída'}</button>{selected.material_id && <button className="secondary" onClick={toggleMaterial}>{materialCompleted ? 'Reabrir aula/PDF' : 'Concluir aula/PDF'}</button>}<button className="ghost danger" onClick={deleteDemand}>Apagar demanda</button></div></div></div>}
+      <div className="week-grid mentor-week-grid">{days.map((day) => <article key={day.iso} className={`day-column demand-day ${day.iso === range.today ? 'today' : ''}`} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }} onDrop={(event) => reorderDemand(day.iso, null, event)}><header><div><span>{day.label}</span><b>{day.number}</b>{day.iso === range.today && <small>Hoje</small>}</div><em>{day.demands.length} demandas</em></header><div>{day.demands.map((item) => <article className={`demand-card ${item.objetivo?.tipo || ''} ${typeClasses[item.tipo] || 'estudo'} ${item.status === 'feita' ? 'feita' : ''}`} key={item.id} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelected(item) } }} draggable onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }} onDrop={(event) => reorderDemand(day.iso, item.id, event)} onClick={() => { if (draggedRecently.current) { draggedRecently.current = false; return }; setSelected(item) }} onDragStart={(event) => { draggedRecently.current = true; setDraggingId(item.id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', item.id) }} onDragEnd={() => setDraggingId('')}><div className="demand-card-top"><span>{item.material?.disciplina_curso || item.materia?.nome || 'Matéria a definir'}</span><i>{typeLabels[item.tipo] || 'Estudo'}</i></div><b>{item.titulo}</b><footer><span>{minutesLabel(item.duracao_estimada)}</span>{item.prioridade === 1 && <span className="priority p1">{priorities[1]} prioridade</span>}</footer></article>)}{!day.demands.length && <p className="day-empty">Solte uma demanda aqui.</p>}</div></article>)}</div>
+
+      {selected && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null) }}><div ref={modalRef} className="modal panel" role="dialog" aria-modal="true" aria-labelledby="demand-title"><button className="ghost modal-close" aria-label="Fechar demanda" onClick={() => setSelected(null)}>×</button><small>{selected.material?.disciplina_curso || selected.materia?.nome}</small><h2 id="demand-title">{selected.titulo}</h2><p>{minutesLabel(selected.duracao_estimada)}</p><label>Mover para<select value={selected.data} onChange={async (event) => { const date = event.target.value; await reorderDemand(date, null, { preventDefault() {}, stopPropagation() {}, dataTransfer: { getData: () => selected.id } }); setSelected(null) }}>{days.map((day) => <option key={day.iso} value={day.iso}>{day.label} {day.number}</option>)}</select></label><div className="modal-position-actions"><button className="secondary" onClick={() => shiftSelected(-1)}>Mover acima</button><button className="secondary" onClick={() => shiftSelected(1)}>Mover abaixo</button></div><div className="modal-actions"><button className="secondary" onClick={() => { setSelected(null); onOpenTimer?.(selected) }}>Abrir timer</button><button className="secondary" onClick={() => { setSelected(null); onOpenQuestions(selected) }}>Resolver questões</button><button className="secondary" onClick={() => { setSelected(null); onOpenCards(selected) }}>Estudar com Question Cards</button><button className={selected.status === 'feita' ? 'secondary' : 'primary'} onClick={toggleDemand}>{selected.status === 'feita' ? 'Desmarcar conclusão' : 'Marcar como concluída'}</button></div></div></div>}
     </section>
   )
 }

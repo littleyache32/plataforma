@@ -4,7 +4,7 @@
   "description": "Semana, foco, questões e revisões em uma plataforma pessoal.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f5f3ec",
-  "theme_color": "#f5f3ec",
+  "background_color": "#f8f9f8",
+  "theme_color": "#f8f9f8",
   "icons": [{ "src": "/mentor-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
 }

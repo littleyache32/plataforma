@@ -121,7 +121,7 @@ Preservar o histórico V1 não torna suas regras incompatíveis automaticamente 
 ## Ambiguidades restantes
 
 1. **Anki:** qual comportamento/configuração deve inspirar o SRS, incluindo algoritmo e parâmetros. Não escolher automaticamente.
-2. **Semana inteira visível:** apresentação exata em computador e celular ainda não especificada. O requisito funcional está definido, mas não a solução visual.
+2. **Semana inteira visível:** resolvida pela instrução explícita da Fase 2 em 07/10/2026: sete colunas no desktop, sete grupos de dias em uma coluna no mobile e sidebar recolhível. Contrato visual em ux-ui.md.
 
 Esses pontos não impedem o fechamento documental da Fase 1.1. Devem ser definidos antes das implementações correspondentes, sem ampliar o escopo ou iniciar a próxima fase automaticamente.
 
@@ -134,7 +134,7 @@ Os cinco contratos V2 e AGENTS.md foram confrontados em conjunto. Não há contr
 Permanecem decisões para definição/aprovação do usuário antes da implementação correspondente:
 
 - Comportamento/configuração Anki que orientará o SRS.
-- Apresentação da semana inteira em desktop e mobile.
+- Apresentação da semana inteira em desktop e mobile: pendência original da Fase 1, posteriormente resolvida pela Fase 2; não é mais bloqueio visual.
 - Parâmetros de carga, duração por modalidade, fallback inicial, janelas/thresholds e precedência da policy V2, deliberadamente não escolhidos na Fase 1.3. Não presumir aprovação de novos valores nem reativar regras históricas incompatíveis.
 
 Correspondência curricular, vínculo de atendimento de revisão e rastreabilidade de decisões são pendências técnicas delimitadas, não novos requisitos de produto. Schema/dados reais ainda precisam de conferência autorizada; a revisão documental não comprova produção.

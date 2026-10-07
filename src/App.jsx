@@ -17,13 +17,14 @@ const ReviewCenter = lazy(() => import('./components/ReviewCenter.jsx'))
 export default function App() {
   const [status, setStatus] = useState('loading')
   const [cadastroDisponivel, setCadastroDisponivel] = useState(false)
-  const [area, setArea] = useState('inicio')
+  const [area, setArea] = useState('semana')
   const [catalog, setCatalog] = useState([])
   const [objectiveId, setObjectiveId] = useState('')
   const [context, setContext] = useState('concurso')
   const [reviewQuestionId, setReviewQuestionId] = useState('')
   const [studyTarget, setStudyTarget] = useState(null)
   const [weekTarget, setWeekTarget] = useState(null)
+  const [timerTarget, setTimerTarget] = useState(null)
 
   async function loadCatalog() {
     const data = await api('/api/catalogo')
@@ -100,9 +101,10 @@ export default function App() {
     <Layout area={area} onAreaChange={setArea} catalog={contextCatalog} objectiveId={objective?.id || ''} onObjectiveChange={setObjectiveId} context={context} onContextChange={changeContext} onLogout={logout}>
       <Suspense fallback={<div className="module-loading">Carregando módulo...</div>}>
       {area === 'inicio' && <Home onNavigate={setArea} />}
-      {area === 'semana' && <Week catalog={catalog} target={weekTarget} onTargetApplied={() => setWeekTarget(null)} onOpenQuestions={(item) => openDemand(item, 'questoes')} onOpenCards={(item) => openDemand(item, 'cards')} />}
-      {area === 'tempo' && <StudyTime catalog={catalog} />}
+      {area === 'semana' && <Week catalog={catalog} target={weekTarget} onTargetApplied={() => setWeekTarget(null)} onOpenQuestions={(item) => openDemand(item, 'questoes')} onOpenCards={(item) => openDemand(item, 'cards')} onOpenTimer={(item) => { setTimerTarget(item); setArea('tempo') }} />}
+      {area === 'tempo' && <StudyTime catalog={catalog} target={timerTarget} onTargetApplied={() => setTimerTarget(null)} />}
       {area === 'revisoes' && <ReviewCenter objective={objective} onOpenQuestion={openReviewItem} onOpenCards={(item) => { setStudyTarget({ objectiveId: objective?.id, subjectId: item.materia_id || '', topicId: item.topico_id || '' }); setArea('cards') }} />}
+      {['questoes', 'caderno', 'discursivas'].includes(area) && <div className="module-tabs" aria-label="Área de questões">{[['questoes', 'Questões'], ['caderno', 'Caderno'], ['discursivas', 'Discursivas']].map(([id, label]) => <button key={id} aria-pressed={area === id} onClick={() => setArea(id)}>{label}</button>)}</div>}
       {area === 'questoes' && <Questions {...common} target={studyTarget?.objectiveId === objective?.id ? studyTarget : null} onTargetApplied={() => setStudyTarget(null)} reviewQuestionId={reviewQuestionId} onReviewLoaded={() => setReviewQuestionId('')} />}
       {area === 'caderno' && <Questions {...common} notebookOnly />}
       {area === 'discursivas' && <DiscursiveQuestions />}
