@@ -20,8 +20,8 @@ describe('policy única do Mentor V2', () => {
     expect(validateMentorV2Decision(result.decisoes[0])).toBe(true)
     expect(result.decisoes[0]).toMatchObject({ tipo_decisao: 'MANTER_DEMANDA', demanda_id: 'a', duracao_minutos: 50,
       policy_ref: { fonte: 'conhecimento_modulo', id: 'policy-1', versao: 'v2-test' }, prioridade: null })
-    expect(MENTOR_V2_TYPES).toHaveLength(14)
-    expect(MENTOR_V2_REASONS).toHaveLength(36)
+    expect(MENTOR_V2_TYPES).toHaveLength(17)
+    expect(MENTOR_V2_REASONS).toHaveLength(40)
   })
   it('mesmos inputs produzem exatamente o mesmo resultado, sem modificar fatos', () => {
     const input = facts(), before = structuredClone(input)

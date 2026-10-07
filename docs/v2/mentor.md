@@ -329,3 +329,128 @@ Validação: 115 testes direcionados em seis arquivos; suíte completa com 374 t
 Limites: persistência é comprovada por adapter relacional controlado, não PostgreSQL ou produção. Ativação/versionamento da policy real e configuração de capacidade semanal não foram realizados; continuam necessários para gerar um plano real quando ainda inexistente. Critérios de suficiência e alteração estratégica de carga permanecem pendentes, sem números arbitrários. Não houve banco, migration, commit, push ou deploy. Trabalho local anterior preservado; nenhuma próxima fase iniciada.
 
 Aprendizado: a integração inclui consumidores e dependências indiretas. Regra resultante: compatibilidade de resposta não autoriza reativar um decisor histórico, e aprovação local não comprova configuração real do banco.
+
+## Disponibilidade factual, Fase 3.12
+
+Registro em 07/10/2026. Motor `mentor-v2-engine/3.12`, contrato `mentor-v2/1`. Disponibilidade é fato em `mentor_contexto.dados.disponibilidade`, não capacidade desejada da policy. A estrutura anterior não possuía contrato diário V2; não se presume significado equivalente para `max_blocos_dia` ou indisponibilidades históricas em `objetivo.config`.
+
+Formato reconhecido, com exemplo exclusivamente sintético:
+
+```json
+{
+  "versao": "disponibilidade-v2/1",
+  "dias": [
+    { "data": "2030-03-04", "minutos": 130 },
+    { "data": "2030-03-05", "minutos": 0 }
+  ],
+  "compromissos_bloqueantes": ["<id-canônico-do-compromisso>"]
+}
+```
+
+`dias` declara minutos disponíveis para estudo por data em Brasília, somados entre todos os objetivos, não uma carga imposta. Zero é indisponível; data omitida é desconhecida e não recebe nova demanda. Aceita minutos inteiros de 0 a 1440, sem repetir datas. O limite 1440 representa a duração de um dia, não uma recomendação de estudo. Sem estrutura/versionamento reconhecido, preservar o plano e não criar novas demandas; retornar planejamento pendente. Estrutura inválida ou vínculo de bloqueio não identificado impede avaliação, sem ignorar a restrição.
+
+`compromissos_bloqueantes` é opcional e referencia registros reais de `compromisso`. O calendário/data continuam exclusivamente nessa tabela. Vínculo explícito significa indisponibilidade do dia inteiro, pois compromisso e demanda não possuem hora operacional neste schema. Prova/entrega não bloqueia automaticamente o dia pela mera existência. Eventos concluídos continuam consultáveis para resolver bloqueios explícitos; concluir o evento não remove esse fato do calendário. O contrato não calcula períodos horários: capacidade parcial é em minutos/dia, não promessa de alocação às 08h ou 14h. Formatos de intervalos horários não reconhecidos são recusados, não ignorados. Não há rotina pessoal hardcoded, migration, novo formulário ou atualização de banco.
+
+O calculador factual `shared/mentor-v2-availability.js` desconta demandas já existentes no dia efetivo, inclusive concluídas e movidas manualmente; canceladas não ocupam capacidade, mas suas identidades continuam protegidas pelo planner. Reserva primeiro os dias originais válidos dos slots decididos e depois tenta realocar os que não couberam para a primeira capacidade restante declarada da mesma semana. Mantém quantidade máxima e duração de cada slot; não fraciona, funde, alonga nem cria compensação futura. Não altera demandas existentes, mesmo quando um movimento manual posterior excede a disponibilidade.
+
+Quando não cabe toda a carga desejada, aplicar somente o subconjunto válido, com `AVAILABILITY_CONSTRAINT`, `NO_HOUR_DEBT` e pendência `CAPACIDADE_FACTUAL_INSUFICIENTE`. Na ausência/formato não suportado, pendência `DISPONIBILIDADE_NAO_INFORMADA_OU_NAO_SUPORTADA`. A capacidade desejada permanece registrada na policy; a carga materializada menor não é uma nova regra estratégica de redução permanente. O método é empacotamento determinístico simples, não otimização global de combinações de blocos.
+
+Avaliação e demandas guardam snapshot de disponibilidade, bloqueios, reservas, alocações e slots não atendidos. `parametros.data_alocada` identifica o dia factual escolhido; `capacidade_slot` conserva o slot desejado original e a chave estável continua por semana/índice. Validação exige correspondência da nova data com a evidência. Decisões antigas sem esse campo permanecem legíveis pela regra anterior. Movimento manual após criação não altera decisão nem data original persistida.
+
+O encontro semanal não foi lido, alterado ou integrado nesta subfase. Sua pendência apontada pela auditoria final permanece. Configuração real da disponibilidade/policy e homologação PostgreSQL/produção continuam pendentes; resultados locais não representam ativação no banco.
+
+Aprendizado: slots desejados não provam que existe tempo livre. Regra resultante: ausência de disponibilidade não vira capacidade ilimitada, e falta de capacidade não vira dívida.
+
+Validação local da 3.12: **PASS COM LIMITAÇÕES**. 230 testes direcionados aprovados em nove arquivos, incluindo 24 novos casos de disponibilidade/plano e regressões de policy, priorização, carga, fallback, integração, rastreabilidade e UI. Cobertura: dia indisponível/parcial, semana insuficiente/suficiente, realocação sem aumento, blocos indivisíveis, bloqueio explícito com evento concluído ou pendente, prazo não bloqueante, falta de dado, dados inválidos, reservas existentes, retry, movimentos manuais, origem imutável e ausência de dívida. Persistência usa adapter controlado; não prova concorrência PostgreSQL ou configuração real. Não foram executados suíte completa, lint ou build, nem houve banco, migration, commit, push ou deploy nesta microetapa. Não avançar nem tratar o encontro como integrado.
+
+## Fatos do encontro integrados, Fase 3.13
+
+Registro em 07/10/2026. A pendência de entrada factual do encontro da auditoria da Fase 3 foi tratada no fluxo autenticado `POST /api/mentor`. `api/_lib/mentor-v2-meeting.js` apenas valida/reconcilia fatos, sem decidir carga, matéria, método ou algoritmo. Não acrescenta outra policy nem interpreta linguagem natural.
+
+Fontes operacionais:
+
+- Prova/trabalho acadêmico informado em `fatos.avaliacoes`: materializado em `compromisso`, nos tipos reais `prova`/`entrega`, com disciplina da Faculdade validada. O encontro armazena IDs em `fatos.compromissos` e `avaliacoes_refs`, não outra cópia vigente do calendário. A leitura resolve título/data atuais por esses IDs; o ID acompanha edição de prazo. Atualização preserva conclusão, peso, duração e vínculos de tópicos. Retry reutiliza identidade determinística, reconhecendo também evento equivalente já criado fora do encontro. Equivalência ambígua exige ID explícito.
+- Outro compromisso já existente: `fatos.compromissos: [{id}]`. Não cria tipos que o schema não comporta. `bloqueante: true/false`, opcional tanto na avaliação quanto na referência, informa bloqueio factual do dia inteiro no contrato da 3.12; false remove somente aquele bloqueio. Prova sem esse fato não bloqueia o dia automaticamente.
+- Exceção de disponibilidade: `fatos.disponibilidade: [{data,minutos}]`, na próxima semana. `indisponivel_em` permanece aceito como entrada de zero minutos. Ambas são reconciliadas exclusivamente em `mentor_contexto.dados.disponibilidade`, preservando os demais dias e bloqueios. O encontro guarda `disponibilidade_ref`, não segunda tabela de horários. Se não há estrutura anterior, criar somente as datas explicitamente declaradas, sem preencher os outros dias. Estrutura legada/desconhecida exige configuração prévia, não conversão presumida. A UI usa minutos excepcionais por data; zero significa indisponível e vazio não restaura disponibilidade implicitamente.
+- Acontecimentos, impedimentos, exceções e contexto adicional: fatos contextualizados por `semana_inicio` e `semana_alvo` em `mentor_contexto.dados.eventos_encontro`. O encontro mantém o relato de origem/histórico; o adapter lê exclusivamente a projeção vigente do contexto para a semana avaliada. Não interpreta o texto como prazo, indisponibilidade, fraqueza ou instrução estratégica. Para efeito operacional, informar também a data/minutos ou a entidade estruturada pertinente. Eventos de outra semana não entram no snapshot da semana atual.
+
+`cargaPercebida` de clientes antigos é ignorada. O POST não grava/apaga `carga_percebida`, preservando dados históricos; a UI não oferece nem envia Leve/Adequada/Pesada. Dificuldade percebida/classificações continuam relato do encontro, não sinais autorizados de domínio ou alteração de estratégia. Nenhuma anamnese foi criada. Campos estruturados de comandos estratégicos ou não suportados são recusados.
+
+Um encontro vazio não modifica contexto/agenda, e sua existência por si só não autoriza mudança estratégica. A ausência de encontro não impede gerar plano quando policy, currículo e disponibilidade canônicos permitem. No domingo, a preparação existente ocorre depois da reconciliação e do registro; fora do domingo, conserva a indicação de planejamento pendente. O planner continua protegendo demandas existentes, exclusões, movimentos e origem histórica; esta etapa não substitui demandas previamente materializadas nem introduz um novo algoritmo de replanejamento.
+
+### Segurança, validação e limites
+
+Todos os inputs são validados antes da primeira mutação. Alteração de contexto usa comparação do timestamp lido; mudança de compromisso compara data/título anteriores, recusando conflito em vez de sobrescrever silenciosamente. Repetição da mesma reconciliação não incrementa nem duplica fatos. Uma falha não confirma o encontro ou inicia planejamento. Entretanto, compromisso, contexto e encontro ainda são chamadas separadas: não se promete atomicidade entre tabelas. Uma falha posterior pode deixar fato canônico já persistido; retry o reconhece. Isso é testado, mas não substitui validação PostgreSQL de concorrência real. Criação concorrente do mesmo evento por outro fluxo sem identidade compartilhada ainda não possui constraint de equivalência natural.
+
+Validação local: **PASS COM LIMITAÇÕES**, 251 testes direcionados aprovados em 11 arquivos, com 18 novos testes do encontro V2 e um novo teste de POST. Cobertura de prova/entrega, prazo pelo mesmo ID, contexto narrativo, disponibilidade parcial/zero, bloqueio/referência, equivalência/retry, feedback ignorado, encontro ausente/vazio, comandos recusados e falhas controladas. UI verificada estruturalmente, não por E2E no navegador. Schema/configuração reais e produção não foram consultados nem alterados. Não houve migration, suíte completa, lint, build, commit, push ou deploy. Esta subfase não ativa thresholds de carga, SRS, revisão avançada ou outra fase.
+
+Aprendizado: encontro é porta de entrada de realidade, não agenda/policy paralela. Regra resultante: fatos operacionais chegam à entidade canônica antes do planejamento; presença do encontro, opinião ou texto livre não decidem estratégia.
+
+## Capacidade inicial do perfil, Fase 3.14
+
+Registro em 07/10/2026. Motor `mentor-v2-engine/3.14`. Esta seção substitui a fonte operacional `capacidade_semanal` da policy descrita nas subfases 3.8/3.12, sem alterar registros históricos.
+
+| conceito | fonte canônica | responsabilidade |
+| --- | --- | --- |
+| Disponibilidade | `mentor_contexto.dados.disponibilidade` | Minutos realmente disponíveis por data e bloqueios; não obriga ocupação de todo o tempo livre. |
+| Capacidade inicial | `mentor_contexto.dados.capacidade_inicial` | Configuração versionada do perfil, por objetivo/atividade; não é teto permanente. |
+| Carga decidida | `mentor_decisao` | Resultado do único Mentor, limitado por fatos, autorização de modalidade e currículo elegível. |
+| Plano efetivo | `sessao` | Demandas aplicadas e movimentos do usuário, separados de configuração e execução. |
+
+Formato com valores exclusivamente sintéticos, não configuração aplicada no banco:
+
+```json
+{
+  "versao": "capacidade-inicial-v2/1",
+  "revisao": "perfil-exemplo-1",
+  "slots": [
+    { "dia": 0, "objetivo_id": "<concurso>", "atividade": "ESTUDO", "duracao_minutos": 50 },
+    { "dia": 0, "objetivo_id": "<faculdade>", "atividade": "ESTUDO", "duracao_minutos": 50 },
+    { "dia": 1, "destino": "PRIORIDADE_ESTRUTURAL", "atividade": "ESTUDO", "duracao_minutos": 50 },
+    { "dia": 2, "objetivo_id": "<concurso>", "atividade": "REVISAO", "duracao_minutos": 30,
+      "justificativa_30": "Revisão curta justificada", "materia_id": "<matéria>", "topico_id": "<tópico>", "revisao_id": "<revisão real>" }
+  ]
+}
+```
+
+`dia` usa segunda = 0 até domingo = 6. Blocos normais têm 50 minutos; 30 exige justificativa explícita não vazia, especialmente aplicável a revisão/cards. A descrição não é interpretada como comando. Prática continua exigindo gates/vínculos existentes. Não aceita 60/90/100 para nova capacidade normal, sem alterar duração de eventos especiais ou história.
+
+Cada slot identifica `objetivo_id` ou `destino = PRIORIDADE_ESTRUTURAL`, nunca ambos. O segundo é capacidade discricionária já explicitamente configurada, não crescimento inferido por boa semana ou tempo livre. O Mentor a destina ao concurso principal factual; sem principal, somente um concurso inequivocamente identificado pode receber o slot. Ambiguidade impede geração. Slots explícitos da Faculdade são preservados, sem transferência para o concurso. Falta de disponibilidade limita o subconjunto materializado, sem dívida ou garantia de continuidade fisicamente impossível.
+
+`shared/mentor-v2-capacity.js` valida a configuração, sem decidir. O adapter lê somente essa chave do perfil. `conhecimento_modulo` continua fonte de regras, mas `capacidade_semanal` nessa policy agora é recusada, mesmo se igual ao perfil. Conversão de configuração real anterior precisa ser explícita, sem fallback ou migração silenciosa. Configuração ausente preserva demandas existentes e registra `CAPACIDADE_SEMANAL_NAO_CONFIGURADA`; não inventa base pela disponibilidade, carga V1 ou tempo executado. Lista explicitamente vazia significa zero configurado, diferente de ausência.
+
+Enquanto não existir policy/evidência de progressão aprovada, MANTER: `LOAD_CHANGE_POLICY_UNDEFINED`, sem aumento por semana boa isolada, feedback ou dívida. Materializar a base configurada não é aumento estatístico. O encontro não altera essa configuração por comando. Crescimento automático futuro continua pendente, sem percentuais, escadas ou limiares escolhidos nesta subfase; a base não é um teto permanente.
+
+Demandas novas guardam `parametros.capacidade_ref`, revisão e snapshot do perfil, separados de `policy_ref` e disponibilidade. Validação confronta a referência com o contexto original. `carga_semanal.capacidade_inicial` informa slots/minutos configurados; `carga_proposta` informa o escolhido. Decisões históricas sem a nova referência permanecem legíveis. `AVAILABILITY_CONSTRAINT` e `NO_HOUR_DEBT` explicam materialização limitada, não redução permanente da configuração.
+
+Validação local: **PASS COM LIMITAÇÕES**, 266 testes direcionados aprovados em 12 arquivos, com 15 novos casos de capacidade. Cobertura dos seis cenários solicitados, duração justificada, zero, ambiguidade, adulteração e rejeição de fonte concorrente. Sem suíte completa, lint, build, migration, commit, push, deploy ou consulta/alteração de banco real. Quantidade/distribuição real da base inicial não foi fornecida nesta solicitação e não foi inventada ou instalada em produção.
+
+Aprendizado: tempo livre não obriga ocupação e base inicial não autoriza crescimento automático. Regra resultante: configurar no perfil, decidir no Mentor e materializar apenas onde a realidade comporta.
+
+## Tratamento estratégico de pendências, Fase 3.15
+
+Registro em 07/10/2026. Motor `mentor-v2-engine/3.15`, catálogo `mentor-v2-reasons/6`. A mesma policy admite a regra explícita `TRATAMENTO_PENDENCIAS_SEMANAIS`, exigindo geração e priorização semanais habilitadas. Não instala/ativa configuração no banco nem resgata lógica V1.
+
+Demandas anteriores ainda planejadas, parciais, remanejadas ou não concluídas são observadas pelo seu ID/data/vínculo real. Feitas e canceladas não entram como faltas. A seleção da nova semana continua subordinada à capacidade inicial, disponibilidade, primeiro material elegível, prioridade estrutural, compromissos e evidência qualificada. Somente depois dessa seleção o Mentor trata a obrigação antiga, sem copiar uma fila de atrasos ou acrescentar slots/minutos.
+
+| decisão | critério implementado | efeito |
+| --- | --- | --- |
+| MANTER_PENDENCIA | Conteúdo permanece necessário sem espaço/seleção atual, ou dados não permitem encerramento seguro. | Preservar para avaliação futura sem inventar data; identificar continuidade já presente no plano quando existir. |
+| REAGENDAR_SEMANA_FUTURA | Material teórico pendente válido foi selecionado em novo slot equivalente da semana alvo. | Relacionar nova decisão de criação à demanda anterior; não mover o registro antigo. |
+| SUBSTITUIR_PENDENCIA | Outra necessidade curricular do mesmo objetivo foi selecionada na capacidade atual, por prioridade/compromisso/ordem vigente. | Vincular a seleção substituta; conteúdo anterior continua elegível, não é apagado ou marcado concluído. |
+| REDISTRIBUIR_PENDENCIA | Continuidade selecionada em vários dias ou em outro dia relativo da nova semana. | Usar somente slots novos válidos, sem aumentar duração/capacidade. |
+| ABANDONAR_PENDENCIA | Material da obrigação teórica antiga está explicitamente concluído na fonte canônica. | Encerrar obrigação operacional antiga na decisão; preservar sessão, tempo, progresso e currículo. |
+
+Tratamentos são decisões auditáveis em `mentor_decisao`, não mutações de sessões antigas. `parametros.pendencia` contém snapshot factual; `novas_decisoes` aponta para IDs/chaves/datas das novas decisões quando aplicável. Criações de continuidade possuem referência à sessão anterior em `alvos_relacionados`, evidência da pendência e `PENDING_CONTINUITY`. Não contam como mais uma demanda além da criação selecionada. Várias pendências do mesmo conteúdo podem ser atendidas pela mesma continuidade, sem duplicação.
+
+Reason codes: `PENDING_CONTINUITY`, `PENDING_DEFERRED`, `PENDING_REPLACED`, `PENDING_REDISTRIBUTED`, `FUTURE_RESCHEDULING`, `NO_LONGER_RELEVANT_PENDING`, `NO_HOUR_DEBT`, com motivos de disponibilidade/insuficiência quando aplicáveis. Abandonar não implica domínio nem abandono curricular. Um erro/resposta isolada não reorganiza a matéria. Sem identidade material segura ou sem critérios específicos qualificados de prática/revisão/retenção, MANTER com insuficiência; cobertura teórica nunca encerra automaticamente obrigação de prática. Não inventa prazo de obsolescência ou inferência a partir do nome da demanda.
+
+Esta regra avalia a relevância à luz dos fatos atuais; não torna abandono uma exclusão do currículo, não sobrescreve decisões históricas e não marca faltas como feitas. Reavaliação pode registrar outro tratamento conforme novos fatos. Recálculo preserva a criação já presente, seu vínculo/origem e exclusões manuais. Executor continua inserindo somente `CRIAR_DEMANDA`; os tratamentos não são outra fila nem uma segunda aplicação de carga.
+
+Validação local: 280 testes direcionados aprovados em 13 arquivos, com 14 novos testes de pendências. Cobertura dos seis cenários solicitados, determinismo, retries, distribuição, exclusões/conclusões, insuficiência e distinção cobertura/prática. Persistência é controlada/sintética, não PostgreSQL ou produção. Sem migration, banco real, suíte completa, lint, build, commit, push ou deploy. Status: PASS COM LIMITAÇÕES por ativação/configuração real não realizada e critérios específicos de prática ainda pendentes.
+
+Aprendizado: obrigação perdida e necessidade curricular atual são coisas distintas. Regra resultante: decidir sua relevância dentro da nova capacidade e preservar integralmente o histórico, nunca cobrar minutos atrasados.
+
+## Integração final corretiva, Fase 3.16
+
+Registro em 07/10/2026. Os 14 cenários obrigatórios e a recusa de fallback V1 passaram no pipeline integrado controlado, incluindo disponibilidade, fatos do encontro, capacidade configurada, pendências e rastreabilidade da origem. Sem necessidade de nova alteração funcional nesta subfase. Validação: 295 testes direcionados, 461 na suíte completa, lint estrutural de 144 arquivos e build aprovados. Resultado: PASS COM LIMITAÇÕES, sem banco real ou produção. Evidências, método e pendências em [validacao-fase3.md](validacao-fase3.md). Não autoriza ativação no banco, deploy ou início da Fase 4.

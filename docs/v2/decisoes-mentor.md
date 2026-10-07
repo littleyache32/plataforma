@@ -212,3 +212,19 @@ Em 07/10/2026, catálogo `mentor-v2-reasons/5`, com 36 códigos. Adicionados `AP
 Aplicação gera UUID estável por slot e chave física com referência à decisão criadora. Registro original e chave não mudam ao mover/reordenar ou reaplicar o plano. O retorno de aplicação identifica somente inserções confirmadas; avaliação persistida e inserção são operações separadas. Histórico de decisão permanece auditável em caso de falha/retry.
 
 Criar não autoriza atualizar, cancelar ou substituir demanda existente. ABANDONAR_PENDENCIA, REAGENDAR_SEMANA_FUTURA e REDISTRIBUIR_CARGA continuam exigindo regras próprias, sem execução textual ou empréstimo de policy histórica. Simulado não é modalidade operacional desta subfase.
+
+## Alocação factual, Fase 3.12, 07/10/2026
+
+`CRIAR_DEMANDA.parametros.data_alocada` é uma extensão opcional para preservar compatibilidade com decisões anteriores. Nas novas criações identifica a data selecionada dentro da disponibilidade canônica e deve coincidir com `alvo_temporal.data` e com a alocação no snapshot de evidência `disponibilidade`. `capacidade_slot` conserva dia e duração pretendidos; UUID/chave continuam por slot original. A realocação não muda duração, cria outro slot ou reescreve decisões anteriores. Sem o campo, decisões históricas continuam exigindo a data original do slot.
+
+O motivo já catalogado `AVAILABILITY_CONSTRAINT` passa a ser utilizado para materialização limitada/realocada pela capacidade factual, inclusive ausência de dado. Não significa dívida ou redução estratégica permanente de carga. Motor versionado como `mentor-v2-engine/3.12`; catálogo permanece `mentor-v2-reasons/5` porque nenhum novo código foi criado. Texto explicativo continua derivado. Detalhes em [mentor.md](mentor.md#disponibilidade-factual-fase-312).
+
+## Referência da capacidade inicial, Fase 3.14, 07/10/2026
+
+Criações novas incluem `parametros.capacidade_ref` com fonte `mentor_contexto`, ID, campo `dados.capacidade_inicial`, versão de contrato e revisão do perfil. A evidência `capacidade_aprovada` contém configuração original e slots resolvidos pelo Mentor; validação confronta essa referência com o snapshot canônico do contexto e o índice/duração do slot. `policy_ref` permanece separado. Decisões históricas sem a extensão continuam legíveis. `carga_semanal.capacidade_inicial` é projeção da configuração, não outra decisão de carga. Contrato `mentor-v2/1` preservado; motor `mentor-v2-engine/3.14`, sem novos reason codes ou autoridade decisória.
+
+## Tratamento de pendências, Fase 3.15, 07/10/2026
+
+Contrato estendido de 14 para 17 tipos conhecidos, acrescentando `MANTER_PENDENCIA`, `SUBSTITUIR_PENDENCIA` e `REDISTRIBUIR_PENDENCIA`. Os tipos existentes `REAGENDAR_SEMANA_FUTURA` e `ABANDONAR_PENDENCIA` tornam-se executáveis na regra explícita `TRATAMENTO_PENDENCIAS_SEMANAIS`. Outras estratégias permanecem não executáveis. Contrato `mentor-v2/1` preserva decisões antigas; motor `mentor-v2-engine/3.15`, catálogo `mentor-v2-reasons/6`.
+
+O envelope preserva fontes/versões/semana alvo. `demanda_id` identifica a pendência anterior; duração e prioridade são null porque o tratamento não adiciona carga. `parametros` contém somente snapshot `pendencia`, `acao` enumerada e referências `novas_decisoes` (ID da decisão, chave de slot e data). Manter/abandonar não inventam data nem novas referências. Evidência deve identificar a sessão factual e fundamentação da regra única. As novas criações de continuidade referenciam a sessão anterior, mas somente `CRIAR_DEMANDA` produz um registro novo. Não executar o tratamento como mudança de data/status da antiga ou como outra demanda. Critérios e limitações em mentor.md.

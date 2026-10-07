@@ -19,7 +19,7 @@ const meetingSignals = [
 
 const facultyStatus = (classifications = []) => classifications.includes('faculdade_em_dia') ? 'em_dia' : classifications.includes('faculdade_atrasada') ? 'atrasada' : 'nao_informado'
 
-const emptyFacts = { acontecimentos: '', dificuldade_nivel: '', dificuldade: '', impedimentos: '', excecoes: '', indisponivel_em: [], avaliacoes: [] }
+const emptyFacts = { acontecimentos: '', dificuldade_nivel: '', dificuldade: '', impedimentos: '', excecoes: '', indisponivel_em: [], disponibilidade: [], avaliacoes: [] }
 const emptyAssessment = () => ({ tipo: 'prova', data: '', materia_id: '', titulo: '' })
 
 export default function MentorWidget({ objectiveId, catalog = [], onOpenQuestions, onOpenCards }) {
@@ -29,7 +29,7 @@ export default function MentorWidget({ objectiveId, catalog = [], onOpenQuestion
   const [loadedFor, setLoadedFor] = useState('')
   const [activePanel, setActivePanel] = useState('resumo')
   const [meetingMessage, setMeetingMessage] = useState('')
-  const [meeting, setMeeting] = useState({ cargaPercebida: '', observacoes: '', classificacoes: [], fatos: emptyFacts })
+  const [meeting, setMeeting] = useState({ observacoes: '', classificacoes: [], fatos: emptyFacts })
 
   useEffect(() => {
     if (!open || !objectiveId || loadedFor === objectiveId) return
@@ -50,14 +50,15 @@ export default function MentorWidget({ objectiveId, catalog = [], onOpenQuestion
   useEffect(() => {
     const saved = mentor?.encontro_semanal
     if (!saved) return
-    setMeeting({ cargaPercebida: saved.carga_percebida || '', observacoes: saved.observacoes || '', classificacoes: saved.classificacoes || [], fatos: { ...emptyFacts, ...(saved.fatos || {}) } })
+    setMeeting({ observacoes: saved.observacoes || '', classificacoes: saved.classificacoes || [], fatos: { ...emptyFacts, ...(saved.fatos || {}) } })
   }, [mentor?.encontro_semanal])
 
   async function saveMeeting(event) {
     event.preventDefault()
     setMeetingMessage('Salvando encontro...')
     try {
-      const result = await api('/api/mentor', { method: 'POST', body: JSON.stringify({ semanaInicio: mentor?.semana_atual, ...meeting }) })
+      const facts = Object.fromEntries(Object.entries(meeting.fatos).filter(([key]) => Object.hasOwn(emptyFacts, key) || key === 'compromissos'))
+      const result = await api('/api/mentor', { method: 'POST', body: JSON.stringify({ semanaInicio: mentor?.semana_atual, ...meeting, fatos: facts }) })
       setMentor((current) => ({ ...current, encontro_semanal: result.encontro_semanal }))
       setMeetingMessage(result.planejamento_pendente ? 'Encontro registrado. A próxima semana será preparada ou atualizada no domingo.' : 'Encontro registrado. O Mentor recalculou a próxima semana.')
     } catch (error) {
@@ -78,6 +79,13 @@ export default function MentorWidget({ objectiveId, catalog = [], onOpenQuestion
 
   function setAssessment(index, name, value) {
     setMeeting((current) => ({ ...current, fatos: { ...current.fatos, avaliacoes: current.fatos.avaliacoes.map((item, currentIndex) => currentIndex === index ? { ...item, [name]: value } : item) } }))
+  }
+
+  function setAvailableMinutes(date, value) {
+    setMeeting((current) => ({ ...current, fatos: { ...current.fatos,
+      indisponivel_em: current.fatos.indisponivel_em.filter((day) => day !== date),
+      disponibilidade: [...current.fatos.disponibilidade.filter((row) => row.data !== date), ...(value === '' ? [] : [{ data: date, minutos: Number(value) }])],
+    } }))
   }
 
   const facultySubjects = catalog.filter((item) => item.tipo === 'faculdade').flatMap((item) => item.materias || [])
@@ -144,7 +152,6 @@ export default function MentorWidget({ objectiveId, catalog = [], onOpenQuestion
 
         {activePanel === 'encontro' && <form className="mentor-weekly-meeting" onSubmit={saveMeeting}>
           <div><h3>Encontro semanal</h3><p>Informe fatos da semana. O Mentor decide prioridades, estratégia e carga seguinte.</p></div>
-          <label>Como ficou a carga planejada? <small>Opcional</small><select value={meeting.cargaPercebida} onChange={(event) => setMeeting((current) => ({ ...current, cargaPercebida: event.target.value }))}><option value="">Não informado</option><option value="leve">Leve</option><option value="adequada">Adequada</option><option value="pesada">Pesada</option></select></label>
           <label>A Faculdade está em dia? <small>Opcional</small><select value={facultyStatus(meeting.classificacoes)} onChange={(event) => setFacultyStatus(event.target.value)}><option value="nao_informado">Não informado</option><option value="atrasada">Ainda preciso recuperar conteúdo</option><option value="em_dia">Sim, estou em dia</option></select></label>
           <fieldset className="mentor-meeting-signals"><legend>O que marcou a semana? <small>Opcional</small></legend>{meetingSignals.map(([id, label]) => <label key={id}><input type="checkbox" checked={meeting.classificacoes.includes(id)} onChange={() => setMeeting((current) => ({ ...current, classificacoes: current.classificacoes.includes(id) ? current.classificacoes.filter((item) => item !== id) : [...current.classificacoes, id] }))}/><span>{label}</span></label>)}</fieldset>
           <label>Acontecimentos da semana<textarea rows="2" maxLength="600" value={meeting.fatos.acontecimentos} onChange={(event) => setFact('acontecimentos', event.target.value)}/></label>
@@ -153,7 +160,7 @@ export default function MentorWidget({ objectiveId, catalog = [], onOpenQuestion
           <label>Problema com material ou contexto adicional<textarea rows="2" maxLength="1200" value={meeting.observacoes} onChange={(event) => setMeeting((current) => ({ ...current, observacoes: event.target.value }))}/></label>
           <label>Impedimentos da próxima semana<textarea rows="2" maxLength="600" value={meeting.fatos.impedimentos} onChange={(event) => setFact('impedimentos', event.target.value)}/></label>
           <label>Exceções importantes<textarea rows="2" maxLength="600" value={meeting.fatos.excecoes} onChange={(event) => setFact('excecoes', event.target.value)}/></label>
-          <fieldset className="mentor-meeting-signals"><legend>Dias sem disponibilidade na próxima semana <small>Opcional</small></legend>{nextWeekDates.map((date) => <label key={date}><input type="checkbox" checked={meeting.fatos.indisponivel_em.includes(date)} onChange={() => setFact('indisponivel_em', meeting.fatos.indisponivel_em.includes(date) ? meeting.fatos.indisponivel_em.filter((item) => item !== date) : [...meeting.fatos.indisponivel_em, date])}/><span>{new Date(`${date}T12:00:00Z`).toLocaleDateString('pt-BR', { timeZone: 'UTC', weekday: 'short', day: '2-digit', month: '2-digit' })}</span></label>)}</fieldset>
+          <fieldset><legend>Disponibilidade excepcional na próxima semana <small>Opcional</small></legend><small>Informe minutos disponíveis para estudo. Zero indica dia indisponível; vazio mantém o dado vigente, sem presumir tempo livre.</small>{nextWeekDates.map((date) => <label key={date}>{new Date(`${date}T12:00:00Z`).toLocaleDateString('pt-BR', { timeZone: 'UTC', weekday: 'short', day: '2-digit', month: '2-digit' })}<input type="number" min="0" max="1440" step="1" value={meeting.fatos.disponibilidade.find((row) => row.data === date)?.minutos ?? (meeting.fatos.indisponivel_em.includes(date) ? 0 : '')} onChange={(event) => setAvailableMinutes(date, event.target.value)}/></label>)}</fieldset>
           <fieldset className="mentor-meeting-signals"><legend>Próximas provas ou entregas <small>Opcional</small></legend>
             {meeting.fatos.avaliacoes.map((assessment, index) => <div key={index}>
               <label>Tipo<select value={assessment.tipo} onChange={(event) => setAssessment(index, 'tipo', event.target.value)}><option value="prova">Prova</option><option value="entrega">Entrega</option></select></label>

@@ -16,8 +16,8 @@ function database() {
   const evaluation = evaluateMentorV2({ policyRecord: { id: 'p', modulo: 'mentor', ativo: true, versao: 'original-v1', conteudo: { politica: {
     modelo: 'MENTOR_V2', versao_contrato: 'mentor-v2/1', modalidades_permitidas: ['ESTUDO'],
     regras: ['CONTINUIDADE_PLANO_EXISTENTE', 'PRIORIZACAO_CURRICULAR_SEMANAL', 'GERACAO_PLANO_SEMANAL'].map((id) => ({ id, habilitada: true })),
-    capacidade_semanal: [{ dia: 0, objetivo_id: 'g', atividade: 'ESTUDO', duracao_minutos: 50 }],
-  } } }, facts: { context: { id: 1, rotina_pratica: {} }, demands: [], subjects: [{ id: 'm', objetivo_id: 'g' }], topics: [],
+  } } }, facts: { context: { id: 1, rotina_pratica: {}, capacidade_inicial: { versao: 'capacidade-inicial-v2/1', revisao: 'trace', slots: [{ dia: 0, objetivo_id: 'g', atividade: 'ESTUDO', duracao_minutos: 50 }] }, disponibilidade: { versao: 'disponibilidade-v2/1',
+    dias: [{ data: '2030-03-04', minutos: 50 }] } }, demands: [], subjects: [{ id: 'm', objetivo_id: 'g' }], topics: [],
     loadSources: { history: [], times: [], objectives: [{ id: 'g', tipo: 'concurso' }], commitments: [] },
     prioritySources: { materials: [{ id: 'pdf', materia_id: 'm', objetivo_id: 'g', status: 'aceito', ordem_curso: 1, nome: 'Aula real' }],
       progress: [], commitmentTopics: [], reviews: [], questions: [], attempts: [] } },

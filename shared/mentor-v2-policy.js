@@ -1,15 +1,18 @@
 import { calculateMentorV2LoadFacts } from './mentor-v2-load.js'
 import { calculateMentorV2PriorityFacts } from './mentor-v2-priority.js'
+import { allocateMentorWeekCapacity } from './mentor-v2-availability.js'
+import { readInitialMentorCapacity } from './mentor-v2-capacity.js'
 
 // Authoritative V2 boundary. Historical policy objects are never merged here.
 export const MENTOR_V2_CONTRACT = 'mentor-v2/1'
-export const MENTOR_V2_REASON_CATALOG = 'mentor-v2-reasons/5'
-export const MENTOR_V2_ENGINE_VERSION = 'mentor-v2-engine/3.8'
+export const MENTOR_V2_REASON_CATALOG = 'mentor-v2-reasons/6'
+export const MENTOR_V2_ENGINE_VERSION = 'mentor-v2-engine/3.15'
 export const MENTOR_V2_TYPES = Object.freeze([
   'CRIAR_DEMANDA', 'MANTER_DEMANDA', 'REDUZIR_CARGA', 'AUMENTAR_CARGA', 'REDISTRIBUIR_CARGA',
   'PRIORIZAR_MATERIA', 'PRIORIZAR_TOPICO', 'SOLICITAR_REVISAO', 'SOLICITAR_QUESTOES',
   'SOLICITAR_QUESTION_CARDS', 'RETORNO_PONTUAL_TEORIA', 'ADIAR_CONTEUDO',
   'ABANDONAR_PENDENCIA', 'REAGENDAR_SEMANA_FUTURA',
+  'MANTER_PENDENCIA', 'SUBSTITUIR_PENDENCIA', 'REDISTRIBUIR_PENDENCIA',
 ])
 export const MENTOR_V2_REASONS = Object.freeze([
   'INSUFFICIENT_EVIDENCE', 'UNKNOWN_MASTERY', 'DATA_INCONSISTENCY', 'DATA_UNAVAILABLE',
@@ -22,12 +25,15 @@ export const MENTOR_V2_REASONS = Object.freeze([
   'LOAD_MAINTAINED', 'LOAD_CHANGE_POLICY_UNDEFINED', 'ISOLATED_WEEK_NOT_PROGRESSION', 'NO_HOUR_DEBT',
   'CURRICULUM_CONTINUITY', 'STRUCTURAL_CONTEST_PRIORITY', 'FACULTY_CONTINUITY', 'RECENCY_TIEBREAK', 'NO_ELIGIBLE_CURRICULUM',
   'APPROVED_WEEKLY_CAPACITY', 'WEEKLY_PLAN_SELECTION',
+  'PENDING_CONTINUITY', 'PENDING_DEFERRED', 'PENDING_REPLACED', 'PENDING_REDISTRIBUTED',
 ])
 const ACTIVITIES = Object.freeze(['ESTUDO', 'QUESTOES', 'QUESTION_CARDS', 'REVISAO'])
 const ACTIVITY_BY_TYPE = Object.freeze({ estudo: 'ESTUDO', exercicio: 'QUESTOES', especial: 'QUESTION_CARDS', revisao: 'REVISAO' })
 const RULE_ID = 'CONTINUIDADE_PLANO_EXISTENTE'
 export const MENTOR_V2_PRIORITY_RULE = 'PRIORIZACAO_CURRICULAR_SEMANAL'
 export const MENTOR_V2_PLAN_RULE = 'GERACAO_PLANO_SEMANAL'
+export const MENTOR_V2_PENDING_RULE = 'TRATAMENTO_PENDENCIAS_SEMANAIS'
+const PENDING_TYPES = ['MANTER_PENDENCIA', 'REAGENDAR_SEMANA_FUTURA', 'SUBSTITUIR_PENDENCIA', 'ABANDONAR_PENDENCIA', 'REDISTRIBUIR_PENDENCIA']
 const TEXT = Object.freeze({
   DATA_UNAVAILABLE: 'A policy V2 ou uma fonte factual necessária não está disponível. O plano foi preservado.',
   DATA_INCONSISTENCY: 'Há uma configuração ou referência factual inconsistente. O plano foi preservado.',
@@ -45,8 +51,15 @@ const TEXT = Object.freeze({
   FACULTY_CONTINUITY: 'Capacidade acadêmica preservada sem transferi-la para o concurso.',
   RECENCY_TIEBREAK: 'Alternativas equivalentes ordenadas pela execução mais antiga, sem inferir esquecimento.',
   NO_ELIGIBLE_CURRICULUM: 'Não há material curricular elegível identificado para a capacidade disponível. Nenhum curso foi reiniciado.',
-  APPROVED_WEEKLY_CAPACITY: 'Capacidade semanal explicitamente configurada na policy vigente, sem compensação de faltas.',
+  APPROVED_WEEKLY_CAPACITY: 'Capacidade inicial explicitamente configurada no perfil, sem compensação de faltas.',
   WEEKLY_PLAN_SELECTION: 'Demanda selecionada para a semana, com origem e motivo estruturados.',
+  AVAILABILITY_CONSTRAINT: 'Materialização limitada à disponibilidade factual, sem criar dívida ou aumentar blocos.',
+  PENDING_CONTINUITY: 'Conteúdo pendente continua necessário e recebe nova demanda dentro da capacidade vigente.',
+  PENDING_DEFERRED: 'Pendência preservada para avaliação futura, sem acrescentar dívida ou presumir uma data.',
+  PENDING_REPLACED: 'Outra necessidade atual ocupa a capacidade da semana; o conteúdo pendente continua elegível.',
+  PENDING_REDISTRIBUTED: 'Continuidade pendente distribuída nos dias válidos da nova semana, sem transportar a sessão antiga.',
+  NO_LONGER_RELEVANT_PENDING: 'Obrigação antiga encerrada por evidência curricular atual; sua história foi preservada.',
+  FUTURE_RESCHEDULING: 'Nova demanda vinculada à pendência anterior, com origem própria na semana alvo.',
 })
 
 export function explainMentorV2(codes) {
@@ -126,7 +139,7 @@ function conservativeFallback(facts, referenceInstant) {
 export function resolveMentorV2Policy(record) {
   const policy = record?.conteudo?.politica
   if (!record || !policy || policy.modelo !== 'MENTOR_V2') return { ok: false, reason: 'DATA_UNAVAILABLE', issue: 'POLICY_V2_AUSENTE' }
-  const allowedKeys = ['modelo', 'versao_contrato', 'modalidades_permitidas', 'regras', 'capacidade_semanal']
+  const allowedKeys = ['modelo', 'versao_contrato', 'modalidades_permitidas', 'regras']
   const valid = record.modulo === 'mentor' && record.ativo === true && typeof record.id === 'string' && record.id.length > 0
     && typeof record.versao === 'string' && record.versao.length > 0
     && policy.versao_contrato === MENTOR_V2_CONTRACT
@@ -135,24 +148,18 @@ export function resolveMentorV2Policy(record) {
     && new Set(policy.modalidades_permitidas).size === policy.modalidades_permitidas.length
     && Array.isArray(policy.regras) && policy.regras.some((rule) => rule.id === RULE_ID)
     && new Set(policy.regras.map((rule) => rule.id)).size === policy.regras.length
-    && policy.regras.every((rule) => [RULE_ID, MENTOR_V2_PRIORITY_RULE, MENTOR_V2_PLAN_RULE].includes(rule.id) && rule.habilitada === true
+    && policy.regras.every((rule) => [RULE_ID, MENTOR_V2_PRIORITY_RULE, MENTOR_V2_PLAN_RULE, MENTOR_V2_PENDING_RULE].includes(rule.id) && rule.habilitada === true
       && Object.keys(rule).every((key) => ['id', 'habilitada'].includes(key)))
   if (!valid) return { ok: false, reason: 'DATA_INCONSISTENCY', issue: 'POLICY_V2_INVALIDA' }
   const generating = policy.regras.some((rule) => rule.id === MENTOR_V2_PLAN_RULE)
-  if ((generating && !policy.regras.some((rule) => rule.id === MENTOR_V2_PRIORITY_RULE))
-    || (policy.capacidade_semanal !== undefined && (!generating || !Array.isArray(policy.capacidade_semanal)
-      || policy.capacidade_semanal.some((slot) => !slot || Object.keys(slot).some((key) => !['dia', 'objetivo_id', 'atividade', 'duracao_minutos', 'materia_id', 'topico_id', 'revisao_id'].includes(key))
-        || !Number.isInteger(slot.dia) || slot.dia < 0 || slot.dia > 6 || !slot.objetivo_id
-        || typeof slot.objetivo_id !== 'string' || !ACTIVITIES.includes(slot.atividade) || !Number.isInteger(slot.duracao_minutos) || slot.duracao_minutos <= 0 || slot.duracao_minutos > 90
-        || (slot.atividade === 'ESTUDO' && (slot.materia_id || slot.topico_id || slot.revisao_id))
-        || (slot.atividade === 'ESTUDO' && ![30, 50].includes(slot.duracao_minutos))
-        || (slot.atividade !== 'ESTUDO' && (!slot.materia_id || !slot.topico_id))
-        || (slot.atividade === 'REVISAO' && !slot.revisao_id))))) return { ok: false, reason: 'DATA_INCONSISTENCY', issue: 'CAPACIDADE_SEMANAL_INVALIDA' }
+  if (generating && !policy.regras.some((rule) => rule.id === MENTOR_V2_PRIORITY_RULE)) return { ok: false, reason: 'DATA_INCONSISTENCY', issue: 'POLICY_V2_INVALIDA' }
+  if (policy.regras.some((rule) => rule.id === MENTOR_V2_PENDING_RULE) && !generating) return { ok: false, reason: 'DATA_INCONSISTENCY', issue: 'POLICY_V2_INVALIDA' }
   return { ok: true, policy: JSON.parse(JSON.stringify(policy)), ref: { fonte: 'conhecimento_modulo', id: record.id, versao: record.versao } }
 }
 
 export function validateMentorV2Decision(decision) {
   if (!decision || !MENTOR_V2_TYPES.includes(decision.tipo_decisao)) throw new Error('Tipo de decisão desconhecido.')
+  if (PENDING_TYPES.includes(decision.tipo_decisao)) return validatePendingDecision(decision)
   // Reject unsupported strategies, rather than guessing how to execute them.
   const prioritizing = decision.tipo_decisao === 'PRIORIZAR_MATERIA'
   const creating = decision.tipo_decisao === 'CRIAR_DEMANDA'
@@ -183,16 +190,32 @@ export function validateMentorV2Decision(decision) {
   if (creating && (!decision.materia_id || !decision.parametros?.titulo?.trim()
     || !Number.isInteger(decision.parametros.ordem) || decision.parametros.ordem < 0
     || !decision.parametros.chave_mentor?.startsWith(`v2:${target.semana_inicio}:`)
-    || Object.keys(decision.parametros).some((key) => !['titulo', 'ordem', 'chave_mentor', 'capacidade_slot'].includes(key))
+    || Object.keys(decision.parametros).some((key) => !['titulo', 'ordem', 'chave_mentor', 'capacidade_slot', 'data_alocada', 'capacidade_ref'].includes(key))
     || decision.duracao_minutos > 90 || !Number.isInteger(decision.duracao_minutos)
     || decision.prioridade?.ordem_relativa !== 1 || !decision.prioridade.conjunto_ref)) throw new Error('Criação de demanda inválida.')
   if (creating) {
     const slot = decision.parametros.capacidade_slot
+    if (decision.parametros.capacidade_ref !== undefined && !decision.evidencias_utilizadas.some((row) =>
+      row.evidencia_id === 'capacidade_aprovada' && row.fonte === 'mentor_contexto'
+      && stableMentorJSON(row.referencia) === stableMentorJSON(decision.parametros.capacidade_ref)
+      && row.referencia?.fonte === 'mentor_contexto' && row.referencia.id === decision.contexto_ref.id
+      && row.referencia.campo === 'dados.capacidade_inicial'
+      && row.referencia.revisao === decision.contexto_ref.snapshot.capacidade_inicial?.revisao
+      && row.referencia.versao === decision.contexto_ref.snapshot.capacidade_inicial?.versao
+      && stableMentorJSON(row.valor?.configuracao) === stableMentorJSON(decision.contexto_ref.snapshot.capacidade_inicial)
+      && stableMentorJSON(row.valor?.slots?.[decision.parametros.ordem]) === stableMentorJSON(slot))) throw new Error('Capacidade sem referência canônica.')
     const date = new Date(`${target.semana_inicio}T12:00:00Z`)
     if (!Number.isInteger(slot?.dia) || slot.dia < 0 || slot.dia > 6) throw new Error('Capacidade inválida.')
     date.setUTCDate(date.getUTCDate() + slot.dia)
+    const allocated = decision.parametros.data_alocada
+    if (allocated !== undefined && (allocated !== target.data || !decision.evidencias_utilizadas?.some((row) =>
+      row.evidencia_id === 'disponibilidade' && row.fonte === 'mentor_contexto/compromisso/sessao'
+      && row.valor?.alocacoes?.some((item) => item.index === decision.parametros.ordem && item.data === allocated
+        && item.data_original === date.toISOString().slice(0, 10) && item.minutos === decision.duracao_minutos)))) {
+      throw new Error('Alocação sem evidência factual.')
+    }
     if (slot.objetivo_id !== decision.objetivo_id || slot.atividade !== decision.tipo_atividade
-      || slot.duracao_minutos !== decision.duracao_minutos || target.data !== date.toISOString().slice(0, 10)
+      || slot.duracao_minutos !== decision.duracao_minutos || target.data !== (allocated ?? date.toISOString().slice(0, 10))
       || decision.parametros.chave_mentor !== `v2:${target.semana_inicio}:${decision.parametros.ordem}`
       || (decision.tipo_atividade === 'ESTUDO' ? decision.topico_id !== null
         || !decision.alvos_relacionados.some((row) => row.entidade === 'material' && row.id)
@@ -220,6 +243,104 @@ export function validateMentorV2Decision(decision) {
     || decision.reason_codes.some((code) => !decision.fundamentacao.some((item) => item.codigo === code
       && item.regra_id === (creating ? MENTOR_V2_PLAN_RULE : prioritizing ? MENTOR_V2_PRIORITY_RULE : RULE_ID) && item.evidencia_ids?.length && item.evidencia_ids.every((id) => ids.has(id))))) throw new Error('Evidência não rastreável.')
   return true
+}
+
+function validatePendingDecision(decision) {
+  const fields = 'decisao_id versao_contrato tipo_decisao objetivo_id materia_id topico_id tipo_atividade duracao_minutos prioridade alvo_temporal demanda_id alvos_relacionados parametros reason_codes fundamentacao evidencias_utilizadas instante_referencia registrada_em policy_ref contexto_ref avaliacao_ref decisao_substituida_id'.split(' ')
+  const actions = { MANTER_PENDENCIA: 'MANTER', REAGENDAR_SEMANA_FUTURA: 'REAGENDAR', SUBSTITUIR_PENDENCIA: 'SUBSTITUIR', ABANDONAR_PENDENCIA: 'ABANDONAR', REDISTRIBUIR_PENDENCIA: 'REDISTRIBUIR' }
+  const observed = decision.parametros?.pendencia
+  const target = mentorWeekTarget(decision.alvo_temporal?.semana_inicio, decision.alvo_temporal?.data)
+  const newDecisions = decision.parametros?.novas_decisoes
+  if (fields.some((key) => !Object.hasOwn(decision, key)) || Object.keys(decision).some((key) => !fields.includes(key))
+    || decision.versao_contrato !== MENTOR_V2_CONTRACT || !decision.decisao_id || !decision.avaliacao_ref
+    || typeof decision.objetivo_id !== 'string' || !decision.objetivo_id
+    || !observed?.id || !isCalendarDate(observed.data) || observed.data >= target.semana_inicio
+    || !['planejada', 'parcial', 'remanejada', 'nao_concluida'].includes(observed.status)
+    || observed.id !== decision.demanda_id || observed.objetivo_id !== decision.objetivo_id
+    || (observed.materia_id || null) !== decision.materia_id || (observed.topico_id || null) !== decision.topico_id
+    || ACTIVITY_BY_TYPE[observed.tipo] !== decision.tipo_atividade
+    || decision.duracao_minutos !== null || decision.prioridade !== null || decision.decisao_substituida_id !== null
+    || decision.parametros.acao !== actions[decision.tipo_decisao]
+    || Object.keys(decision.parametros).some((key) => !['pendencia', 'acao', 'novas_decisoes'].includes(key))
+    || !Array.isArray(newDecisions) || newDecisions.some((row) => !row.decisao_id || !row.chave_mentor?.startsWith(`v2:${target.semana_inicio}:`)
+      || !isCalendarDate(row.data) || row.data < target.semana_inicio || row.data > target.semana_fim)
+    || (['MANTER', 'ABANDONAR'].includes(decision.parametros.acao) ? newDecisions.length !== 0 : !newDecisions.length)
+    || decision.policy_ref?.fonte !== 'conhecimento_modulo' || !decision.policy_ref.id || !decision.policy_ref.versao
+    || !decision.contexto_ref?.snapshot || !Number.isFinite(Date.parse(decision.instante_referencia)) || !Number.isFinite(Date.parse(decision.registrada_em))
+    || target.semana_fim !== decision.alvo_temporal.semana_fim
+    || !Array.isArray(decision.alvos_relacionados) || !Array.isArray(decision.reason_codes) || !decision.reason_codes.length
+    || decision.reason_codes.some((code) => !MENTOR_V2_REASONS.includes(code))
+    || !Array.isArray(decision.evidencias_utilizadas) || !decision.evidencias_utilizadas.length || !Array.isArray(decision.fundamentacao)) throw new Error('Tratamento de pendência inválido.')
+  const evidenceIds = new Set(decision.evidencias_utilizadas.map((row) => row.evidencia_id))
+  if (evidenceIds.size !== decision.evidencias_utilizadas.length || !decision.evidencias_utilizadas.some((row) => row.fonte === 'sessao' && row.referencia === observed.id && stableMentorJSON(row.valor) === stableMentorJSON(observed))
+    || decision.reason_codes.some((code) => !decision.fundamentacao.some((row) => row.codigo === code && row.regra_id === MENTOR_V2_PENDING_RULE
+      && row.evidencia_ids?.length && row.evidencia_ids.every((id) => evidenceIds.has(id))))) throw new Error('Pendência sem evidência rastreável.')
+  return true
+}
+
+// Decisions remain in this single engine. No extra capacity or historical mutation.
+function assessPendingWeek({ facts, result, referenceInstant }) {
+  const source = facts.loadSources.history
+  const pending = source.filter((row) => ACTIVITY_BY_TYPE[row.tipo] && ['planejada', 'parcial', 'remanejada', 'nao_concluida'].includes(row.status)
+    && row.data < result.alvo_temporal.semana_inicio).sort((a, b) => a.data.localeCompare(b.data) || a.id.localeCompare(b.id))
+  if (new Set(pending.map((row) => row.id)).size !== pending.length || pending.some((row) => !row.id || !isCalendarDate(row.data))) throw new Error('PENDENCIAS_SEM_IDENTIDADE_VALIDA')
+  const generated = result.decisoes.filter((row) => row.tipo_decisao === 'CRIAR_DEMANDA')
+  const decisions = []
+  for (const old of pending) {
+    if (!(facts.loadSources.objectives || []).some((row) => row.id === old.objetivo_id)
+      || (old.materia_id && !facts.subjects.some((row) => row.id === old.materia_id && row.objetivo_id === old.objetivo_id))) throw new Error('VINCULO_PENDENCIA_INVALIDO')
+    const material = facts.prioritySources.materials.find((row) => row.id === old.material_id)
+    if (material && (material.objetivo_id !== old.objetivo_id || material.materia_id !== old.materia_id)) throw new Error('VINCULO_PENDENCIA_INVALIDO')
+    const progress = facts.prioritySources.progress.find((row) => row.material_id === old.material_id)
+    const candidate = result.priorizacao.sinais.candidatos.find((row) => row.material_id === old.material_id)
+    const matches = old.tipo === 'estudo' && material && candidate ? generated.filter((row) => row.tipo_atividade === 'ESTUDO'
+      && row.objetivo_id === old.objetivo_id && row.materia_id === old.materia_id
+      && row.alvos_relacionados.some((item) => item.entidade === 'material' && item.id === old.material_id)) : []
+    let type = 'MANTER_PENDENCIA', action = 'MANTER', codes = ['PENDING_DEFERRED', 'NO_HOUR_DEBT'], linked = []
+    if (old.tipo === 'estudo' && material && progress?.estado === 'concluido') {
+      type = 'ABANDONAR_PENDENCIA'; action = 'ABANDONAR'; codes = ['NO_LONGER_RELEVANT_PENDING', 'NO_HOUR_DEBT']
+    } else if (matches.length) {
+      linked = matches
+      const weekday = new Date(`${old.data}T12:00:00Z`).getUTCDay()
+      const redistributed = new Set(matches.map((row) => row.alvo_temporal.data)).size > 1
+        || matches.some((row) => new Date(`${row.alvo_temporal.data}T12:00:00Z`).getUTCDay() !== weekday)
+      type = redistributed ? 'REDISTRIBUIR_PENDENCIA' : 'REAGENDAR_SEMANA_FUTURA'
+      action = redistributed ? 'REDISTRIBUIR' : 'REAGENDAR'
+      codes = ['PENDING_CONTINUITY', 'FUTURE_RESCHEDULING', 'NO_HOUR_DEBT', ...(redistributed ? ['PENDING_REDISTRIBUTED'] : [])]
+    } else if (material && old.tipo === 'estudo' && result.priorizacao.sinais.candidatos.some((row) => row.materia_id === old.materia_id)) {
+      linked = generated.filter((row) => row.objetivo_id === old.objetivo_id && row.tipo_atividade === 'ESTUDO')
+      if (linked.length) {
+        type = 'SUBSTITUIR_PENDENCIA'; action = 'SUBSTITUIR'; codes = ['PENDING_REPLACED', 'PRIORITY_TRADEOFF', 'NO_HOUR_DEBT']
+      }
+    } else codes.push('INSUFFICIENT_EVIDENCE')
+    const alreadyPlanned = candidate && old.tipo === 'estudo' ? facts.demands.filter((row) => row.status === 'planejada'
+      && row.objetivo_id === old.objetivo_id && row.materia_id === old.materia_id && row.material_id === old.material_id) : []
+    if (type === 'MANTER_PENDENCIA' && alreadyPlanned.length) codes.push('PENDING_CONTINUITY')
+    if (candidate && progress?.estado === 'em_andamento') codes.push('MATERIAL_IN_PROGRESS')
+    if (type === 'MANTER_PENDENCIA' && result.plano_semanal.disponibilidade?.slots_sem_capacidade?.length) codes.push('AVAILABILITY_CONSTRAINT')
+    const evidence = [{ evidencia_id: `pendencia:${old.id}`, natureza: 'FATO', fonte: 'sessao', referencia: old.id, valor: old, corte: referenceInstant },
+      ...result.evidencias_utilizadas]
+    const decision = { decisao_id: `${result.avaliacao_ref}:pendencia:${old.id}`, versao_contrato: MENTOR_V2_CONTRACT,
+      tipo_decisao: type, objetivo_id: old.objetivo_id, materia_id: old.materia_id || null, topico_id: old.topico_id || null,
+      tipo_atividade: ACTIVITY_BY_TYPE[old.tipo], duracao_minutos: null, prioridade: null,
+      alvo_temporal: mentorWeekTarget(result.alvo_temporal.semana_inicio), demanda_id: old.id,
+      alvos_relacionados: [...(old.material_id ? [{ entidade: 'material', id: old.material_id }] : []), ...alreadyPlanned.map((row) => ({ entidade: 'sessao', id: row.id }))],
+      parametros: { pendencia: structuredClone(old), acao: action, novas_decisoes: linked.map((row) => ({ decisao_id: row.decisao_id, chave_mentor: row.parametros.chave_mentor, data: row.alvo_temporal.data })) },
+      reason_codes: [...new Set(codes)], evidencias_utilizadas: evidence,
+      fundamentacao: [...new Set(codes)].map((codigo) => ({ codigo, regra_id: MENTOR_V2_PENDING_RULE, evidencia_ids: evidence.map((row) => row.evidencia_id) })),
+      instante_referencia: referenceInstant, registrada_em: referenceInstant, policy_ref: result.policy_ref,
+      contexto_ref: result.contexto_ref, avaliacao_ref: result.avaliacao_ref, decisao_substituida_id: null }
+    validateMentorV2Decision(decision)
+    decisions.push(decision)
+    for (const row of matches) {
+      row.alvos_relacionados.push({ entidade: 'sessao', id: old.id })
+      row.evidencias_utilizadas.push(evidence[0])
+      row.reason_codes = [...new Set([...row.reason_codes, 'PENDING_CONTINUITY'])]
+      row.fundamentacao.push({ codigo: 'PENDING_CONTINUITY', regra_id: MENTOR_V2_PLAN_RULE, evidencia_ids: [evidence[0].evidencia_id] })
+      validateMentorV2Decision(row)
+    }
+  }
+  return decisions
 }
 
 // The only ranking rule. No numeric weights, historical dates or mastery scores.
@@ -289,8 +410,21 @@ function prioritizeWeek({ facts, signals, target, referenceInstant, maintained }
 }
 
 function generateWeek({ resolved, facts, result, referenceInstant, allowed }) {
-  const capacity = resolved.policy.capacidade_semanal
-  if (!capacity?.length) return { decisions: [], issues: ['CAPACIDADE_SEMANAL_NAO_CONFIGURADA'] }
+  const configured = readInitialMentorCapacity(facts.context.capacidade_inicial)
+  const capacityRef = configured ? { fonte: 'mentor_contexto', id: facts.context.id, campo: 'dados.capacidade_inicial', revisao: configured.revisao, versao: configured.versao } : null
+  const objectives = new Map((facts.loadSources?.objectives || []).map((row) => [row.id, row]))
+  // Allocation of explicitly configured discretionary slots is decided here,
+  // never inferred from spare availability or a successful execution week.
+  const capacity = configured?.slots.map((slot) => {
+    if (!slot.destino) return slot
+    const contests = [...objectives.values()].filter((row) => row.tipo === 'concurso')
+    const main = objectives.get(facts.context.objetivo_principal_id)
+    const objective = main?.tipo === 'concurso' ? main : contests.length === 1 ? contests[0] : null
+    if (!objective) throw new Error('CONCURSO_PRINCIPAL_CAPACIDADE_NAO_IDENTIFICADO')
+    const { destino, ...base } = slot
+    return { ...base, objetivo_id: objective.id }
+  })
+  if (!configured) return { decisions: [], issues: ['CAPACIDADE_SEMANAL_NAO_CONFIGURADA'] }
   const identities = [...facts.demands, ...(facts.planIdentities || [])]
   const prefix = `v2:${result.alvo_temporal.semana_inicio}:`
   // Never pile a base template on top of an existing, independently edited plan.
@@ -298,12 +432,11 @@ function generateWeek({ resolved, facts, result, referenceInstant, allowed }) {
     && !row.chave_mentor?.startsWith(prefix))) return { decisions: [], issues: ['PLANO_EXISTENTE_PRESERVADO_SEM_SOBREPOSICAO'] }
   const occupied = new Set(identities.map((row) => row.chave_mentor?.split(':decision:')[0]).filter(Boolean))
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(referenceInstant))
-  const objectives = new Map((facts.loadSources?.objectives || []).map((row) => [row.id, row]))
   const subjects = new Map(facts.subjects.map((row) => [row.id, row]))
   const topics = new Map(facts.topics.map((row) => [row.id, row]))
-  const evidence = [{ evidencia_id: 'capacidade_aprovada', natureza: 'CONTEXTO', fonte: 'conhecimento_modulo',
-    referencia: resolved.ref.id, valor: capacity, corte: referenceInstant }, ...result.evidencias_utilizadas.filter((row) => row.evidencia_id !== 'priorizacao')]
-  const slots = [], issues = [], decisions = []
+  const evidence = [{ evidencia_id: 'capacidade_aprovada', natureza: 'CONTEXTO', fonte: 'mentor_contexto',
+    referencia: capacityRef, valor: { configuracao: configured, slots: capacity }, corte: referenceInstant }, ...result.evidencias_utilizadas.filter((row) => row.evidencia_id !== 'priorizacao')]
+  const slots = [], issues = [], decisions = [], requests = []
   capacity.forEach((slot, index) => {
     if (!objectives.has(slot.objetivo_id)) throw new Error('OBJETIVO_CAPACIDADE_INVALIDO')
     const date = new Date(`${result.alvo_temporal.semana_inicio}T12:00:00Z`)
@@ -311,6 +444,18 @@ function generateWeek({ resolved, facts, result, referenceInstant, allowed }) {
     const day = date.toISOString().slice(0, 10), key = `${prefix}${index}`
     if (day < today || occupied.has(key)) return
     if (!allowed(slot.atividade)) { issues.push('MODALIDADE_DE_CAPACIDADE_NAO_AUTORIZADA'); return }
+    requests.push({ index, day, minutes: slot.duracao_minutos })
+  })
+  const packed = allocateMentorWeekCapacity({ availability: facts.context.disponibilidade,
+    requests, demands: facts.demands, commitments: facts.loadSources?.commitments || [],
+    weekStart: result.alvo_temporal.semana_inicio, weekEnd: result.alvo_temporal.semana_fim, today })
+  issues.push(...packed.issues)
+  const availabilityEvidence = { evidencia_id: 'disponibilidade', natureza: 'SINAL',
+    fonte: 'mentor_contexto/compromisso/sessao', versao_definicao: 'disponibilidade-v2/1',
+    valor: packed.signal, corte: referenceInstant }
+  evidence.push(availabilityEvidence)
+  for (const allocation of packed.allocations) {
+    const index = allocation.index, slot = capacity[index], day = allocation.data, key = `${prefix}${index}`
     const observed = { id: key, objetivo_id: slot.objetivo_id, materia_id: slot.materia_id || null,
       topico_id: slot.topico_id || null, tipo: { ESTUDO: 'estudo', QUESTOES: 'exercicio', QUESTION_CARDS: 'especial', REVISAO: 'revisao' }[slot.atividade],
       data: day, status: 'planejada', duracao_estimada: slot.duracao_minutos, ordem: index }
@@ -322,7 +467,7 @@ function generateWeek({ resolved, facts, result, referenceInstant, allowed }) {
       evidencias_utilizadas: evidence, instante_referencia: referenceInstant, registrada_em: referenceInstant,
       policy_ref: resolved.ref, contexto_ref: result.contexto_ref, avaliacao_ref: result.avaliacao_ref, decisao_substituida_id: null,
     })
-  })
+  }
   // Internal capacity carriers are not persisted as observations of real sessions.
   const theoretical = prioritizeWeek({ facts, signals: result.priorizacao.sinais, target: result.alvo_temporal,
     referenceInstant, maintained: slots }).selections
@@ -352,19 +497,21 @@ function generateWeek({ resolved, facts, result, referenceInstant, allowed }) {
       }
       title = `${{ QUESTOES: 'Questões', QUESTION_CARDS: 'Question Cards', REVISAO: 'Revisão' }[base.tipo_atividade]}: ${topics.get(topicId).nome || topicId}`
     }
-    codes = [...new Set([...codes, 'APPROVED_WEEKLY_CAPACITY', 'WEEKLY_PLAN_SELECTION', 'NO_HOUR_DEBT'])]
+    codes = [...new Set([...codes, 'APPROVED_WEEKLY_CAPACITY', 'WEEKLY_PLAN_SELECTION', 'NO_HOUR_DEBT',
+      ...(packed.constrained ? ['AVAILABILITY_CONSTRAINT'] : [])])]
     const selectedEvidence = selection?.evidencias_utilizadas || evidence
     const decision = { ...base, decisao_id: `${base.decisao_id}:criar`, tipo_decisao: 'CRIAR_DEMANDA', demanda_id: null,
       materia_id: subjectId, topico_id: topicId, alvos_relacionados: related,
       prioridade: { ordem_relativa: 1, conjunto_ref: `${base.avaliacao_ref}:${base.demanda_id}:capacidade` },
       parametros: { titulo: title, ordem: base.parametros.estado_observado.ordem, chave_mentor: base.demanda_id,
-        capacidade_slot: slot }, reason_codes: codes,
+        capacidade_slot: slot, capacidade_ref: capacityRef, data_alocada: base.alvo_temporal.data }, reason_codes: codes,
       evidencias_utilizadas: selectedEvidence,
       fundamentacao: codes.map((code) => ({ codigo: code, regra_id: MENTOR_V2_PLAN_RULE, evidencia_ids: selectedEvidence.map((row) => row.evidencia_id) })) }
     validateMentorV2Decision(decision)
     decisions.push(decision)
   }
-  return { decisions, issues: [...new Set(issues)] }
+  return { decisions, issues: [...new Set(issues)], capacityRef, configuredSlots: capacity.length, capacityEvidence: evidence[0], availability: packed.signal, availabilityEvidence,
+    reasonCodes: packed.constrained ? ['AVAILABILITY_CONSTRAINT'] : [] }
 }
 
 export function evaluateMentorV2({ policyRecord, facts, weekStart, referenceInstant, evaluationId }) {
@@ -477,7 +624,16 @@ export function evaluateMentorV2({ policyRecord, facts, weekStart, referenceInst
     catch (error) { return unavailable('DATA_INCONSISTENCY', error.message, 'geracao_plano') }
     result.decisoes.push(...generated.decisions)
     result.limitacoes.push(...generated.issues)
-    result.reason_codes = [...new Set([...result.reason_codes, ...generated.decisions.flatMap((row) => row.reason_codes)])]
+    result.reason_codes = [...new Set([...result.reason_codes, ...(generated.reasonCodes || []), ...generated.decisions.flatMap((row) => row.reason_codes)])]
+    if (generated.availabilityEvidence) result.evidencias_utilizadas.push(generated.availabilityEvidence)
+    if (generated.capacityEvidence) result.evidencias_utilizadas.push(generated.capacityEvidence)
+    result.carga_semanal.capacidade_inicial = generated.capacityEvidence ? {
+      referencia: generated.capacityRef, slots: generated.configuredSlots,
+      minutos: generated.capacityEvidence.valor.slots.reduce((total, slot) => total + slot.duracao_minutos, 0),
+      teto_permanente: false, progressao_automatica: false,
+    } : null
+    if (generated.reasonCodes?.length) result.carga_semanal.reason_codes = [...new Set([
+      ...result.carga_semanal.reason_codes, ...generated.reasonCodes, 'NO_HOUR_DEBT'])]
     if (generated.decisions.length) {
       const projected = generated.decisions.map((row) => ({ id: row.parametros.chave_mentor, objetivo_id: row.objetivo_id,
         tipo: { ESTUDO: 'estudo', QUESTOES: 'exercicio', QUESTION_CARDS: 'especial', REVISAO: 'revisao' }[row.tipo_atividade],
@@ -486,12 +642,22 @@ export function evaluateMentorV2({ policyRecord, facts, weekStart, referenceInst
         weekStart, weekEnd: target.semana_fim, referenceInstant }).carga_plano_efetivo
       result.carga_semanal.acao = 'MATERIALIZAR_CAPACIDADE_CONFIGURADA'
       result.carga_semanal.situacao = 'BASE_CONFIGURADA'
-      result.carga_semanal.reason_codes = ['APPROVED_WEEKLY_CAPACITY', 'NO_HOUR_DEBT']
+      result.carga_semanal.reason_codes = ['APPROVED_WEEKLY_CAPACITY', 'NO_HOUR_DEBT', ...(generated.reasonCodes || [])]
       result.reason_codes = result.reason_codes.filter((code) => !['LOAD_MAINTAINED', 'CONSERVATIVE_CONTINUITY'].includes(code))
     }
     result.plano_semanal = { decisao_ids: generated.decisions.map((row) => row.decisao_id),
-      politica_capacidade: resolved.ref, pendente: generated.issues.length > 0, limitacoes: generated.issues,
-      slots_configurados: resolved.policy.capacidade_semanal?.length || 0 }
+      politica_capacidade: resolved.ref, capacidade_ref: generated.capacityRef || null, pendente: generated.issues.length > 0, limitacoes: generated.issues,
+      slots_configurados: generated.configuredSlots || 0,
+      disponibilidade: generated.availability || null }
+  }
+  if (resolved.policy.regras.some((rule) => rule.id === MENTOR_V2_PENDING_RULE)) {
+    let treatments
+    try { treatments = assessPendingWeek({ facts, result, referenceInstant }) }
+    catch (error) { return unavailable('DATA_INCONSISTENCY', error.message, 'pendencias/curriculo') }
+    result.decisoes.push(...treatments)
+    result.reason_codes = [...new Set([...result.reason_codes, ...treatments.flatMap((row) => row.reason_codes)])]
+    result.pendencias = { decisao_ids: treatments.map((row) => row.decisao_id), divida_minutos: 0,
+      altera_historico: false, aumenta_capacidade: false }
   }
   result.resultado = result.decisoes.length ? 'DECISOES_EMITIDAS' : 'SEM_ALTERACAO'
   return { ...result, explicacao: explainMentorV2(result.reason_codes) }

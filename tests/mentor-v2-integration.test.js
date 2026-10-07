@@ -144,8 +144,8 @@ describe('integração operacional única V2', () => {
       prioridade_estrutural: 'CONCURSO', faculdade: 'PRESERVAR_SEM_EXPANDIR', coleta_evidencia: 'EVENTOS_NORMAIS' })
     expect(db.writes[0].payload.dados.avaliacao.fallback).toEqual(result.fallback)
     expect(db.writes.every((w) => w.table === 'mentor_decisao')).toBe(true)
-    expect(result.versao_motor).toBe('mentor-v2-engine/3.8')
-    expect(result.catalogo_reason_codes).toBe('mentor-v2-reasons/5')
+    expect(result.versao_motor).toBe('mentor-v2-engine/3.15')
+    expect(result.catalogo_reason_codes).toBe('mentor-v2-reasons/6')
   })
   it('mesmo corte produz mesma chave para retry, sem incremento ou duplicação de demanda', async () => {
     const db = database(); await evaluate(db, true); await evaluate(db, true)

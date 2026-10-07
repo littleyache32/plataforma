@@ -109,3 +109,23 @@ A explicação da demanda é derivada da decisão original específica em `mento
 ## Integração verificada, Fase 3.10, 07/10/2026
 
 O fluxo de dados/sinais/policy/decisão/planner/demandas/rastreio foi validado em integração controlada. Dependências transitivas dos entrypoints decisórios V2 não alcançam motores V1; políticas históricas no banco/configuração não fornecem defaults. Concorrência de versões ativas impede aplicação em vez de escolher uma silenciosamente. A Semana não usa mais o início histórico de setembro. Contrato da API com Estatísticas foi preservado sem ativar revisão avançada. Validação local completa aprovada; configuração/schema reais e ativação no banco não foram validados ou alterados. Limites em [mentor.md](mentor.md#integração-do-mentor-v2-fase-310).
+
+## Disponibilidade canônica, Fase 3.12, 07/10/2026
+
+`mentor_contexto.dados.disponibilidade`, versão `disponibilidade-v2/1`, governa minutos factuais por data. `compromissos_bloqueantes` referencia IDs canônicos; suas datas vêm de `compromisso`, sem segundo calendário. `capacidade_semanal` na policy continua carga pretendida, não prova de disponibilidade. Slots alocados, reservas, reasons e `parametros.data_alocada` são derivados auditáveis. Data omitida/estrutura desconhecida não autoriza criação; demanda existente ou movimento manual não é reescrito para satisfazer o derivado. O formato foi definido em código/documentação, não instalado no banco. Não houve mudança no encontro. Contrato e limites em [mentor.md](mentor.md#disponibilidade-factual-fase-312).
+
+## Reconciliação do encontro, Fase 3.13, 07/10/2026
+
+O encontro não é uma segunda agenda. Provas/entregas são materializadas ou identificadas em `compromisso`; referências inequívocas são guardadas no encontro e resolvidas na leitura. Mudança de prazo usa o mesmo ID. Disponibilidade excepcional atualiza apenas datas explícitas em `mentor_contexto.dados.disponibilidade`, com referência no encontro. Relato original permanece histórico; contexto narrativo da semana é projetado em `mentor_contexto.dados.eventos_encontro` com origem e vigência semanal, sem interpretação estratégica. O Mentor não lê cópias de calendário, feedback de carga ou policy do encontro.
+
+Dados antigos não foram migrados/reinterpretados automaticamente. Leve/Adequada/Pesada saiu da UI V2; campos históricos permanecem preservados e ignorados. Encontro vazio não altera fontes operacionais, e encontro ausente não veta plano válido. Implementação controlada não garante atomicidade entre as chamadas de compromisso/contexto/encontro nem comprova configuração em produção. Contrato, testes e limitações em [mentor.md](mentor.md#fatos-do-encontro-integrados-fase-313).
+
+## Capacidade inicial, Fase 3.14, 07/10/2026
+
+`mentor_contexto.dados.capacidade_inicial`, contrato `capacidade-inicial-v2/1`, é a única fonte da base configurável do perfil, por objetivo/atividade. Disponibilidade permanece fato calendárico separado; policy em `conhecimento_modulo` permanece regra; `mentor_decisao` permanece resultado; `sessao` permanece plano efetivo. Contexto guarda parâmetros iniciais, não algoritmo de progressão.
+
+Referências anteriores a `capacidade_semanal` na policy documentam implementação histórica. Esse campo não é mais aceito na policy operacional nem usado como fallback. Ausência do parâmetro não é preenchida com rotina histórica ou tempo livre. Revisão da base acompanha a decisão; `carga_semanal.capacidade_inicial` é projeção, não outra autoridade. Sem conversão/alteração de dados reais. Contrato e limites em [mentor.md](mentor.md#capacidade-inicial-do-perfil-fase-314).
+
+## Pendências, Fase 3.15, 07/10/2026
+
+Sessão anterior continua canônica para a entrega/histórico factual. `mentor_decisao` guarda seu tratamento estratégico identificado, com snapshot e vínculos de nova seleção. Material/progresso/compromissos e contexto sustentam relevância atual; não há tabela de dívida de horas ou status local paralelo. Nova continuidade em `sessao` tem identidade e origem próprias, sem mudar a data/status da antiga. Abandono encerra obrigação na decisão, não remove registros nem currículo. Detalhes e limites em [mentor.md](mentor.md#tratamento-estratégico-de-pendências-fase-315).
