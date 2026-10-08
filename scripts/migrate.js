@@ -35,6 +35,14 @@ try {
     const sql = await readFile(new URL(file, migrationsDirectory), 'utf8')
     await client.query('begin')
     try {
+      // Serialize executors and recheck the ledger after acquiring the lock.
+      // The startup snapshot alone cannot detect another executor's commit.
+      await client.query("select pg_advisory_xact_lock(hashtext('plataforma.schema_migration'))")
+      const current = await client.query('select nome from schema_migration where nome = $1', [file])
+      if (current.rows.length) {
+        await client.query('commit')
+        continue
+      }
       await client.query(sql)
       await client.query('insert into schema_migration (nome) values ($1)', [file])
       await client.query('commit')

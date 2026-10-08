@@ -44,3 +44,15 @@ TLS do preflight segue a configuração existente do executor com CA não verifi
 Compatibilidade estática e leitura real do schema: verificadas. Escrita PostgreSQL isolada, concorrência/rollback e E2E autenticado seguro: pendentes. Nenhuma alteração funcional ou correção de migration realizada. Não aplicar 0069 em produção enquanto os bloqueios acima permanecerem.
 
 Validação local: 101 testes direcionados aprovados (integração, Central, método e reteste); suíte completa executada uma vez, 734 testes em 51 arquivos, todos aprovados. Lint/build do checkpoint anterior continuam como resultados anteriores, não foram repetidos. O novo script de diagnóstico foi executado com sucesso em conexão estritamente read-only; nenhum handler foi modificado. Arquivos locais preexistentes, outputs e ZIP privado não fazem parte deste checkpoint.
+
+## Fase 4.19: correção local e bloqueio antes do push
+
+08/10/2026: o controle transacional foi conferido no executor. A 0069 deixa de emitir BEGIN/COMMIT próprios e passa a manter todo DDL na transação que também grava o ledger. O executor adquire advisory transaction lock e reconsulta o ledger depois desse lock; outro executor que aguardou não tenta reaplicar uma migration já confirmada. Essa correção não modifica outras migrations históricas nem garante retroativamente sua atomicidade caso contenham controle transacional interno. Aplicação avulsa da 0069 continua proibida.
+
+Testes estruturais novos verificam ausência de comandos transacionais internos, ausência de reescrita histórica, retirada do default de data e ordem lock/ledger/DDL/registro/commit. Não são provas de rollback ou concorrência PostgreSQL. 49 testes direcionados passaram; a suíte completa executada uma vez aprovou 738 testes em 52 arquivos. Lint aprovou 180 arquivos. Build não repetido: nenhuma mudança em frontend, handlers ou grafo de bundle.
+
+O usuário autorizou branch temporária e CI PostgreSQL 17 sem credenciais reais, com condição explícita de confirmar antes do push que nenhum Preview ou produção será disparado. A consulta read-only ao projeto Vercel correto identificou o projeto, mas não expôs configuração Git/deploy por branch. Não foi possível garantir a condição. Nenhum push, branch remota de homologação, workflow ou deploy foi disparado. É necessário obter evidência da desativação de deploy para a branch de homologação antes de prosseguir. Não alterar configuração remota silenciosamente.
+
+Homologação do schema até 0068, escrita da 0069, rollback, concorrência, idempotência e histórico em PostgreSQL 17 continuam pendentes. Fluxo autenticado conectado ao banco isolado também continua pendente. A aplicação atual é pessoal e permite somente uma conta; teste de autorização precisa comprovar acesso dessa conta e recusa de acesso inválido, sem criar arquitetura multiusuário para preencher este requisito. Não foram alterados carga, calendário, distribuição, início do ciclo, limites ou dívida da Fase 3.17.
+
+Resultado da 4.19 até este checkpoint: correção local versionável, homologação bloqueada antes do push. Não aplicar em produção nem encerrar a Fase 4.
