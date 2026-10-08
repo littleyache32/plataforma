@@ -30,7 +30,8 @@ const render = (data) => renderToStaticMarkup(<ReviewCenterList data={data} onOp
 afterEach(() => vi.useRealTimers())
 function database(args = fixture()) {
   const tables = { mentor_contexto: { dados: { rotina_pratica: args.flags } }, conhecimento_modulo: [policy],
-    revisao_item: args.questoes, question_card: args.cards, registro: args.registros, sessao: [] }
+    revisao_item: args.questoes.map((row) => ({ ...row, questao_id: row.questao.id })),
+    questao: args.questoes.map((row) => row.questao), question_card: args.cards, registro: args.registros, sessao: [] }
   const calls = []
   return { tables, calls, from(table) {
     const predicates = [], call = { table, range: null }; calls.push(call)

@@ -54,14 +54,19 @@ export async function evaluateMentorWeekV2({ supabase, inicio, instanteReferenci
         readAll(() => supabase.from('material_progresso').select('material_id,estado,iniciado_em,concluido_em,atualizado_em'), 'material_id'),
         readAll(() => supabase.from('compromisso_topico').select('compromisso_id,topico_id').order('topico_id'), 'compromisso_id'),
         readAll(() => supabase.from('revisao_item').select('id,questao_id,motivo,status,agendada_para')),
-        readAll(() => supabase.from('questao').select('id,topico_id,ativa,marcada_errada,estado')),
-        readAll(() => supabase.from('registro').select('id,questao_id,resultado,classificacao,criado_em').lte('criado_em', instanteReferencia)),
+        readAll(() => supabase.from('questao').select('id,topico_id,ativa,marcada_errada,estado,metadados_revisao')),
+        readAll(() => supabase.from('registro').select('id,questao_id,resultado,classificacao,criado_em,revisao_item_id,sessao_id,erro_alvo_id').lte('criado_em', instanteReferencia)),
       ])
       if ([materials, progress, links, reviews, questions, attempts].some((entry) => entry.error)) {
         unavailableSource = 'material/material_progresso/compromisso_topico/revisao_item/questao/registro'; facts = null
       } else facts.prioritySources = { materials: materials.data, progress: progress.data,
         commitmentTopics: links.data.filter((link) => commitments.data.some((row) => row.id === link.compromisso_id)),
         reviews: reviews.data, questions: questions.data, attempts: attempts.data }
+      if (facts && reviews.data.some((r) => r.status === 'pendente') && questions.data.some((q) => q.metadados_revisao?.conceito_id)) {
+        const units = await readAll(() => supabase.from('material_unidade_curricular').select('id,material_id,topico_id,conceito_id,titulo,pagina_inicial,pagina_final'))
+        if (units.error) { unavailableSource = 'material_unidade_curricular'; facts = null }
+        else facts.prioritySources.units = units.data
+      }
     }
     if (facts && policyRecord.conteudo.politica.regras.some((rule) => rule.id === 'GERACAO_PLANO_SEMANAL')) {
       const [identities, cards] = await Promise.all([

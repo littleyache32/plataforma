@@ -28,7 +28,7 @@ export function separateCoveredCentralItems({ itens, demandas, corte }) {
     const coverage = demandas.find((row) => ['planejada', 'parcial'].includes(row.status)
       && row.data >= today && row.data <= (dueDay < today ? today : dueDay)
       && row.revisao_ref.fontes.some((source) => source.tipo === type && source.id === item.id
-        && source.alvo.entidade === target && source.alvo.id === item.item_id))
+        && source.alvo.entidade === target && source.alvo.id === (item.questao_original_id || item.item_id)))
     if (coverage) covered.push({ ...item, sessao_id: coverage.id, decisao_id: coverage.revisao_ref.decisao_id,
       reason_codes: ['REVIEW_COVERED_BY_PRIORITY_PLAN'] })
     else actionable.push(item)

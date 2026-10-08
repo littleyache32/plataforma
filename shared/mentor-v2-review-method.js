@@ -7,7 +7,7 @@ const sourceKey = (row) => `${row.entidade}:${row.id}`
 // Internal domain of the ONE Mentor. No database writes, demand generation,
 // independent policy defaults, FSRS calculation or whole-course restart.
 export function selectMentorReviewMethod({ elegibilidade, topico_id = null, recursos, slots, modalidades,
-  policy_ref, fontes, combinacao = null, lacuna = null }) {
+  policy_ref, fontes, combinacao = null, lacuna = null, reteste = null }) {
   if (elegibilidade?.versao !== REVIEW_ELIGIBILITY_CONTRACT || !nonempty(elegibilidade.alvo?.id)
     || !nonempty(policy_ref?.id) || !nonempty(policy_ref?.versao) || !Array.isArray(fontes)
     || fontes.some((row) => !nonempty(row.entidade) || !nonempty(row.id)) || !Array.isArray(slots)
@@ -79,9 +79,14 @@ export function selectMentorReviewMethod({ elegibilidade, topico_id = null, recu
 
   // The source of the eligible need defines continuity; mere availability of
   // both resources does not justify combining them or changing the modality.
-  if (elegibilidade.alvo.entidade === 'questao' && questions.some((row) => row.id === elegibilidade.alvo.id) && questionSlot) {
+  const selectedRetest = reteste?.versao === 'reteste-questao-v2/1' && reteste.resultado === 'RETESTE_SELECIONADO'
+    && reteste.questao_original_id === elegibilidade.alvo.id && reteste.corte === elegibilidade.corte
+    && reteste.policy_ref.id === policy_ref.id && reteste.policy_ref.versao === policy_ref.versao
+    && questions.length === 1 && questions[0].id === reteste.questao_id
+    && reteste.fontes.every((r) => sourceSet.has(sourceKey(r)))
+  if (elegibilidade.alvo.entidade === 'questao' && (selectedRetest || (!reteste && questions.some((row) => row.id === elegibilidade.alvo.id))) && questionSlot) {
     return answer(questionMethod, [component(questionMethod, questionSlot, 'questao', questions, 'RETESTAR_APLICACAO')],
-      [questionMethod === 'BATERIA_QUESTOES' ? 'REVIEW_QUESTION_BATCH_SCOPED' : 'REVIEW_TARGETED_SINGLE_QUESTION'])
+      [questionMethod === 'BATERIA_QUESTOES' ? 'REVIEW_QUESTION_BATCH_SCOPED' : 'REVIEW_TARGETED_SINGLE_QUESTION', ...(selectedRetest ? reteste.reason_codes : [])])
   }
   if (elegibilidade.alvo.entidade === 'question_card' && cards.some((row) => row.id === elegibilidade.alvo.id) && cardSlot) {
     return answer('QUESTION_CARDS', [component('QUESTION_CARDS', cardSlot, 'question_card', cards, 'RECUPERACAO_ATIVA')], ['REVIEW_CARD_RETRIEVAL'])

@@ -24,6 +24,18 @@ function setup(count = 12) {
 const run = (db, inicio = '2026-10-12', instant = '2026-10-12T15:00:00Z') => evaluateMentorWeekV2({ supabase: db, inicio, instanteReferencia: instant })
 
 describe('Correção mínima do MVP: cobertura inicial e calendário factual', () => {
+  it('4.17: sinais fortes de revisão não inserem prática na primeira semana de base', async () => {
+    const db = setup()
+    db.tables.topico = [{ id: 'topic', materia_id: 'contest-00', nome: 'Conceito' }]
+    db.tables.questao = [{ id: 'q', topico_id: 'topic', ativa: true, marcada_errada: false, estado: 'revisao' }]
+    db.tables.registro = [{ id: 'error', questao_id: 'q', resultado: 'erro', classificacao: 'certeza', criado_em: '2026-10-01T15:00:00Z' }]
+    db.tables.revisao_item = [{ id: 'need', questao_id: 'q', status: 'pendente', motivo: 'falsa_certeza', agendada_para: null }]
+    const before = structuredClone(db.tables)
+    const result = await run(db), rows = materializeMentorWeek(result)
+    expect(rows).toHaveLength(18); expect(rows.every((r) => r.tipo === 'estudo' && r.duracao_estimada === 50)).toBe(true)
+    expect(result.plano_semanal.disponibilidade.divida_minutos).toBe(0)
+    expect(db.tables).toEqual(before)
+  })
   it('08 a 11 não geram demandas, ausências ou dívida; histórico fica intacto', async () => {
     const db = setup(), before = structuredClone(db.tables)
     const result = await run(db, '2026-10-05', '2026-10-08T15:00:00Z')

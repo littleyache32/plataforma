@@ -8,7 +8,7 @@ import { allocateMentorReviews, validateReviewPlanSelection } from './mentor-v2-
 // Authoritative V2 boundary. Historical policy objects are never merged here.
 export const MENTOR_V2_CONTRACT = 'mentor-v2/1'
 export const MENTOR_V2_REASON_CATALOG = 'mentor-v2-reasons/8'
-export const MENTOR_V2_ENGINE_VERSION = 'mentor-v2-engine/3.17-coverage-2'
+export const MENTOR_V2_ENGINE_VERSION = 'mentor-v2-engine/4.17-review-1'
 export const MENTOR_V2_TYPES = Object.freeze([
   'CRIAR_DEMANDA', 'MANTER_DEMANDA', 'REDUZIR_CARGA', 'AUMENTAR_CARGA', 'REDISTRIBUIR_CARGA',
   'PRIORIZAR_MATERIA', 'PRIORIZAR_TOPICO', 'SOLICITAR_REVISAO', 'SOLICITAR_QUESTOES',
@@ -553,7 +553,7 @@ function generateWeek({ resolved, facts, result, referenceInstant, allowed }) {
         const canonical = facts.prioritySources.reviews.find((row) => row.id === source.id)
         const question = facts.prioritySources.questions.find((row) => row.id === source.alvo.id)
         if (!canonical || canonical.status !== 'pendente' || canonical.questao_id !== source.alvo.id
-          || canonical.agendada_para !== plannedReview.item.agendada_para || question?.topico_id !== topicId) {
+          || (canonical.agendada_para ?? null) !== (plannedReview.item.data_legada ?? plannedReview.item.agendada_para ?? null) || question?.topico_id !== topicId) {
           throw new Error('ORIGEM_CANONICA_REVISAO_INVALIDA')
         }
       } else if (!(facts.prioritySources.cards || []).some((row) => row.id === source.alvo.id && row.topico_id === topicId)) {

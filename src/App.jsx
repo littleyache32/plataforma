@@ -58,7 +58,7 @@ export default function App() {
   }
 
   function openReviewItem(item) {
-    setReviewQuestionId(item.item_id)
+    setReviewQuestionId({ questaoId: item.item_id, revisaoId: item.id })
     setArea('questoes')
   }
 
@@ -67,7 +67,8 @@ export default function App() {
     if (!targetObjective) return
     setContext(targetObjective.tipo)
     setObjectiveId(targetObjective.id)
-    setStudyTarget({ objectiveId: targetObjective.id, subjectId: item.materia?.id || '', topicId: item.topico?.id || '', reviewOnly: item.tipo === 'revisao' && item.titulo?.startsWith('Revisão espaçada:') })
+    setStudyTarget({ objectiveId: targetObjective.id, subjectId: item.materia?.id || '', topicId: item.topico?.id || '',
+      reviewOnly: item.tipo === 'revisao', sessaoId: item.tipo === 'revisao' ? item.id : null })
     setArea(destination)
   }
 
