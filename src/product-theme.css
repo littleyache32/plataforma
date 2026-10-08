@@ -9,7 +9,7 @@
   font-family:var(--font-ui);
   background:var(--paper-soft); color:var(--ink); font-size:14px;
 }
-body{background:var(--paper-soft);color:var(--ink);font-family:var(--font-ui);line-height:1.5}
+body{min-width:0;background:var(--paper-soft);color:var(--ink);font-family:var(--font-ui);line-height:1.5}
 h1,h2,h3,h4,b,strong,button,input,select,textarea{font-family:inherit}
 h1{font-weight:600}h2{font-size:20px;font-weight:600}h3{font-size:16px;font-weight:600}
 button{cursor:pointer;min-height:36px;transition:background .12s,border-color .12s;color:var(--ink)}
@@ -220,6 +220,11 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--teal);outline-of
 .wordmark{min-height:44px;padding:0;border:0;border-radius:8px;gap:10px}
 .wordmark>span{width:40px;height:40px;flex-shrink:0;background:var(--ink);color:white;border-radius:8px;font-size:13px;letter-spacing:.04em}
 .wordmark:hover>span{background:var(--teal-deep)}
+.wordmark>span{position:relative}
+.wordmark .nav-icon{position:absolute;width:20px;height:20px;right:-5px;bottom:-5px;padding:3px;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:4px}
+.mentor-week-grid .demand-card{overflow-wrap:anywhere}
+.mentor-week-grid .demand-day>header{min-height:52px;gap:6px}
+.mentor-week-grid .demand-day>header em{font-size:10px;line-height:1.5}
 .wordmark small{font-size:10px;line-height:1.6}.sidebar nav button{min-height:44px}
 .sidebar-collapsed .wordmark>span{width:36px;height:36px;font-size:12px}
 .workspace-head{padding-right:80px}.mentor-trigger{width:36px;height:36px;padding:7px;display:grid;place-items:center;right:24px}

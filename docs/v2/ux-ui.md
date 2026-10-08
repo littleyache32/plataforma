@@ -149,3 +149,13 @@ Identidade de matéria: pequena barra e paleta limitada de seis tons dessaturado
 Nenhuma alteração de Mentor, carga, planner, revisão, banco, datas ou arquitetura. Validação deste adendo limitada à inspeção local e testes direcionados de apresentação; suíte completa, lint e build ficam para o próximo fechamento integrado, conforme protocolo econômico.
 
 Resultado local do adendo: 16 testes direcionados aprovados em três arquivos; Plano desktop e Plano/Home mobile revisados com dados sintéticos. Selecionar Faculdade exibiu somente suas sete demandas sintéticas; Todos restaurou as 21. Nenhum overflow horizontal observado nas vistas conferidas. Evidência em output/ui-fine-tuning/plano-identidade-desktop.jpg. Não houve validação pesada ou publicação.
+
+## Ponto 2: fechamento visual, 08/10/2026
+
+Preservados os filtros compactos com seleção, hover e foco, os marcadores determinísticos de matéria e os rótulos de contexto/atividade. Meu Plano permanece a entrada operacional. O controle ME agora contém ícone explícito de menu/fechar, mantendo o nome acessível e o trilho compacto.
+
+Plano, modal e Home usam apresentação compartilhada para aulas acadêmicas regulares: disciplina canônica e "Aula dada, aula estudada". A identificação utiliza tipo aula, motivo ACADEMIC_CLASS_SAME_DAY ou título factual já existente. Não transforma revisões, provas ou qualquer estudo acadêmico genérico em aula regular. O PDF não é necessário; títulos persistidos, calendário e seleção do planner não são alterados.
+
+Koushiki Sans continua como direção de identidade, sem arquivo webfont autorizado disponível no repositório. Nenhuma fonte foi baixada nem licença presumida; a interface utiliza o fallback neutro existente.
+
+Validação econômica: 20 testes direcionados aprovados (identidade, shell V2, Home e ajustes finos); inspeção local com respostas sintéticas, sem banco. Plano/Home em 1440 e 390 px; Timer e navegação mobile, além de verificação de largura mínima de 320 px. Não houve suíte completa, lint completo, build, merge ou deploy. O checkpoint visual exclui as alterações locais de ciclo/Mentor.

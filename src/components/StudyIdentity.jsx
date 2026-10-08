@@ -29,6 +29,18 @@ export function ActivityLabel({ type }) {
   return <span className={`activity-identity ${activity}`}><Icon name={icon}/>{label}</span>
 }
 
+// Apresentação apenas: não seleciona conteúdo nem altera a demanda persistida.
+export function demandSubject(item) {
+  return item.materia?.nome || item.material?.disciplina_curso || 'Matéria a definir'
+}
+
+export function demandContent(item) {
+  const regularAcademic = item.objetivo?.tipo === 'faculdade'
+    && (item.tipo === 'aula' || item.reason_codes?.includes('ACADEMIC_CLASS_SAME_DAY')
+      || /aula dada[,\s]*aula estudada/i.test(item.titulo || ''))
+  return regularAcademic ? 'Aula dada, aula estudada' : item.titulo
+}
+
 export default function DemandIdentity({ item }) {
-  return <div className="demand-card-top"><SubjectLabel subject={item.materia} name={item.material?.disciplina_curso || item.materia?.nome}/><div className="demand-identities"><ContextLabel type={item.objetivo?.tipo}/><ActivityLabel type={item.tipo}/></div></div>
+  return <div className="demand-card-top"><SubjectLabel subject={item.materia} name={demandSubject(item)}/><div className="demand-identities"><ContextLabel type={item.objetivo?.tipo}/><ActivityLabel type={item.tipo}/></div></div>
 }

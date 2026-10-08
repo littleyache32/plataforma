@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api.js'
 import { brasilDate, duration, summarizeHome, weekDates } from '../home-summary.js'
-import DemandIdentity, { subjectAccent } from './StudyIdentity.jsx'
+import DemandIdentity, { subjectAccent, demandContent } from './StudyIdentity.jsx'
 
 export default function Home({ onNavigate }) {
   const [data, setData] = useState(null)
@@ -41,7 +41,7 @@ export function HomeSummary({ summary, onNavigate, subjectsByName = new Map() })
         const seconds = summary.secondsByDay.get(date) || 0
         return <div className="home-week-day" key={date}><div className="home-week-bar-track"><i style={{ height: `${seconds ? Math.max(8, seconds / maxDay * 100) : 0}%` }}/></div><b aria-label={duration(seconds)}>{duration(seconds).replace('min', '')}</b><span>{new Date(`${date}T12:00:00-03:00`).toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'America/Sao_Paulo' }).replace('.', '')}</span></div>
       })}</div></article>
-      <article className="panel home-panel"><div className="home-panel-head"><div><span className="eyebrow">SEQUÊNCIA</span><h2>Próximas demandas</h2></div><button className="secondary" onClick={() => onNavigate('semana')}>Ver semana</button></div>{summary.nextDemands.length ? <div className="home-demand-list">{summary.nextDemands.map((item) => <div key={item.id}><div><DemandIdentity item={item}/><b>{item.titulo}</b><small>{new Date(`${item.data}T12:00:00-03:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} · {item.duracao_estimada || 0} min</small></div></div>)}</div> : <p className="home-empty">Nenhuma demanda futura nesta semana. Consulte seu plano para ver a próxima semana.</p>}</article>
+      <article className="panel home-panel"><div className="home-panel-head"><div><span className="eyebrow">SEQUÊNCIA</span><h2>Próximas demandas</h2></div><button className="secondary" onClick={() => onNavigate('semana')}>Ver semana</button></div>{summary.nextDemands.length ? <div className="home-demand-list">{summary.nextDemands.map((item) => <div key={item.id}><div><DemandIdentity item={item}/><b>{demandContent(item)}</b><small>{new Date(`${item.data}T12:00:00-03:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} · {item.duracao_estimada || 0} min</small></div></div>)}</div> : <p className="home-empty">Nenhuma demanda futura nesta semana. Consulte seu plano para ver a próxima semana.</p>}</article>
     </div>
     <article className="panel home-panel"><div className="home-panel-head"><div><span className="eyebrow">DISCIPLINAS</span><h2>Tempo registrado por disciplina</h2></div><button className="secondary" onClick={() => onNavigate('tempo')}>Ver histórico</button></div>{summary.subjects.length ? <div className="home-subject-list">{summary.subjects.map(([name, seconds]) => <div key={name}><i aria-hidden="true" style={{ background: subjectAccent(subjectsByName.get(name), name) }}/><span>{name}</span><b>{duration(seconds)}</b></div>)}</div> : <p className="home-empty">O tempo por disciplina aparece depois do primeiro registro de estudo.</p>}</article>
     <p className="home-data-note">Os indicadores mostram apenas registros salvos. Questões, Question Cards e simulados continuam conforme a fase definida pelo mentor.</p>
