@@ -2,6 +2,7 @@ import { getSupabaseAdmin } from './supabase.js'
 import { allowMethods, fail, requireAccess } from './http.js'
 import { evaluateMentorWeekV2 } from './mentor-v2.js'
 import { applyMentorWeekV2 } from './mentor-v2-plan.js'
+import { cancelPreviousCyclePlans } from './mentor-v2-cycle.js'
 import { isCalendarDate, mentorWeekTarget } from '../../shared/mentor-v2-policy.js'
 
 const addDays = (date, days) => { const value = new Date(`${date}T12:00:00Z`); value.setUTCDate(value.getUTCDate() + days); return value.toISOString().slice(0, 10) }
@@ -27,13 +28,16 @@ export async function prepareMentorWeek({ inicio, today = brazilToday(), force =
   const currentWeek = today >= inicio && today <= end
   const nextWeekOnSunday = new Date(`${today}T12:00:00Z`).getUTCDay() === 0 && addDays(today, 1) === inicio
   if (!force && !currentWeek && !nextWeekOnSunday) return { status: 200, body: { criadas: 0, aguardando_domingo: true } }
+  const preview = await evaluateMentorWeekV2({ supabase: supabase || getSupabaseAdmin(), inicio, instanteReferencia, persist: false })
+  const cancellation = preview.resultado === 'NAO_AVALIAVEL' ? { canceladas: 0 }
+    : await cancelPreviousCyclePlans({ supabase: supabase || getSupabaseAdmin(), inicio, today })
   const evaluation = await evaluateMentorWeekV2({ supabase: supabase || getSupabaseAdmin(), inicio, instanteReferencia, persist: true })
   const unavailable = evaluation.resultado === 'NAO_AVALIAVEL'
   const applied = unavailable ? { criadas: 0, atualizadas: 0, removidas: 0 } : await applyMentorWeekV2({ supabase: supabase || getSupabaseAdmin(), evaluation })
   const closure = !unavailable && evaluation.plano_semanal && !evaluation.plano_semanal.pendente
     ? await closeMentorWeek({ inicio: addDays(inicio, -7), today, supabase: supabase || getSupabaseAdmin() }) : { closed: 0 }
   const pending = unavailable || evaluation.plano_semanal?.pendente === true
-  return { status: pending ? 503 : 200, body: { ...applied, encerradas: closure.closed,
+  return { status: pending ? 503 : 200, body: { ...applied, canceladas_ciclo_anterior: cancellation.canceladas, encerradas: closure.closed,
     planejamento_pendente: pending, planejamento_estado: unavailable ? 'policy_v2_pendente' : pending ? 'planejamento_parcial' : applied.criadas ? 'gerado' : 'preservado',
     avaliacao_mentor_v2: evaluation, politica_mentor: evaluation.policy_ref?.versao || null,
     motivo: evaluation.explicacao } }

@@ -1,9 +1,10 @@
 // Factual capacity packing only. No strategy, extra load, debt or legacy defaults.
+import { operationalDayLimit } from './mentor-v2-cycle.js'
 const validDay = (day) => /^\d{4}-\d{2}-\d{2}$/.test(day || '')
   && Number.isFinite(Date.parse(`${day}T12:00:00Z`))
   && new Date(`${day}T12:00:00Z`).toISOString().slice(0, 10) === day
 
-export function allocateMentorWeekCapacity({ availability, requests, demands, commitments, weekStart, weekEnd, today }) {
+export function allocateMentorWeekCapacity({ availability, requests, demands, commitments, weekStart, weekEnd, today, initialWeek = false, dailyCapacity = null }) {
   if (!availability || availability.versao !== 'disponibilidade-v2/1') return {
     allocations: [], issues: ['DISPONIBILIDADE_NAO_INFORMADA_OU_NAO_SUPORTADA'], constrained: true,
     signal: { estado: 'UNKNOWN', alocacoes: [], slots_sem_capacidade: requests.map((row) => row.index), divida_minutos: 0 },
@@ -31,22 +32,31 @@ export function allocateMentorWeekCapacity({ availability, requests, demands, co
       const reserved = demands.filter((demand) => demand.data === row.data && demand.status !== 'cancelada')
         .reduce((sum, demand) => sum + demand.duracao_estimada, 0)
       if (!Number.isFinite(reserved) || reserved < 0) throw new Error('RESERVA_CAPACIDADE_INVALIDA')
-      return { data: row.data, minutos: row.minutos, bloqueado: blocked.has(row.data),
-        minutos_existentes: reserved, restantes: blocked.has(row.data) ? 0 : Math.max(0, row.minutos - reserved) }
+      const limit = Math.min(operationalDayLimit(row.data), initialWeek ? (dailyCapacity?.get(row.data) || 0) : Infinity)
+      return { data: row.data, minutos: row.minutos, limite_operacional: limit, bloqueado: blocked.has(row.data),
+        faculdade_existentes: demands.filter((demand) => demand.data === row.data && demand.status !== 'cancelada'
+          && requests.some((request) => request.faculty && request.objectiveId === demand.objetivo_id)).length,
+        minutos_existentes: reserved, restantes: blocked.has(row.data) ? 0 : Math.max(0, Math.min(row.minutos, limit) - reserved) }
     }).sort((a, b) => a.data.localeCompare(b.data))
   const allocations = [], remaining = [], rejected = []
+  const fits = (request, day) => day.restantes >= request.minutes && (!request.faculty
+    || day.faculdade_existentes < (initialWeek ? 1 : commitments.some((row) => row.objetivo_id === request.objectiveId
+      && row.concluido === false && ['prova', 'trabalho', 'entrega'].includes(row.tipo)
+      && row.data >= day.data && row.data <= weekEnd) ? 3 : 2))
   const place = (request, day) => {
     day.restantes -= request.minutes
+    if (request.faculty) day.faculdade_existentes++
     allocations.push({ index: request.index, data: day.data, data_original: request.day, minutos: request.minutes })
   }
   // Reserve valid original days before displaced requests use their spare capacity.
   for (const request of requests) {
-    const preferred = days.find((day) => day.data === request.day && day.restantes >= request.minutes)
+    const preferred = days.find((day) => day.data === request.day && fits(request, day))
     if (preferred) place(request, preferred)
     else remaining.push(request)
   }
   for (const request of remaining) {
-    const alternate = days.find((day) => day.restantes >= request.minutes)
+    // Initial adaptation never packs a missed day into another day's baseline.
+    const alternate = !initialWeek && days.find((day) => fits(request, day))
     if (alternate) place(request, alternate)
     else rejected.push(request.index)
   }

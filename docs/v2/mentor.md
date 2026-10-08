@@ -454,3 +454,6 @@ Aprendizado: obrigação perdida e necessidade curricular atual são coisas dist
 ## Integração final corretiva, Fase 3.16
 
 Registro em 07/10/2026. Os 14 cenários obrigatórios e a recusa de fallback V1 passaram no pipeline integrado controlado, incluindo disponibilidade, fatos do encontro, capacidade configurada, pendências e rastreabilidade da origem. Sem necessidade de nova alteração funcional nesta subfase. Validação: 295 testes direcionados, 461 na suíte completa, lint estrutural de 144 arquivos e build aprovados. Resultado: PASS COM LIMITAÇÕES, sem banco real ou produção. Evidências, método e pendências em [validacao-fase3.md](validacao-fase3.md). Não autoriza ativação no banco, deploy ou início da Fase 4.
+# Atualização operacional da Fase 3.17
+
+07/10/2026: o contrato vigente de baseline, tetos, funções do estudo e arsenal estratégico está em `mentor-estrategias.md`. Ele prevalece sobre descrições históricas incompatíveis deste documento. Ciclo atual configurável em 12/10/2026, base 2 concurso + 1 Faculdade de 50 minutos; sem escada automática. O motor mantém carga sem evidência/policy suficiente para mudança. Configuração local não equivale a ativação no banco real.

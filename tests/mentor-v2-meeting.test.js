@@ -137,10 +137,10 @@ describe('fatos canônicos do encontro V2, Fase 3.13', () => {
     await expect(submit(db, { fatos: { indisponivel_em: ['2030-03-05'] } })).rejects.toThrow('contexto mudou')
     expect(db.tables.mentor_contexto).toEqual(before)
   })
-  it('UI V2 não apresenta nem envia feedback de carga e conserva ID ao editar avaliação', () => {
+  it('UI V2 é somente leitura e não apresenta encontro nem feedback de carga', () => {
     const code = readFileSync('src/components/MentorWidget.jsx', 'utf8')
     expect(code).not.toMatch(/cargaPercebida|carga_percebida|Como ficou a carga planejada|value="leve"|value="adequada"|value="pesada"/)
-    expect(code).toContain('{ ...item, [name]: value }')
+    expect(code).not.toMatch(/<form|method: 'POST'|Registrar encontro|encontro semanal/)
   })
   it('referência genérica não vira formulário de avaliação acadêmica nem perde seu vínculo', async () => {
     const db = meetingDatabase()

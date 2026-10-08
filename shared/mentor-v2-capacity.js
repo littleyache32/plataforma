@@ -14,8 +14,8 @@ export function readInitialMentorCapacity(configuration) {
       || (slot.destino === undefined ? typeof slot.objetivo_id !== 'string' || !slot.objetivo_id
         : slot.destino !== 'PRIORIDADE_ESTRUTURAL' || slot.objetivo_id !== undefined)
       || (slot.atividade === 'ESTUDO' && (slot.materia_id || slot.topico_id || slot.revisao_id))
-      || (slot.atividade !== 'ESTUDO' && (!slot.materia_id || !slot.topico_id))
-      || (slot.atividade === 'REVISAO' && !slot.revisao_id)) throw new Error('CAPACIDADE_INICIAL_INVALIDA')
+      || (['QUESTOES', 'QUESTION_CARDS'].includes(slot.atividade) && (!slot.materia_id || !slot.topico_id))
+      || (slot.atividade === 'REVISAO' && Boolean(slot.materia_id) !== Boolean(slot.topico_id))) throw new Error('CAPACIDADE_INICIAL_INVALIDA')
   }
   return structuredClone(configuration)
 }

@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto'
+import { projectMentorQuestionReviews } from '../../shared/review-v2-pipeline.js'
+import { readMentorReviewCoverage } from './mentor-v2-review-coverage.js'
 import { evaluateMentorV2, mentorWeekTarget, resolveMentorV2Policy, stableMentorJSON, validateMentorV2Decision, MENTOR_V2_CONTRACT, MENTOR_V2_ENGINE_VERSION } from '../../shared/mentor-v2-policy.js'
 
 // Transport pagination, not a strategic lookback or minimum evidence threshold.
@@ -39,6 +41,7 @@ export async function evaluateMentorWeekV2({ supabase, inicio, instanteReferenci
     else facts = { context: context.data ? { id: context.data.id, vigente_desde: context.data.vigente_desde,
       disponibilidade: context.data.dados?.disponibilidade || null, rotina_pratica: context.data.dados?.rotina_pratica || {},
       capacidade_inicial: context.data.dados?.capacidade_inicial || null,
+      ciclo_operacional: context.data.dados?.ciclo_operacional || null,
       objetivo_principal_id: context.data.dados?.objetivo_principal_id || null,
       ...((context.data.dados?.eventos_encontro || []).some((row) => row.semana_alvo === inicio)
         ? { eventos_encontro: context.data.dados.eventos_encontro.filter((row) => row.semana_alvo === inicio) } : {}) } : null,
@@ -50,7 +53,7 @@ export async function evaluateMentorWeekV2({ supabase, inicio, instanteReferenci
         readAll(() => supabase.from('material_progresso').select('material_id,estado,iniciado_em,concluido_em,atualizado_em'), 'material_id'),
         readAll(() => supabase.from('compromisso_topico').select('compromisso_id,topico_id').order('topico_id'), 'compromisso_id'),
         readAll(() => supabase.from('revisao_item').select('id,questao_id,motivo,status,agendada_para')),
-        readAll(() => supabase.from('questao').select('id,topico_id')),
+        readAll(() => supabase.from('questao').select('id,topico_id,ativa,marcada_errada,estado')),
         readAll(() => supabase.from('registro').select('id,questao_id,resultado,classificacao,criado_em').lte('criado_em', instanteReferencia)),
       ])
       if ([materials, progress, links, reviews, questions, attempts].some((entry) => entry.error)) {
@@ -66,6 +69,14 @@ export async function evaluateMentorWeekV2({ supabase, inicio, instanteReferenci
       ])
       if (identities.error || cards.error) { unavailableSource = 'sessao/question_card'; facts = null }
       else { facts.planIdentities = identities.data; facts.prioritySources.cards = cards.data }
+      if (facts) {
+        const resolved = resolveMentorV2Policy(policyRecord)
+        facts.reviewPlanning = projectMentorQuestionReviews({ facts, corte: instanteReferencia,
+          policy_ref: resolved.ref, modalidades: policyRecord.conteudo.politica.modalidades_permitidas })
+        // No trace query is necessary when no actionable review can be planned.
+        facts.reviewPlanning.demandas = facts.reviewPlanning.itens.length
+          ? await readMentorReviewCoverage({ supabase, corte: instanteReferencia }) : []
+      }
     }
   }
   const evaluationId = createHash('sha256').update(stableMentorJSON({ policyRecord, facts, inicio, instanteReferencia, versaoMotor: MENTOR_V2_ENGINE_VERSION })).digest('hex')

@@ -2,11 +2,13 @@ import { calculateMentorV2LoadFacts } from './mentor-v2-load.js'
 import { calculateMentorV2PriorityFacts } from './mentor-v2-priority.js'
 import { allocateMentorWeekCapacity } from './mentor-v2-availability.js'
 import { readInitialMentorCapacity } from './mentor-v2-capacity.js'
+import { readOperationalCycle, isInitialCycleWeek, cycleDemandPrefix } from './mentor-v2-cycle.js'
+import { allocateMentorReviews, validateReviewPlanSelection } from './mentor-v2-review-plan.js'
 
 // Authoritative V2 boundary. Historical policy objects are never merged here.
 export const MENTOR_V2_CONTRACT = 'mentor-v2/1'
-export const MENTOR_V2_REASON_CATALOG = 'mentor-v2-reasons/6'
-export const MENTOR_V2_ENGINE_VERSION = 'mentor-v2-engine/3.15'
+export const MENTOR_V2_REASON_CATALOG = 'mentor-v2-reasons/7'
+export const MENTOR_V2_ENGINE_VERSION = 'mentor-v2-engine/3.17-4.10'
 export const MENTOR_V2_TYPES = Object.freeze([
   'CRIAR_DEMANDA', 'MANTER_DEMANDA', 'REDUZIR_CARGA', 'AUMENTAR_CARGA', 'REDISTRIBUIR_CARGA',
   'PRIORIZAR_MATERIA', 'PRIORIZAR_TOPICO', 'SOLICITAR_REVISAO', 'SOLICITAR_QUESTOES',
@@ -26,6 +28,7 @@ export const MENTOR_V2_REASONS = Object.freeze([
   'CURRICULUM_CONTINUITY', 'STRUCTURAL_CONTEST_PRIORITY', 'FACULTY_CONTINUITY', 'RECENCY_TIEBREAK', 'NO_ELIGIBLE_CURRICULUM',
   'APPROVED_WEEKLY_CAPACITY', 'WEEKLY_PLAN_SELECTION',
   'PENDING_CONTINUITY', 'PENDING_DEFERRED', 'PENDING_REPLACED', 'PENDING_REDISTRIBUTED',
+  'INITIAL_CONTENT_BASE', 'CYCLE_NOT_STARTED',
 ])
 const ACTIVITIES = Object.freeze(['ESTUDO', 'QUESTOES', 'QUESTION_CARDS', 'REVISAO'])
 const ACTIVITY_BY_TYPE = Object.freeze({ estudo: 'ESTUDO', exercicio: 'QUESTOES', especial: 'QUESTION_CARDS', revisao: 'REVISAO' })
@@ -35,6 +38,8 @@ export const MENTOR_V2_PLAN_RULE = 'GERACAO_PLANO_SEMANAL'
 export const MENTOR_V2_PENDING_RULE = 'TRATAMENTO_PENDENCIAS_SEMANAIS'
 const PENDING_TYPES = ['MANTER_PENDENCIA', 'REAGENDAR_SEMANA_FUTURA', 'SUBSTITUIR_PENDENCIA', 'ABANDONAR_PENDENCIA', 'REDISTRIBUIR_PENDENCIA']
 const TEXT = Object.freeze({
+  INITIAL_CONTENT_BASE: 'Semana inicial dedicada à construção de base, dentro da disponibilidade factual.',
+  CYCLE_NOT_STARTED: 'A semana antecede o início configurado do ciclo. Nenhuma demanda nova foi criada.',
   DATA_UNAVAILABLE: 'A policy V2 ou uma fonte factual necessária não está disponível. O plano foi preservado.',
   DATA_INCONSISTENCY: 'Há uma configuração ou referência factual inconsistente. O plano foi preservado.',
   CONSERVATIVE_CONTINUITY: 'Demanda existente preservada, sem ajuste automático de carga ou conteúdo.',
@@ -190,7 +195,7 @@ export function validateMentorV2Decision(decision) {
   if (creating && (!decision.materia_id || !decision.parametros?.titulo?.trim()
     || !Number.isInteger(decision.parametros.ordem) || decision.parametros.ordem < 0
     || !decision.parametros.chave_mentor?.startsWith(`v2:${target.semana_inicio}:`)
-    || Object.keys(decision.parametros).some((key) => !['titulo', 'ordem', 'chave_mentor', 'capacidade_slot', 'data_alocada', 'capacidade_ref'].includes(key))
+    || Object.keys(decision.parametros).some((key) => !['titulo', 'ordem', 'chave_mentor', 'capacidade_slot', 'data_alocada', 'capacidade_ref', 'revisao'].includes(key))
     || decision.duracao_minutos > 90 || !Number.isInteger(decision.duracao_minutos)
     || decision.prioridade?.ordem_relativa !== 1 || !decision.prioridade.conjunto_ref)) throw new Error('Criação de demanda inválida.')
   if (creating) {
@@ -216,10 +221,20 @@ export function validateMentorV2Decision(decision) {
     }
     if (slot.objetivo_id !== decision.objetivo_id || slot.atividade !== decision.tipo_atividade
       || slot.duracao_minutos !== decision.duracao_minutos || target.data !== (allocated ?? date.toISOString().slice(0, 10))
-      || decision.parametros.chave_mentor !== `v2:${target.semana_inicio}:${decision.parametros.ordem}`
+      || decision.parametros.chave_mentor !== `${cycleDemandPrefix(target.semana_inicio, readOperationalCycle(decision.contexto_ref.snapshot.ciclo_operacional))}${decision.parametros.ordem}`
       || (decision.tipo_atividade === 'ESTUDO' ? decision.topico_id !== null
         || !decision.alvos_relacionados.some((row) => row.entidade === 'material' && row.id)
-        : slot.materia_id !== decision.materia_id || !decision.topico_id || slot.topico_id !== decision.topico_id)) throw new Error('Demanda diverge da capacidade aprovada.')
+        : !decision.topico_id || (decision.tipo_atividade === 'REVISAO'
+          ? (slot.materia_id && slot.materia_id !== decision.materia_id) || (slot.topico_id && slot.topico_id !== decision.topico_id)
+          : slot.materia_id !== decision.materia_id || slot.topico_id !== decision.topico_id))) throw new Error('Demanda diverge da capacidade aprovada.')
+    if (decision.parametros.revisao) {
+      if (decision.tipo_atividade !== 'REVISAO') throw new Error('Revisão fora de slot autorizado.')
+      validateReviewPlanSelection(decision.parametros.revisao, { ...decision, corte: decision.instante_referencia })
+      if (!decision.evidencias_utilizadas.some((row) => row.evidencia_id === 'revisao_planejada'
+        && stableMentorJSON(row.valor) === stableMentorJSON(decision.parametros.revisao))
+        || decision.parametros.revisao.fontes.some((source) => !decision.alvos_relacionados.some((row) =>
+          row.entidade === source.entidade && row.id === source.id))) throw new Error('Revisão sem origem rastreável.')
+    }
   }
   if (prioritizing) {
     const selection = decision.parametros.selecao, alternatives = decision.parametros.alternativas
@@ -357,7 +372,7 @@ function prioritizeWeek({ facts, signals, target, referenceInstant, maintained }
       || a.alvo_temporal.data.localeCompare(b.alvo_temporal.data)
       || (a.parametros.estado_observado.ordem ?? 0) - (b.parametros.estado_observado.ordem ?? 0)
       || a.demanda_id.localeCompare(b.demanda_id))
-  const selections = [], used = new Map()
+  const selections = [], used = new Map(), usedToday = new Map()
   for (const base of slots) {
     const goal = objectives.get(base.objetivo_id)
     if (!goal || !['concurso', 'faculdade'].includes(goal.tipo)) throw new Error('OBJETIVO_PRIORIZACAO_INVALIDO')
@@ -369,10 +384,12 @@ function prioritizeWeek({ facts, signals, target, referenceInstant, maintained }
           link.compromisso_id === commitment.id && facts.topics.find((topic) => topic.id === link.topico_id)?.materia_id === row.materia_id)
       }).sort((a, b) => a.data.localeCompare(b.data) || a.id.localeCompare(b.id))
       return { ...row, prazo: deadlines[0]?.data || null, compromisso_ids: deadlines.map((entry) => entry.id),
+        selecoes_no_dia: usedToday.get(`${base.alvo_temporal.data}:${row.materia_id}`) || 0,
         selecoes_nesta_avaliacao: used.get(row.materia_id) || 0 }
     }).sort((a, b) => (a.prazo || '9999-12-31').localeCompare(b.prazo || '9999-12-31')
-      || Number(b.estado === 'em_andamento') - Number(a.estado === 'em_andamento')
+      || a.selecoes_no_dia - b.selecoes_no_dia
       || a.selecoes_nesta_avaliacao - b.selecoes_nesta_avaliacao
+      || Number(b.estado === 'em_andamento') - Number(a.estado === 'em_andamento')
       || (a.ultima_execucao ? Date.parse(a.ultima_execucao) : -Infinity) - (b.ultima_execucao ? Date.parse(b.ultima_execucao) : -Infinity)
       || a.materia_id.localeCompare(b.materia_id) || a.material_id.localeCompare(b.material_id))
     if (!alternatives.length) continue
@@ -405,11 +422,14 @@ function prioritizeWeek({ facts, signals, target, referenceInstant, maintained }
     validateMentorV2Decision(decision)
     selections.push(decision)
     used.set(selected.materia_id, (used.get(selected.materia_id) || 0) + 1)
+    usedToday.set(`${base.alvo_temporal.data}:${selected.materia_id}`, selected.selecoes_no_dia + 1)
   }
   return { selections, slots }
 }
 
 function generateWeek({ resolved, facts, result, referenceInstant, allowed }) {
+  const cycle = readOperationalCycle(facts.context.ciclo_operacional)
+  const initialWeek = isInitialCycleWeek(cycle, result.alvo_temporal.semana_inicio)
   const configured = readInitialMentorCapacity(facts.context.capacidade_inicial)
   const capacityRef = configured ? { fonte: 'mentor_contexto', id: facts.context.id, campo: 'dados.capacidade_inicial', revisao: configured.revisao, versao: configured.versao } : null
   const objectives = new Map((facts.loadSources?.objectives || []).map((row) => [row.id, row]))
@@ -426,9 +446,9 @@ function generateWeek({ resolved, facts, result, referenceInstant, allowed }) {
   })
   if (!configured) return { decisions: [], issues: ['CAPACIDADE_SEMANAL_NAO_CONFIGURADA'] }
   const identities = [...facts.demands, ...(facts.planIdentities || [])]
-  const prefix = `v2:${result.alvo_temporal.semana_inicio}:`
+  const prefix = cycleDemandPrefix(result.alvo_temporal.semana_inicio, cycle)
   // Never pile a base template on top of an existing, independently edited plan.
-  if (facts.demands.some((row) => ['estudo', 'exercicio', 'especial', 'revisao'].includes(row.tipo)
+  if (facts.demands.some((row) => row.status !== 'cancelada' && ['estudo', 'exercicio', 'especial', 'revisao'].includes(row.tipo)
     && !row.chave_mentor?.startsWith(prefix))) return { decisions: [], issues: ['PLANO_EXISTENTE_PRESERVADO_SEM_SOBREPOSICAO'] }
   const occupied = new Set(identities.map((row) => row.chave_mentor?.split(':decision:')[0]).filter(Boolean))
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(referenceInstant))
@@ -436,19 +456,26 @@ function generateWeek({ resolved, facts, result, referenceInstant, allowed }) {
   const topics = new Map(facts.topics.map((row) => [row.id, row]))
   const evidence = [{ evidencia_id: 'capacidade_aprovada', natureza: 'CONTEXTO', fonte: 'mentor_contexto',
     referencia: capacityRef, valor: { configuracao: configured, slots: capacity }, corte: referenceInstant }, ...result.evidencias_utilizadas.filter((row) => row.evidencia_id !== 'priorizacao')]
-  const slots = [], issues = [], decisions = [], requests = []
+  const slots = [], issues = [], decisions = [], requests = [], dailyCapacity = new Map()
+  capacity.forEach((slot) => {
+    const date = new Date(`${result.alvo_temporal.semana_inicio}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + slot.dia)
+    const day = date.toISOString().slice(0, 10)
+    dailyCapacity.set(day, (dailyCapacity.get(day) || 0) + slot.duracao_minutos)
+  })
   capacity.forEach((slot, index) => {
     if (!objectives.has(slot.objetivo_id)) throw new Error('OBJETIVO_CAPACIDADE_INVALIDO')
     const date = new Date(`${result.alvo_temporal.semana_inicio}T12:00:00Z`)
     date.setUTCDate(date.getUTCDate() + slot.dia)
     const day = date.toISOString().slice(0, 10), key = `${prefix}${index}`
     if (day < today || occupied.has(key)) return
+    if (initialWeek && (slot.atividade !== 'ESTUDO' || slot.duracao_minutos !== 50)) { issues.push('BASE_INICIAL_SOMENTE_ESTUDO_50'); return }
     if (!allowed(slot.atividade)) { issues.push('MODALIDADE_DE_CAPACIDADE_NAO_AUTORIZADA'); return }
-    requests.push({ index, day, minutes: slot.duracao_minutos })
+    requests.push({ index, day, minutes: slot.duracao_minutos, objectiveId: slot.objetivo_id,
+      faculty: objectives.get(slot.objetivo_id).tipo === 'faculdade' })
   })
   const packed = allocateMentorWeekCapacity({ availability: facts.context.disponibilidade,
     requests, demands: facts.demands, commitments: facts.loadSources?.commitments || [],
-    weekStart: result.alvo_temporal.semana_inicio, weekEnd: result.alvo_temporal.semana_fim, today })
+    weekStart: result.alvo_temporal.semana_inicio, weekEnd: result.alvo_temporal.semana_fim, today, initialWeek, dailyCapacity })
   issues.push(...packed.issues)
   const availabilityEvidence = { evidencia_id: 'disponibilidade', natureza: 'SINAL',
     fonte: 'mentor_contexto/compromisso/sessao', versao_definicao: 'disponibilidade-v2/1',
@@ -471,10 +498,31 @@ function generateWeek({ resolved, facts, result, referenceInstant, allowed }) {
   // Internal capacity carriers are not persisted as observations of real sessions.
   const theoretical = prioritizeWeek({ facts, signals: result.priorizacao.sinais, target: result.alvo_temporal,
     referenceInstant, maintained: slots }).selections
+  const reviewPlan = allocateMentorReviews({ itens: facts.reviewPlanning?.itens || [],
+    demandas: facts.reviewPlanning?.demandas || [], corte: referenceInstant, policy_ref: resolved.ref, allowed,
+    slots: slots.map((base) => ({ ...capacity[base.parametros.estado_observado.ordem],
+      id: base.demanda_id, data: base.alvo_temporal.data })) })
+  issues.push(...reviewPlan.issues)
   for (const base of slots) {
     const selection = theoretical.find((row) => row.demanda_id === base.demanda_id)
     const slot = capacity[base.parametros.estado_observado.ordem]
-    let subjectId = base.materia_id, topicId = base.topico_id, related = [], title, codes = []
+    let subjectId = base.materia_id, topicId = base.topico_id, related = [], title, codes = [], plannedReview = null
+    if (base.tipo_atividade === 'REVISAO') {
+      plannedReview = reviewPlan.allocations.find((row) => row.slot_id === base.demanda_id)?.revisao
+      if (!plannedReview) continue
+      subjectId = plannedReview.materia_id; topicId = plannedReview.topico_id
+      const source = plannedReview.fontes[0]
+      if (source.tipo === 'RETESTE_QUESTAO') {
+        const canonical = facts.prioritySources.reviews.find((row) => row.id === source.id)
+        const question = facts.prioritySources.questions.find((row) => row.id === source.alvo.id)
+        if (!canonical || canonical.status !== 'pendente' || canonical.questao_id !== source.alvo.id
+          || canonical.agendada_para !== plannedReview.item.agendada_para || question?.topico_id !== topicId) {
+          throw new Error('ORIGEM_CANONICA_REVISAO_INVALIDA')
+        }
+      } else if (!(facts.prioritySources.cards || []).some((row) => row.id === source.alvo.id && row.topico_id === topicId)) {
+        throw new Error('ORIGEM_CANONICA_REVISAO_INVALIDA')
+      }
+    }
     if (base.tipo_atividade === 'ESTUDO') {
       if (!selection) { issues.push('NO_ELIGIBLE_CURRICULUM'); continue }
       subjectId = selection.materia_id; topicId = null; related = selection.alvos_relacionados
@@ -490,21 +538,27 @@ function generateWeek({ resolved, facts, result, referenceInstant, allowed }) {
         issues.push('CARDS_ELEGIVEIS_AUSENTES'); continue
       }
       if (base.tipo_atividade === 'REVISAO') {
-        const review = result.priorizacao.sinais.necessidades_revisao.find((row) => row.id === slot.revisao_id)
-        if (!review || review.status !== 'pendente' || review.topico_id !== topicId
-          || Date.parse(review.agendada_para) > Date.parse(`${base.alvo_temporal.data}T23:59:59-03:00`)) { issues.push('REVISAO_NAO_ELEGIVEL'); continue }
-        related = [{ entidade: 'revisao_item', id: review.id }]; codes.push('REVIEW_NEED')
+        related = plannedReview.fontes.map(({ entidade, id }) => ({ entidade, id }))
+        codes.push('REVIEW_NEED')
       }
       title = `${{ QUESTOES: 'Questões', QUESTION_CARDS: 'Question Cards', REVISAO: 'Revisão' }[base.tipo_atividade]}: ${topics.get(topicId).nome || topicId}`
+      if (plannedReview) {
+        const label = { QUESTAO_INDIVIDUAL: 'questão', BATERIA_QUESTOES: 'questões',
+          QUESTION_CARDS: 'Question Cards', RETORNO_PONTUAL_TEORIA: 'teoria pontual' }[plannedReview.metodo.metodo]
+        title = `Revisão (${label}): ${topics.get(topicId).nome || topicId}`
+      }
     }
     codes = [...new Set([...codes, 'APPROVED_WEEKLY_CAPACITY', 'WEEKLY_PLAN_SELECTION', 'NO_HOUR_DEBT',
-      ...(packed.constrained ? ['AVAILABILITY_CONSTRAINT'] : [])])]
-    const selectedEvidence = selection?.evidencias_utilizadas || evidence
+      ...(packed.constrained ? ['AVAILABILITY_CONSTRAINT'] : []), ...(initialWeek ? ['INITIAL_CONTENT_BASE'] : [])])]
+    const selectedEvidence = plannedReview ? [...evidence, { evidencia_id: 'revisao_planejada', natureza: 'SINAL',
+      fonte: 'revisao_item/question_card/registro', valor: plannedReview, corte: referenceInstant }]
+      : selection?.evidencias_utilizadas || evidence
     const decision = { ...base, decisao_id: `${base.decisao_id}:criar`, tipo_decisao: 'CRIAR_DEMANDA', demanda_id: null,
       materia_id: subjectId, topico_id: topicId, alvos_relacionados: related,
       prioridade: { ordem_relativa: 1, conjunto_ref: `${base.avaliacao_ref}:${base.demanda_id}:capacidade` },
       parametros: { titulo: title, ordem: base.parametros.estado_observado.ordem, chave_mentor: base.demanda_id,
-        capacidade_slot: slot, capacidade_ref: capacityRef, data_alocada: base.alvo_temporal.data }, reason_codes: codes,
+        capacidade_slot: slot, capacidade_ref: capacityRef, data_alocada: base.alvo_temporal.data,
+        ...(plannedReview ? { revisao: plannedReview } : {}) }, reason_codes: codes,
       evidencias_utilizadas: selectedEvidence,
       fundamentacao: codes.map((code) => ({ codigo: code, regra_id: MENTOR_V2_PLAN_RULE, evidencia_ids: selectedEvidence.map((row) => row.evidencia_id) })) }
     validateMentorV2Decision(decision)
@@ -533,6 +587,10 @@ export function evaluateMentorV2({ policyRecord, facts, weekStart, referenceInst
   }
   if (!resolved.ok) return unavailable(resolved.reason, resolved.issue, 'conhecimento_modulo')
   if (!facts?.context || !Array.isArray(facts.demands) || !Array.isArray(facts.subjects) || !Array.isArray(facts.topics)) return unavailable('DATA_UNAVAILABLE', 'FONTES_FACTUAIS_INCOMPLETAS', 'mentor_contexto/sessao')
+  let cycle
+  try { cycle = readOperationalCycle(facts.context.ciclo_operacional) }
+  catch (error) { return unavailable('DATA_INCONSISTENCY', error.message, 'mentor_contexto') }
+  if (cycle && weekStart < cycle.inicio) return unavailable('CYCLE_NOT_STARTED', 'SEMANA_ANTERIOR_AO_CICLO', 'mentor_contexto')
   let fallback
   try { fallback = conservativeFallback(facts, referenceInstant) }
   catch (error) { return unavailable('DATA_INCONSISTENCY', error.message, 'sinais_derivados') }

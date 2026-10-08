@@ -129,3 +129,44 @@ Referências anteriores a `capacidade_semanal` na policy documentam implementaç
 ## Pendências, Fase 3.15, 07/10/2026
 
 Sessão anterior continua canônica para a entrega/histórico factual. `mentor_decisao` guarda seu tratamento estratégico identificado, com snapshot e vínculos de nova seleção. Material/progresso/compromissos e contexto sustentam relevância atual; não há tabela de dívida de horas ou status local paralelo. Nova continuidade em `sessao` tem identidade e origem próprias, sem mudar a data/status da antiga. Abandono encerra obrigação na decisão, não remove registros nem currículo. Detalhes e limites em [mentor.md](mentor.md#tratamento-estratégico-de-pendências-fase-315).
+
+## Separação estrutural da revisão, Fase 4.1, 07/10/2026
+
+Demanda em `sessao`, decisão em `mentor_decisao`, fila derivada da Central, SRS de cards e reteste de questões não são intercambiáveis. FSRS pertence somente a Question Cards; questões mantêm lógica própria de reteste. Referências puras em `shared/review-v2-model.js` distinguem ocorrência `revisao_item`/alvo `questao` de fonte/alvo `question_card`, sem nova tabela, calendário ou algoritmo. Contrato, legado ainda não convertido e pendências em [revisao.md](revisao.md). Os adaptadores operacionais não foram conectados nesta subfase; nenhum vínculo novo ou agendamento foi gravado no banco.
+
+## Evidências de revisão, Fase 4.2, 07/10/2026
+
+`shared/review-v2-evidence.js` projeta observações com referências e corte explícito, sem armazenar outra fonte ou decidir prioridade. Questões leem resultado/confiança de `registro`; cards preservam avaliações em `question_card_registro`; conteúdo separa progresso e eventos de estudo/prática com vínculo verificável. Repetição/reteste/erro-alvo não são deduzidos sem contexto; FSRS permanece não implementado. Ausência de dados permanece desconhecida, não desempenho ruim. Mapa completo e pendências em [revisao.md](revisao.md#evidências-observacionais-fase-42). Sem integração operacional ou alteração de banco nesta subfase.
+
+## Ordenação complementar, Fase 4.4, 07/10/2026
+
+`shared/review-v2-queue.js` ordena projeções elegíveis sem persistir outro calendário/prioridade estratégica. Cobertura adequada por demanda exige vínculo exato com sessão/decisão/fonte e qualificação versionada; itens cobertos são preservados na projeção auditável, não concluídos nem apagados. A UI usa a classificação comum Hoje/Atenção/Depois. A API legada ainda não fornece evidência/vínculos V2 e não foi conectada ao motor; a supressão de duplicidade operacional permanece pendente de integração. Contrato e limites em [revisao.md](revisao.md#ordenação-complementar-da-central-fase-44).
+
+## Método de revisão, Fase 4.5, 07/10/2026
+
+`shared/mentor-v2-review-method.js` é função de domínio interna do único Mentor, não fonte concorrente de estratégia. A escolha recebe referência da policy, elegibilidade, fatos e slots autorizados; não modifica história ou calendário. Retorno teórico exige unidade, cobertura prévia e lacuna qualificada. Combinação conserva componentes/slots separados. Seleção ainda não está ligada à decisão operacional/planner; `mentor_decisao` e `sessao` continuam canônicos para decisão e demanda, sem nova tabela ou atividade COMBINACAO. Contrato e limites em [revisao.md](revisao.md#escolha-do-método-pelo-mentor-fase-45).
+
+## Reteste de questões, Fase 4.6, 07/10/2026
+
+`shared/mentor-v2-question-retest.js` seleciona recursos existentes a partir de elegibilidade e qualificações da policy única, sem calendário próprio ou FSRS. `registro` continua fonte factual de tentativas; número de exposições e desempenho posterior são derivados, não novos fatos concorrentes. Equivalência/ângulo/conceito exigem metadados comprovados pelo adaptador: o schema vigente ainda não possui essa correspondência completa. Histórico parcial não equivale a ausência de exposição. Integração operacional permanece pendente; nenhuma tabela, intervalo legado ou geração runtime foi ativado. Contrato em [revisao.md](revisao.md#reteste-próprio-de-questões-fase-46).
+
+## Sinais corretivos locais, Fase 4.7, 07/10/2026
+
+`shared/mentor-v2-question-signals.js` interpreta resultado/confiança de `registro` por regra determinística aprovada, sem outra fonte de estratégia ou score de domínio. Qualificações locais alimentam a elegibilidade existente; prioridade relativa continua na Central, decisão/demanda continuam em `mentor_decisao`/`sessao`. Falsa certeza justifica correção local, não fraqueza da matéria. Acerto sem conhecimento é evidência fraca, não lacuna confirmada. Vínculo conceitual precisa de prova; ausência restringe à questão. Decisão ampla e retorno teórico não são autorizados pelo evento isolado. Domínio e integração controlada testados; conexão operacional permanece pendente. Contrato em [revisao.md](revisao.md#tratamento-de-sinais-fortes-locais-fase-47).
+
+## Revisão integrada ao Plano, Fase 4.8, 07/10/2026
+
+`mentor_decisao` conserva método/fontes/evidências em `parametros.revisao` e `sessao` conserva demanda efetiva e vínculo imutável. `facts.reviewPlanning` é uma projeção interna, não outra tabela ou configuração de estratégia. Reserva de slots REVISAO pertence à capacidade inicial canônica; alocação não toma slots ESTUDO nem aumenta minutos. A Central lê cobertura da decisão original e data/status atuais da demanda, sem gravar uma segunda prioridade/agenda ou concluir itens. O handler foi conectado à supressão de cobertura validada; o adaptador operacional ainda não fornece projeções completas para criar novas revisões V2. Ausência produz pendência explícita, não fallback legado. Detalhes em [revisao.md](revisao.md#integração-revisão-para-meu-plano-fase-48).
+
+## Projeção operacional da Central, Fase 4.9, 07/10/2026
+
+`revisao_item` fornece ocorrência/calendário, `registro` fornece última tentativa e resultado/confiança, `question_card` fornece calendário/interação persistidos. `shared/review-v2-center.js` deriva apresentação e utiliza elegibilidade/ordenação V2 apenas com evidência qualificada e referência válida de policy. Datas legadas não são FSRS nem inferência de domínio. A UI consome categorias do corte do servidor, sem score bruto ou nova fonte factual. `cardId` é apenas alvo de navegação/consulta, não nova agenda. Cobertura do Plano continua derivada de `mentor_decisao` e `sessao`. Detalhes e limitações em [revisao.md](revisao.md#motor-conectado-à-central-fase-49-07102026).
+
+## Integração factual de revisão, Fase 4.10, 07/10/2026
+
+`shared/review-v2-pipeline.js` compartilha a qualificação local usada pela Central e pelo adaptador factual do Mentor. `facts.reviewPlanning` passa a ser construído a partir de `registro`, `revisao_item`, recurso disponível, tópico/matéria e capacidade canônica, sem outra fonte de estratégia. Somente combinações corretivas locais aprovadas podem fornecer itens operacionais; calendário existente continua restrição explícita, sem novo intervalo V2. Slots reservados continuam sendo o limite da materialização; a decisão e a demanda conservam suas fontes originais.
+
+Essa integração não migra o escritor legado de prática, não qualifica automaticamente lacuna conceitual ou equivalência entre questões e não calcula FSRS. Teoria pontual exige proveniência íntegra fornecida ao contrato; cards aguardam sua integração SRS própria. Resultados, testes e limites em [revisao.md](revisao.md#integração-final-controlada-fase-410-07102026).
+# Atualização da Fase 3.17
+
+07/10/2026: `mentor_contexto.dados.ciclo_operacional` é a fonte factual do ciclo; `dados.capacidade_inicial` define a base planejável. `config/mentor-ciclo-atual.json` é somente entrada de manutenção convertida por `prepareCycleContext`, nunca consultada pelo motor em paralelo ao banco. Tetos 450/240/180 e restrições de materialização ficam no contrato central `shared/mentor-v2-cycle.js`, aplicado pelo allocator único. O arsenal futuro e a precedência atual estão em `mentor-estrategias.md`. Nenhum contexto ou cancelamento foi aplicado ao banco real nesta subfase.

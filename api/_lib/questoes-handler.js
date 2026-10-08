@@ -48,6 +48,21 @@ export default async function handler(req, res) {
         const introduced = await withCardFilters(supabase.from('question_card').select('id', { count: 'exact', head: true }).eq('ativa', true).gte('introduzido_em', `${today}T00:00:00-03:00`).lt('introduzido_em', `${tomorrow.toISOString().slice(0, 10)}T00:00:00-03:00`), { objetivoId: filters.objetivoId })
         if (introduced.error) throw introduced.error
         const remainingNew = Math.max(0, newCardsDailyLimit - (introduced.count || 0))
+        const requestedCardId = queryParam(req, 'cardId')
+        if (requestedCardId) {
+          const selected = await withCardFilters(supabase.from('question_card').select(fields).eq('ativa', true).eq('id', requestedCardId), filters).maybeSingle()
+          if (selected.error) throw selected.error
+          const selectedCard = selected.data
+          if (!selectedCard) return res.status(404).json({ error: 'Card não encontrado neste contexto.' })
+          if ((!selectedCard.ultima_revisao && (remainingNew === 0 || (isBacen && !studiedTopicIds.includes(selectedCard.topico?.id))))
+            || (selectedCard.objetivo?.tipo === 'faculdade' && selectedCard.materia?.nome === 'Análise e Produção de Texto')) {
+            return res.status(423).json({ error: 'Este card ainda não está disponível para prática.' })
+          }
+          const due = Date.parse(selectedCard.proxima_revisao) <= Date.now()
+          return res.status(200).json({ cards: [{ ...selectedCard, vencido: due }], vencidos: Number(due),
+            novos: Number(!selectedCard.ultima_revisao), novos_limite_diario: newCardsDailyLimit,
+            novos_introduzidos_hoje: introduced.count || 0, total: 1 })
+        }
         const reviewedQuery = withCardFilters(supabase.from('question_card').select(fields).eq('ativa', true).not('ultima_revisao', 'is', null).lte('proxima_revisao', new Date().toISOString()).order('proxima_revisao').limit(60), filters)
         let newCardsQuery = withCardFilters(supabase.from('question_card').select(fields).eq('ativa', true).is('ultima_revisao', null).lte('proxima_revisao', new Date().toISOString()).order('criado_em').limit(remainingNew), filters)
         if (isBacen) newCardsQuery = studiedTopicIds.length ? newCardsQuery.in('topico_id', studiedTopicIds) : null

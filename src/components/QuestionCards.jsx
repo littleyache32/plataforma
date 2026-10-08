@@ -17,6 +17,7 @@ export default function QuestionCards({ objective, target, onTargetApplied }) {
   const [subjectId, setSubjectId] = useState('')
   const [expandedSubjectId, setExpandedSubjectId] = useState('')
   const [topicId, setTopicId] = useState('')
+  const [reviewTargetId, setReviewTargetId] = useState('')
   const [cards, setCards] = useState([])
   const [counts, setCounts] = useState({ topicos: {}, totais: { questoes: 0, cards: 0 } })
   const [stats, setStats] = useState({ total: 0, vencidos: 0, novos: 0 })
@@ -37,6 +38,7 @@ export default function QuestionCards({ objective, target, onTargetApplied }) {
     setLoading(true)
     const params = new URLSearchParams({ recurso: 'cards', objetivoId: objective.id, materiaId: subjectId })
     if (topicId) params.set('topicoId', topicId)
+    if (reviewTargetId) params.set('cardId', reviewTargetId)
     return api(`/api/questoes?${params}`).then((data) => {
       setCards(data.cards)
       setStats({ total: data.total, vencidos: data.vencidos, novos: data.novos })
@@ -48,7 +50,7 @@ export default function QuestionCards({ objective, target, onTargetApplied }) {
   }
 
   useEffect(() => {
-    setSubjectId(''); setExpandedSubjectId(''); setTopicId(''); setReviewed(0); setRevealed(false)
+    setSubjectId(''); setExpandedSubjectId(''); setTopicId(''); setReviewTargetId(''); setReviewed(0); setRevealed(false)
   }, [objective?.id])
   useEffect(() => {
     if (!objective?.id) return setCounts({ topicos: {}, totais: { questoes: 0, cards: 0 } })
@@ -62,17 +64,19 @@ export default function QuestionCards({ objective, target, onTargetApplied }) {
   useEffect(() => {
     if (target?.subjectId !== subjectId) return
     setTopicId(target.topicId || '')
+    setReviewTargetId(target.cardId || '')
     setReviewed(0); setRevealed(false)
     onTargetApplied?.()
-  }, [subjectId, target?.subjectId, target?.topicId])
-  useEffect(() => { load() }, [objective?.id, subjectId, topicId])
+  }, [subjectId, target?.subjectId, target?.topicId, target?.cardId])
+  useEffect(() => { load() }, [objective?.id, subjectId, topicId, reviewTargetId])
 
-  const queue = useMemo(() => cards.filter((item) => item.vencido), [cards])
+  const queue = useMemo(() => cards.filter((item) => item.id === reviewTargetId || item.vencido), [cards, reviewTargetId])
   const card = queue[0] || null
   const sessionTotal = reviewed + queue.length
 
   function resetFocus(change) {
     change()
+    setReviewTargetId('')
     setReviewed(0)
     setRevealed(false)
   }

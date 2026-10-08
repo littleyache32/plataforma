@@ -102,7 +102,7 @@ export default function App() {
       {area === 'inicio' && <Home onNavigate={setArea} />}
       {area === 'semana' && <Week catalog={catalog} target={weekTarget} onTargetApplied={() => setWeekTarget(null)} onOpenQuestions={(item) => openDemand(item, 'questoes')} onOpenCards={(item) => openDemand(item, 'cards')} onOpenTimer={(item) => { setTimerTarget(item); setArea('tempo') }} />}
       {area === 'tempo' && <StudyTime catalog={catalog} target={timerTarget} onTargetApplied={() => setTimerTarget(null)} />}
-      {area === 'revisoes' && <ReviewCenter objective={objective} onOpenQuestion={openReviewItem} onOpenCards={(item) => { setStudyTarget({ objectiveId: objective?.id, subjectId: item.materia_id || '', topicId: item.topico_id || '' }); setArea('cards') }} />}
+      {area === 'revisoes' && <ReviewCenter objective={objective} onOpenQuestion={openReviewItem} onOpenCards={(item) => { setStudyTarget({ objectiveId: objective?.id, subjectId: item.materia_id || '', topicId: item.topico_id || '', cardId: item.item_id }); setArea('cards') }} />}
       {['questoes', 'caderno', 'discursivas'].includes(area) && <div className="module-tabs" aria-label="Área de questões">{[['questoes', 'Questões'], ['caderno', 'Caderno'], ['discursivas', 'Discursivas']].map(([id, label]) => <button key={id} aria-pressed={area === id} onClick={() => setArea(id)}>{label}</button>)}</div>}
       {area === 'questoes' && <Questions {...common} target={studyTarget?.objectiveId === objective?.id ? studyTarget : null} onTargetApplied={() => setStudyTarget(null)} reviewQuestionId={reviewQuestionId} onReviewLoaded={() => setReviewQuestionId('')} />}
       {area === 'caderno' && <Questions {...common} notebookOnly />}

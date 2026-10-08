@@ -15,7 +15,7 @@ export async function readMentorDemandTrace({ supabase, id, audit = false }) {
     ...(audit ? { demanda: demand, decisao: null, inputs_relevantes: [], policy_ref: null } : {}) }
   if (demand.origem !== 'mentor' || !demand.chave_mentor?.includes(':decision:')) return missing('LEGADO_SEM_VINCULO')
   const [key, decisionId, extra] = demand.chave_mentor.split(':decision:')
-  if (extra !== undefined || !/^v2:\d{4}-\d{2}-\d{2}:\d+$/.test(key) || !decisionId) return missing('VINCULO_INCONSISTENTE')
+  if (extra !== undefined || !/^v2:\d{4}-\d{2}-\d{2}:(?:ciclo:[a-zA-Z0-9_-]+:)?\d+$/.test(key) || !decisionId) return missing('VINCULO_INCONSISTENTE')
   const evaluationId = decisionId.split(':')[0]
   const saved = await supabase.from('mentor_decisao').select('chave_operacao,dados,criado_em')
     .eq('chave_operacao', evaluationId).eq('tipo', 'avaliacao_mentor_v2').maybeSingle()

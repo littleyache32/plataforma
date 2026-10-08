@@ -284,7 +284,7 @@ describe('geração de semana V2', () => {
     const input = fixture(); input.facts.context.capacidade_inicial.slots[0].duracao_minutos = duration
     expect(run(input).resultado).toBe('NAO_AVALIAVEL')
   })
-  it.each(['QUESTOES', 'QUESTION_CARDS', 'REVISAO'])('materializa %s somente com autorização, capacidade e conteúdo explícitos', (activity) => {
+  it.each(['QUESTOES', 'QUESTION_CARDS'])('materializa %s somente com autorização, capacidade e conteúdo explícitos', (activity) => {
     const input = fixture(), policy = input.policyRecord.conteudo.politica
     policy.modalidades_permitidas.push(activity)
     input.facts.context.capacidade_inicial.slots = [{ dia: 0, objetivo_id: 'contest', atividade: activity, duracao_minutos: 30, justificativa_30: 'Prática curta justificada no perfil sintético', materia_id: 'a', topico_id: 'ta', ...(activity === 'REVISAO' ? { revisao_id: 'r' } : {}) }]

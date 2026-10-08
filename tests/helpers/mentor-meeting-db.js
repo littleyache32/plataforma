@@ -16,6 +16,7 @@ export function meetingDatabase() {
     const filters = [], q = {}
     q.select = q.order = () => q
     q.eq = (key, value) => { filters.push((row) => row[key] === value); return q }
+    q.is = (key, value) => { filters.push((row) => value === null ? row[key] == null : row[key] === value); return q }
     q.in = (key, values) => { filters.push((row) => values.includes(row[key])); return q }
     q.gte = (key, value) => { filters.push((row) => row[key] >= value); return q }
     q.lte = (key, value) => { filters.push((row) => row[key] <= value); return q }
