@@ -3,6 +3,8 @@ import { allowMethods, fail, queryParam, requireAccess } from './http.js'
 import { practiceTransition, selectPracticeQuestion, shouldShowExplanation } from '../../shared/practice.js'
 import { buildQuestionCard, cardKey, cardTransition, shouldCreateQuestionCard } from '../../shared/cards.js'
 import { BACEN_PRACTICE_START, canAccessBacenItem, currentPracticeFlags } from '../../shared/study-access.js'
+import { questionEquivalence, operationalReviewSignals } from '../../shared/review-v2-operational.js'
+import { readMentorDemandTrace } from './mentor-v2-trace.js'
 
 const classifications = ['certeza', 'duvida', 'eliminacao', 'sem_conhecimento']
 
@@ -64,7 +66,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ questao: question, disponiveis: eligibleQuestions.length })
     }
 
-    const { questaoId, resposta, classificacao, tempo, operacaoId } = req.body || {}
+    const { questaoId, resposta, classificacao, tempo, operacaoId, revisaoId, sessaoId } = req.body || {}
     if (!questaoId || !classifications.includes(classificacao) || !Number.isInteger(tempo) || tempo < 0) {
       return res.status(400).json({ error: 'Resposta, classificacao e tempo validos sao obrigatorios.' })
     }
@@ -74,7 +76,7 @@ export default async function handler(req, res) {
       if (prior.data) return res.status(200).json({ ...prior.data, repetida: true })
     }
     const { data: question, error } = await supabase.from('questao')
-      .select('id,tipo,gabarito,enunciado,explicacao,comentarios_alternativas,fonte,trecho_fonte,quantidade_tentativas,intervalo_dias,fator_facilidade,lapsos,acertos_seguidos,topico:topico_id(id,nome,materia:materia_id(id,objetivo_id,objetivo:objetivo_id(tipo)))')
+      .select('*,topico:topico_id(id,nome,materia:materia_id(id,objetivo_id,objetivo:objetivo_id(tipo)))')
       .eq('id', questaoId).eq('marcada_errada', false).eq('ativa', true).single()
     if (error) throw error
 
@@ -93,30 +95,55 @@ export default async function handler(req, res) {
     const resultado = answer === question.gabarito ? 'acerto' : 'erro'
     const transition = practiceTransition({ resultado, classificacao, tentativas: question.quantidade_tentativas, intervaloDias: question.intervalo_dias, fatorFacilidade: question.fator_facilidade, lapsos: question.lapsos, acertosSeguidos: question.acertos_seguidos })
     const now = new Date().toISOString()
+    let need = null
+    if (revisaoId) {
+      const source = await supabase.from('revisao_item').select('*,questao:questao_id(*)').eq('id', revisaoId).single()
+      if (source.error) throw source.error
+      if (!source.data || source.data.status !== 'pendente'
+        || !questionEquivalence(source.data.questao || (source.data.questao_id === question.id ? question : null), question)) return res.status(400).json({ error: 'Tentativa incompatível com a necessidade de revisão.' })
+      need = source.data
+    }
+    if (sessaoId) {
+      const trace = await readMentorDemandTrace({ supabase, id: sessaoId, audit: true })
+      const selection = trace.decisao?.parametros?.revisao
+      if (!need || trace.estado !== 'RASTREAVEL' || !selection?.fontes.some((row) => row.id === need.id)
+        || !selection.metodo.componentes.some((row) => row.referencias.some((ref) => ref.entidade === 'questao' && ref.id === question.id))) return res.status(400).json({ error: 'Execução incompatível com a demanda de revisão.' })
+    }
 
-    const { error: insertError } = await supabase.from('registro').insert({ questao_id: question.id, resultado, classificacao, tempo, operacao_id: operacaoId || null })
+    const { error: insertError } = await supabase.from('registro').insert({ questao_id: question.id, resultado, classificacao, tempo, operacao_id: operacaoId || null,
+      ...(need ? { revisao_item_id: need.id, ...(sessaoId ? { sessao_id: sessaoId } : {}) } : {}) })
     if (insertError) throw insertError
     const { error: updateError } = await supabase.from('questao').update({
       usada: true,
       ultima_resolucao: now,
       quantidade_tentativas: question.quantidade_tentativas + 1,
-      proxima_revisao: transition.proximaRevisao,
       estado: transition.estado,
-      intervalo_dias: transition.intervaloDias,
-      fator_facilidade: transition.fatorFacilidade,
       lapsos: transition.lapsos,
       acertos_seguidos: transition.acertosSeguidos,
     }).eq('id', question.id)
     if (updateError) throw updateError
 
-    const { data: pending } = await supabase.from('revisao_item').select('id').eq('questao_id', question.id).eq('status', 'pendente').maybeSingle()
-    if (resultado === 'acerto' && classificacao === 'certeza' && pending) {
-      await supabase.from('revisao_item').update({ status: 'concluida', concluida_em: now }).eq('id', pending.id)
-    } else if (transition.motivo) {
+    const pendingQuery = await supabase.from('revisao_item').select('id').eq('questao_id', question.id).eq('status', 'pendente').maybeSingle()
+    if (pendingQuery.error) throw pendingQuery.error
+    const pending = pendingQuery.data
+    if (transition.motivo) {
       if (pending) {
-        await supabase.from('revisao_item').update({ motivo: transition.motivo, prioridade: transition.prioridade, agendada_para: transition.proximaRevisao }).eq('id', pending.id)
+        const saved = await supabase.from('revisao_item').update({ motivo: transition.motivo, prioridade: transition.prioridade }).eq('id', pending.id)
+        if (saved.error) throw saved.error
       } else {
-        await supabase.from('revisao_item').insert({ questao_id: question.id, motivo: transition.motivo, prioridade: transition.prioridade, agendada_para: transition.proximaRevisao })
+        const saved = await supabase.from('revisao_item').insert({ questao_id: question.id, motivo: transition.motivo, prioridade: transition.prioridade, agendada_para: null })
+        if (saved.error) throw saved.error
+      }
+    }
+    if (need) {
+      const candidates = await supabase.from('questao').select('*').eq('topico_id', question.topico_id || question.topico?.id)
+      if (candidates.error) throw candidates.error
+      const history = await supabase.from('registro').select('*').in('questao_id', (candidates.data || []).map((row) => row.id)).lte('criado_em', now)
+      if (history.error) throw history.error
+      const assessment = operationalReviewSignals({ questao: need.questao || question, revisao: need, registros: history.data || [], questoes: candidates.data || [], corte: now })
+      if (assessment.recovered) {
+        const closed = await supabase.from('revisao_item').update({ status: 'concluida', concluida_em: now }).eq('id', need.id).eq('status', 'pendente')
+        if (closed.error) throw closed.error
       }
     }
 

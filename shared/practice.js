@@ -1,4 +1,5 @@
-export function practiceTransition({ resultado, classificacao, tentativas = 0, intervaloDias = 0, fatorFacilidade = 2.5, lapsos = 0, acertosSeguidos, now = Date.now() }) {
+// Historical replay only. Never called by the V2 operational handler.
+export function legacyPracticeTransition({ resultado, classificacao, tentativas = 0, intervaloDias = 0, fatorFacilidade = 2.5, lapsos = 0, acertosSeguidos, now = Date.now() }) {
   const attempts = tentativas + 1
   const day = 24 * 60 * 60 * 1000
   const falseCertainty = resultado === 'erro' && classificacao === 'certeza'
@@ -38,6 +39,15 @@ export function practiceTransition({ resultado, classificacao, tentativas = 0, i
     motivo: null,
     prioridade: null,
   }
+}
+
+export function practiceTransition({ resultado, classificacao, lapsos = 0, acertosSeguidos = 0 }) {
+  if (!['erro', 'acerto'].includes(resultado) || !['certeza', 'duvida', 'eliminacao', 'sem_conhecimento'].includes(classificacao)) throw new Error('Tentativa inválida.')
+  const motivo = resultado === 'erro' ? (classificacao === 'certeza' ? 'falsa_certeza' : classificacao === 'sem_conhecimento' ? 'baixa_confianca' : 'erro')
+    : classificacao === 'certeza' ? null : 'checagem'
+  return { estado: motivo ? 'revisao' : 'aprendendo', motivo, prioridade: motivo === 'falsa_certeza' ? 1 : motivo === 'checagem' ? 3 : 2,
+    lapsos: Number(lapsos || 0) + Number(resultado === 'erro'), acertosSeguidos: resultado === 'acerto' ? Number(acertosSeguidos || 0) + 1 : 0,
+    proximaRevisao: null, infereDominio: false }
 }
 
 export function selectPracticeQuestion(questions, now = Date.now()) {

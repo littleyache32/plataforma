@@ -96,6 +96,7 @@ export function selectQuestionRetest({ elegibilidade, evidencia, conceito_id, qu
     || a.id.localeCompare(b.id))
   if (alternatives.length) {
     codes.push('QUESTION_AVOID_MECHANICAL_RECOGNITION')
+    codes.push('RETESTE_VARIANTE')
     if (differentAngle(alternatives[0])) codes.push('QUESTION_DIFFERENT_ANGLE')
     return result(alternatives[0], 'QUESTION_EQUIVALENT_ALTERNATIVE')
   }
@@ -103,9 +104,11 @@ export function selectQuestionRetest({ elegibilidade, evidencia, conceito_id, qu
   // authorization from policy, grounded in an attempt/retest source.
   if (originalRow && qualified(repeticao_original) && repeticao_original.questao_id === original
     && repeticao_original.fontes.some((row) => ['registro', 'revisao_item'].includes(row.entidade))
-    && previousAt && repeticao_original.nao_antes_de
-    && instant(repeticao_original.nao_antes_de) > instant(previousAt)
-    && instant(repeticao_original.nao_antes_de) <= cutoff) {
+    && previousAt && ((repeticao_original.fallback_sem_calendario === true
+      && repeticao_original.regra_ref.id === 'RETESTE_LOCAL_SEM_CALENDARIO')
+      || (repeticao_original.nao_antes_de && instant(repeticao_original.nao_antes_de) > instant(previousAt)
+        && instant(repeticao_original.nao_antes_de) <= cutoff))) {
+    codes.push('RETESTE_ORIGINAL_FALLBACK')
     return result(originalRow, 'QUESTION_ORIGINAL_RETEST_AUTHORIZED')
   }
   return result(null, 'QUESTION_ALTERNATIVES_OR_REUSE_AUTHORIZATION_MISSING')
