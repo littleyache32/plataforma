@@ -27,7 +27,7 @@ export async function evaluateMentorWeekV2({ supabase, inicio, instanteReferenci
     const [context, demands, subjects, topics, history, times, objectives, commitments] = await Promise.all([
       supabase.from('mentor_contexto').select('id,vigente_desde,semana_inicio,dados').eq('id', 1).maybeSingle(),
       readAll(() => supabase.from('sessao').select('id,chave_mentor,origem,objetivo_id,materia_id,topico_id,material_id,tipo,data,status,ordem,duracao_estimada,prioridade,movida_em,ordenada_em,cancelamento_origem,concluida_em').gte('data', inicio).lte('data', target.semana_fim)),
-      readAll(() => supabase.from('materia').select('id,objetivo_id')),
+      readAll(() => supabase.from('materia').select('id,objetivo_id,nome')),
       readAll(() => supabase.from('topico').select('id,materia_id,nome')),
       readAll(() => supabase.from('sessao').select('id,objetivo_id,materia_id,topico_id,material_id,tipo,data,status,duracao_estimada,concluida_em,cancelamento_origem,chave_mentor,origem').lt('data', inicio)),
       readAll(() => supabase.from('tempo_estudo').select('id,sessao_id,objetivo_id,status,segundos_acumulados,finalizado_em').eq('status', 'concluido').lte('finalizado_em', instanteReferencia)),
@@ -42,6 +42,7 @@ export async function evaluateMentorWeekV2({ supabase, inicio, instanteReferenci
       disponibilidade: context.data.dados?.disponibilidade || null, rotina_pratica: context.data.dados?.rotina_pratica || {},
       capacidade_inicial: context.data.dados?.capacidade_inicial || null,
       ciclo_operacional: context.data.dados?.ciclo_operacional || null,
+      calendario_academico: context.data.dados?.calendario_academico || null,
       objetivo_principal_id: context.data.dados?.objetivo_principal_id || null,
       ...((context.data.dados?.eventos_encontro || []).some((row) => row.semana_alvo === inicio)
         ? { eventos_encontro: context.data.dados.eventos_encontro.filter((row) => row.semana_alvo === inicio) } : {}) } : null,

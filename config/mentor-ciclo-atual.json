@@ -1,12 +1,12 @@
 {
   "ciclo": {
     "versao": "ciclo-operacional-v2/1",
-    "id": "inicio-outubro-2026",
-    "inicio": "2026-10-08",
+    "id": "inicio-outubro-2026-cobertura",
+    "inicio": "2026-10-12",
     "etapa_inicial": "BASE_CONTEUDO"
   },
   "baseline": [
     { "tipo_objetivo": "concurso", "demandas": 2, "duracao_minutos": 50, "atividade": "ESTUDO" },
-    { "tipo_objetivo": "faculdade", "demandas": 1, "duracao_minutos": 50, "atividade": "ESTUDO" }
+    { "tipo_objetivo": "faculdade", "dias": [0, 1, 2, 3], "demandas": 1, "duracao_minutos": 50, "atividade": "ESTUDO" }
   ]
 }

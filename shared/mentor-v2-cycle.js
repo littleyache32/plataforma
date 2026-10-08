@@ -35,6 +35,9 @@ export function prepareCycleContext({ definition, objectives, current = {} }) {
   if (!cycle || !Array.isArray(definition.baseline) || !definition.baseline.length) throw new Error('BASELINE_CICLO_INVALIDO')
   const slots = []
   for (let dia = 0; dia < 7; dia++) for (const entry of definition.baseline) {
+    if (entry.dias !== undefined && (!Array.isArray(entry.dias) || new Set(entry.dias).size !== entry.dias.length
+      || entry.dias.some((day) => !Number.isInteger(day) || day < 0 || day > 6))) throw new Error('DIAS_BASELINE_INVALIDOS')
+    if (entry.dias && !entry.dias.includes(dia)) continue
     const options = objectives.filter((row) => row.tipo === entry.tipo_objetivo)
     const main = options.find((row) => row.id === current.objetivo_principal_id)
     const objective = entry.tipo_objetivo === 'concurso' && main ? main : options.length === 1 ? options[0] : null
@@ -45,4 +48,22 @@ export function prepareCycleContext({ definition, objectives, current = {} }) {
   }
   return { ...structuredClone(current), ciclo_operacional: cycle,
     capacidade_inicial: { versao: 'capacidade-inicial-v2/1', revisao: `baseline-${cycle.id}`, slots } }
+}
+
+// Calendar facts reference subjects, never PDFs or implicit discipline names.
+export function readAcademicCalendar(value) {
+  if (value == null) return null
+  if (value.versao !== 'calendario-academico-v2/1' || !Array.isArray(value.aulas)
+    || Object.keys(value).some((key) => !['versao', 'aulas'].includes(key))
+    || value.aulas.some((row) => !Number.isInteger(row.dia) || row.dia < 0 || row.dia > 6
+      || typeof row.objetivo_id !== 'string' || !row.objetivo_id || typeof row.materia_id !== 'string' || !row.materia_id
+      || Object.keys(row).some((key) => !['dia', 'objetivo_id', 'materia_id'].includes(key)))
+    || new Set(value.aulas.map((row) => `${row.objetivo_id}:${row.dia}`)).size !== value.aulas.length) throw new Error('CALENDARIO_ACADEMICO_INVALIDO')
+  return structuredClone(value)
+}
+
+export function academicClassForDay(calendar, objectiveId, day) {
+  const validated = readAcademicCalendar(calendar)
+  const weekday = (new Date(`${day}T12:00:00Z`).getUTCDay() + 6) % 7
+  return validated?.aulas.find((row) => row.objetivo_id === objectiveId && row.dia === weekday) || null
 }

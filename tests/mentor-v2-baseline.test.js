@@ -12,6 +12,8 @@ const start = '2026-10-12'
 function database() {
   const db = meetingDatabase(), context = db.tables.mentor_contexto[0]
   context.dados = prepareCycleContext({ definition: { ...definition, ciclo: { ...definition.ciclo, inicio: start } }, objectives: db.tables.objetivo, current: context.dados })
+  context.dados.calendario_academico = { versao: 'calendario-academico-v2/1', aulas: [0, 1, 2, 3].map((dia) => ({ dia, objetivo_id: 'faculty', materia_id: dia % 2 ? 'b' : 'a' })) }
+  db.tables.materia.forEach((row) => { row.nome = row.id })
   context.dados.disponibilidade.dias = Array.from({ length: 7 }, (_, i) => ({ data: `2026-10-${12 + i}`, minutos: 600 }))
   db.tables.materia.push(...['c', 'd'].map((id) => ({ id, objetivo_id: 'contest' })))
   db.tables.material.push(...['c', 'd'].map((id) => ({ id: `pdf-${id}`, materia_id: id, objetivo_id: 'contest', status: 'aceito', nome: id, ordem_curso: 1 })))
@@ -20,15 +22,15 @@ function database() {
 const run = (db, inicio = start) => evaluateMentorWeekV2({ supabase: db, inicio, instanteReferencia: `${inicio}T15:00:00Z` })
 
 describe('Fase 3.17, baseline configurável e orçamento finito', () => {
-  it('12/10 inicia 2 concurso + 1 Faculdade por dia, 21 demandas independentes de 50', async () => {
+  it('12/10 inicia 2 concurso por dia e Faculdade apenas nos quatro dias de aula', async () => {
     const db = database(), result = await run(db), rows = materializeMentorWeek(result)
-    expect(rows).toHaveLength(21)
+    expect(rows).toHaveLength(18)
     for (let i = 12; i <= 18; i++) {
       const day = rows.filter((row) => row.data === `2026-10-${i}`)
-      expect(day.map((row) => row.objetivo_id).sort()).toEqual(['contest', 'contest', 'faculty'])
+      expect(day.map((row) => row.objetivo_id).sort()).toEqual(i <= 15 ? ['contest', 'contest', 'faculty'] : ['contest', 'contest'])
       expect(day.every((row) => row.duracao_estimada === 50 && row.tipo === 'estudo')).toBe(true)
     }
-    expect(rows.reduce((sum, row) => sum + row.duracao_estimada, 0)).toBe(1050)
+    expect(rows.reduce((sum, row) => sum + row.duracao_estimada, 0)).toBe(900)
     expect(db.writes).toEqual([])
   })
   it('início é configuração mutável e semana anterior não é reconstruída', async () => {
@@ -57,7 +59,7 @@ describe('Fase 3.17, baseline configurável e orçamento finito', () => {
   it('disponibilidade menor reduz semana inicial sem despejar perda em outros dias', async () => {
     const db = database(); db.tables.mentor_contexto[0].dados.disponibilidade.dias[0].minutos = 0
     const result = await run(db), rows = materializeMentorWeek(result)
-    expect(rows).toHaveLength(18)
+    expect(rows).toHaveLength(15)
     expect(rows.some((row) => row.data === start)).toBe(false)
     expect(result.reason_codes).toContain('AVAILABILITY_CONSTRAINT')
     expect(result.plano_semanal.disponibilidade.divida_minutos).toBe(0)
@@ -68,11 +70,11 @@ describe('Fase 3.17, baseline configurável e orçamento finito', () => {
       db.tables.sessao.push({ id: 'past', objetivo_id: 'contest', materia_id: 'c', tipo: 'estudo', status, data: '2026-10-05', duracao_estimada: 50 })
       const result = await run(db)
       expect(result.carga_semanal.acao).toBe('MATERIALIZAR_CAPACIDADE_CONFIGURADA')
-      expect(result.carga_semanal.carga_proposta.minutos).toBe(1050)
+      expect(result.carga_semanal.carga_proposta.minutos).toBe(900)
       expect(result.fallback.aumentar_carga).toBe(false)
       expect(result.carga_semanal.alteracao_carga_autorizada).toBe(false)
       expect(result.carga_semanal.sinais.pendencias.divida_minutos).toBe(0)
-      expect(materializeMentorWeek(result)).toHaveLength(21)
+      expect(materializeMentorWeek(result)).toHaveLength(18)
       expect(db.tables.sessao[0].data).toBe('2026-10-05')
     }
   })
@@ -104,7 +106,7 @@ describe('Fase 3.17, baseline configurável e orçamento finito', () => {
     const db = database()
     await applyMentorWeekV2({ supabase: db, evaluation: await run(db) })
     await applyMentorWeekV2({ supabase: db, evaluation: await run(db) })
-    expect(db.tables.sessao).toHaveLength(21)
+    expect(db.tables.sessao).toHaveLength(18)
   })
   it('preparo cancela plano anterior antes de materializar, sem apagar origem antiga', async () => {
     const db = database()
@@ -114,9 +116,9 @@ describe('Fase 3.17, baseline configurável e orçamento finito', () => {
     const result = await prepareMentorWeek({ supabase: db, inicio: start, today: start, instanteReferencia: `${start}T15:00:00Z` })
     expect(result.status).toBe(200)
     expect(result.body.canceladas_ciclo_anterior).toBe(1)
-    expect(result.body.criadas).toBe(21)
+    expect(result.body.criadas).toBe(18)
     expect(db.tables.sessao[0]).toMatchObject({ status: 'cancelada', chave_mentor: `v2:${start}:0:decision:historical` })
-    expect(db.tables.sessao).toHaveLength(22)
+    expect(db.tables.sessao).toHaveLength(19)
   })
   it('falha no cancelamento impede materialização; nenhuma história é apagada', async () => {
     const db = database()
@@ -132,8 +134,8 @@ describe('Fase 3.17, baseline configurável e orçamento finito', () => {
     const db = database()
     db.tables.mentor_contexto[0].dados.disponibilidade.dias = Array.from({ length: 7 }, (_, i) => ({ data: `2026-10-${19 + i}`, minutos: 600 }))
     const result = await run(db, '2026-10-19')
-    expect(materializeMentorWeek(result)).toHaveLength(21)
-    expect(result.carga_semanal.carga_proposta.minutos).toBe(1050)
+    expect(materializeMentorWeek(result)).toHaveLength(18)
+    expect(result.carga_semanal.carga_proposta.minutos).toBe(900)
     expect(result.carga_semanal.alteracao_carga_autorizada).toBe(false)
   })
   it('Faculdade respeita 2 por dia, excepcionalmente 3 por prazo factual, nunca 4', () => {

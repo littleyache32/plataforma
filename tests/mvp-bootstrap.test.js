@@ -14,29 +14,32 @@ vi.mock('../api/_lib/http.js', () => ({ allowMethods: () => true, requireAccess:
 const response = () => ({ status(code) { this.code = code; return this }, json(body) { this.body = body; return this } })
 const setup = () => {
   const db = meetingDatabase(), context = db.tables.mentor_contexto[0]
-  context.dados = prepareCycleContext({ definition, objectives: db.tables.objetivo, current: context.dados })
+  context.dados = prepareCycleContext({ definition: { ...definition, ciclo: { ...definition.ciclo, inicio: '2026-10-08' } }, objectives: db.tables.objetivo, current: context.dados })
+  context.dados.calendario_academico = { versao: 'calendario-academico-v2/1', aulas: [0, 1, 2, 3].map((dia) => ({ dia, objetivo_id: 'faculty', materia_id: dia % 2 ? 'b' : 'a' })) }
+  db.tables.materia.forEach((row) => { row.nome = row.id })
   context.dados.disponibilidade.dias = [8, 9, 10, 11, 12].map((day) => ({ data: `2026-10-${String(day).padStart(2, '0')}`, minutos: 150 }))
   db.tables.materia.push(...['c', 'd'].map((id) => ({ id, objetivo_id: 'contest' })))
   db.tables.material.push(...['c', 'd'].map((id) => ({ id: `pdf-${id}`, nome: id, materia_id: id, objetivo_id: 'contest', status: 'aceito', ordem_curso: 1 })))
   return db
 }
 const run = (db, inicio = '2026-10-05', instant = '2026-10-08T15:00:00Z') => evaluateMentorWeekV2({ supabase: db, inicio, instanteReferencia: instant })
-describe('MVP estudo, bootstrap 08/10', () => {
-  it('materializa somente 08 a 11, 2 concurso distintos + 1 Faculdade, 50 min, origem explícita', async () => {
+describe('MVP histórico sintético, bootstrap configurável 08/10 (não vigente)', () => {
+  it('materializa somente 08 a 11, dois concursos/dia e Faculdade apenas na quinta', async () => {
     const rows = materializeMentorWeek(await run(setup()))
-    expect(rows).toHaveLength(12)
+    expect(rows).toHaveLength(9)
     for (const day of ['08','09','10','11']) {
       const items = rows.filter((row) => row.data === `2026-10-${day}`)
       expect(items.filter((row) => row.objetivo_id === 'contest')).toHaveLength(2)
       expect(new Set(items.filter((row) => row.objetivo_id === 'contest').map((row) => row.materia_id)).size).toBe(2)
-      expect(items.filter((row) => row.objetivo_id === 'faculty')).toHaveLength(1)
-      expect(items.every((row) => row.duracao_estimada === 50 && row.tipo === 'estudo' && row.material_id && row.reason_codes.includes('INITIAL_CYCLE_BOOTSTRAP'))).toBe(true)
+      expect(items.filter((row) => row.objetivo_id === 'faculty')).toHaveLength(day === '08' ? 1 : 0)
+      expect(items.every((row) => row.duracao_estimada === 50 && row.tipo === 'estudo' && row.reason_codes.includes('INITIAL_CYCLE_BOOTSTRAP'))).toBe(true)
+      expect(items.filter((row) => row.objetivo_id === 'contest').every((row) => row.material_id)).toBe(true)
     }
   })
   it('sem disponibilidade não inventa capacidade factual; capacidade menor não gera dívida', async () => {
     const db = setup(); db.tables.mentor_contexto[0].dados.disponibilidade.dias[0].minutos = 50
     const result = await run(db)
-    expect(materializeMentorWeek(result)).toHaveLength(10)
+    expect(materializeMentorWeek(result)).toHaveLength(7)
     expect(result.plano_semanal.disponibilidade.divida_minutos).toBe(0)
     delete db.tables.mentor_contexto[0].dados.disponibilidade
     expect(materializeMentorWeek(await run(db))).toHaveLength(0)
@@ -47,17 +50,19 @@ describe('MVP estudo, bootstrap 08/10', () => {
     db.tables.sessao[1].status = 'cancelada'; db.tables.sessao[1].cancelamento_origem = 'usuario'
     db.tables.material_progresso.push({ material_id: db.tables.sessao[0].material_id, estado: 'em_andamento', concluido_em: null })
     await applyMentorWeekV2({ supabase: db, evaluation: await run(db, '2026-10-05', '2026-10-09T15:00:00Z') })
-    expect(db.tables.sessao).toHaveLength(12)
+    expect(db.tables.sessao).toHaveLength(9)
     expect(db.tables.sessao[0].status).toBe('feita'); expect(db.tables.sessao[1].status).toBe('cancelada')
     expect(db.tables.material_progresso[0].estado).toBe('em_andamento')
     const next = await run(db, '2026-10-12', '2026-10-12T15:00:00Z')
     expect(next.carga_semanal.sinais.historico.some((row) => row.demandas_concluidas > 0 || row.demandas_elegiveis > 0)).toBe(true)
     expect(db.tables.sessao[0].data).toBe('2026-10-08')
   })
-  it('Faculdade pode usar material aceito sem ordem artificial de curso; concluído fica excluído', async () => {
+  it('Faculdade segue calendário sem PDF mesmo que todos seus materiais estejam concluídos', async () => {
     const db = setup(); db.tables.material.filter((row) => row.objetivo_id === 'faculty').forEach((row) => { row.ordem_curso = null })
     db.tables.material_progresso.push({ material_id: 'pdf-a', estado: 'concluido', concluido_em: '2026-10-07T15:00:00Z' })
-    expect(materializeMentorWeek(await run(db)).filter((row) => row.objetivo_id === 'faculty').every((row) => row.material_id === 'pdf-b')).toBe(true)
+    const faculty = materializeMentorWeek(await run(db)).filter((row) => row.objetivo_id === 'faculty')
+    expect(faculty).toHaveLength(1)
+    expect(faculty[0]).toMatchObject({ materia_id: 'b', material_id: null, titulo: 'b · Aula dada, aula estudada' })
   })
   it('tempo real deriva da soma concluída, sem completar demanda nem duplicar retries', async () => {
     const db = setup(); db.tables.sessao.push({ id: 'session', status: 'planejada' })

@@ -2,13 +2,13 @@ import { calculateMentorV2LoadFacts } from './mentor-v2-load.js'
 import { calculateMentorV2PriorityFacts } from './mentor-v2-priority.js'
 import { allocateMentorWeekCapacity } from './mentor-v2-availability.js'
 import { readInitialMentorCapacity } from './mentor-v2-capacity.js'
-import { readOperationalCycle, isInitialCycleWeek, cycleDemandPrefix } from './mentor-v2-cycle.js'
+import { readOperationalCycle, isInitialCycleWeek, cycleDemandPrefix, academicClassForDay } from './mentor-v2-cycle.js'
 import { allocateMentorReviews, validateReviewPlanSelection } from './mentor-v2-review-plan.js'
 
 // Authoritative V2 boundary. Historical policy objects are never merged here.
 export const MENTOR_V2_CONTRACT = 'mentor-v2/1'
-export const MENTOR_V2_REASON_CATALOG = 'mentor-v2-reasons/7'
-export const MENTOR_V2_ENGINE_VERSION = 'mentor-v2-engine/3.17-4.10'
+export const MENTOR_V2_REASON_CATALOG = 'mentor-v2-reasons/8'
+export const MENTOR_V2_ENGINE_VERSION = 'mentor-v2-engine/3.17-coverage-2'
 export const MENTOR_V2_TYPES = Object.freeze([
   'CRIAR_DEMANDA', 'MANTER_DEMANDA', 'REDUZIR_CARGA', 'AUMENTAR_CARGA', 'REDISTRIBUIR_CARGA',
   'PRIORIZAR_MATERIA', 'PRIORIZAR_TOPICO', 'SOLICITAR_REVISAO', 'SOLICITAR_QUESTOES',
@@ -17,6 +17,7 @@ export const MENTOR_V2_TYPES = Object.freeze([
   'MANTER_PENDENCIA', 'SUBSTITUIR_PENDENCIA', 'REDISTRIBUIR_PENDENCIA',
 ])
 export const MENTOR_V2_REASONS = Object.freeze([
+  'INITIAL_SUBJECT_COVERAGE', 'ACADEMIC_CLASS_SAME_DAY',
   'INSUFFICIENT_EVIDENCE', 'UNKNOWN_MASTERY', 'DATA_INCONSISTENCY', 'DATA_UNAVAILABLE',
   'CONSERVATIVE_CONTINUITY', 'EXECUTION_PATTERN', 'AVAILABILITY_CONSTRAINT', 'CURRICULUM_GAP',
   'MATERIAL_IN_PROGRESS', 'PREREQUISITE', 'PENDING_CONTENT', 'CONFIRMED_DEADLINE',
@@ -55,6 +56,8 @@ const TEXT = Object.freeze({
   CURRICULUM_CONTINUITY: 'Selecionado o primeiro material pendente válido, sem avançar por conclusão de bloco.',
   STRUCTURAL_CONTEST_PRIORITY: 'Concurso preservado como prioridade estrutural, dentro da carga disponível.',
   FACULTY_CONTINUITY: 'Capacidade acadêmica preservada sem transferi-la para o concurso.',
+  INITIAL_SUBJECT_COVERAGE: 'Primeira cobertura de disciplina elegível neste ciclo, antes de repetir outra.',
+  ACADEMIC_CLASS_SAME_DAY: 'Aula dada, aula estudada: disciplina do calendário acadêmico factual deste dia.',
   RECENCY_TIEBREAK: 'Alternativas equivalentes ordenadas pela execução mais antiga, sem inferir esquecimento.',
   NO_ELIGIBLE_CURRICULUM: 'Não há material curricular elegível identificado para a capacidade disponível. Nenhum curso foi reiniciado.',
   APPROVED_WEEKLY_CAPACITY: 'Capacidade inicial explicitamente configurada no perfil, sem compensação de faltas.',
@@ -224,7 +227,10 @@ export function validateMentorV2Decision(decision) {
       || slot.duracao_minutos !== decision.duracao_minutos || target.data !== (allocated ?? date.toISOString().slice(0, 10))
       || decision.parametros.chave_mentor !== `${cycleDemandPrefix(target.semana_inicio, readOperationalCycle(decision.contexto_ref.snapshot.ciclo_operacional))}${decision.parametros.ordem}`
       || (decision.tipo_atividade === 'ESTUDO' ? decision.topico_id !== null
-        || !decision.alvos_relacionados.some((row) => row.entidade === 'material' && row.id)
+        || (decision.reason_codes.includes('ACADEMIC_CLASS_SAME_DAY')
+          ? academicClassForDay(decision.contexto_ref.snapshot.calendario_academico, decision.objetivo_id, target.data)?.materia_id !== decision.materia_id
+            || decision.alvos_relacionados.some((row) => row.entidade === 'material')
+          : !decision.alvos_relacionados.some((row) => row.entidade === 'material' && row.id))
         : !decision.topico_id || (decision.tipo_atividade === 'REVISAO'
           ? (slot.materia_id && slot.materia_id !== decision.materia_id) || (slot.topico_id && slot.topico_id !== decision.topico_id)
           : slot.materia_id !== decision.materia_id || slot.topico_id !== decision.topico_id))) throw new Error('Demanda diverge da capacidade aprovada.')
@@ -366,7 +372,9 @@ function prioritizeWeek({ facts, signals, target, referenceInstant, maintained }
   if (main && objectives.get(main)?.tipo !== 'concurso') throw new Error('OBJETIVO_PRINCIPAL_INVALIDO')
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(referenceInstant))
   const orderGoal = (id) => id === main ? 0 : objectives.get(id)?.tipo === 'concurso' ? 1 : 2
+  const cycle = readOperationalCycle(facts.context.ciclo_operacional)
   const slots = maintained.filter((decision) => decision.tipo_atividade === 'ESTUDO'
+    && !(cycle && objectives.get(decision.objetivo_id)?.tipo === 'faculdade')
     && decision.alvo_temporal.data >= today
     && !decision.parametros.estado_observado.movida_em && !decision.parametros.estado_observado.ordenada_em)
     .sort((a, b) => orderGoal(a.objetivo_id) - orderGoal(b.objetivo_id)
@@ -374,9 +382,26 @@ function prioritizeWeek({ facts, signals, target, referenceInstant, maintained }
       || (a.parametros.estado_observado.ordem ?? 0) - (b.parametros.estado_observado.ordem ?? 0)
       || a.demanda_id.localeCompare(b.demanda_id))
   const selections = [], used = new Map(), usedToday = new Map()
+  const maintainedIds = new Set(maintained.map((row) => row.demanda_id))
+  const timed = new Set((facts.loadSources?.times || []).map((row) => row.sessao_id))
+  const exposed = new Set([...(facts.loadSources?.history || []), ...facts.demands].filter((row) => cycle
+    && row.data >= cycle.inicio && row.tipo === 'estudo' && row.status !== 'cancelada'
+    && (row.status === 'feita' || timed.has(row.id) || (row.data >= target.semana_inicio && !maintainedIds.has(row.id))))
+    .map((row) => row.materia_id))
+  // Account for preserved selections during partial recalculation. A cancelled
+  // slot stays protected by identity, but is not a first curricular exposure.
+  if (cycle) for (const row of facts.demands.filter((row) => row.tipo === 'estudo'
+    && row.status !== 'cancelada' && row.data >= cycle.inicio && !maintainedIds.has(row.id))) {
+    used.set(row.materia_id, (used.get(row.materia_id) || 0) + 1)
+    const key = `${row.data}:${row.materia_id}`
+    usedToday.set(key, (usedToday.get(key) || 0) + 1)
+  }
   for (const base of slots) {
     const goal = objectives.get(base.objetivo_id)
     if (!goal || !['concurso', 'faculdade'].includes(goal.tipo)) throw new Error('OBJETIVO_PRIORIZACAO_INVALIDO')
+    const previous = new Date(`${base.alvo_temporal.data}T12:00:00Z`)
+    previous.setUTCDate(previous.getUTCDate() - 1)
+    const previousDay = previous.toISOString().slice(0, 10)
     const alternatives = signals.candidatos.filter((row) => row.objetivo_id === base.objetivo_id).map((row) => {
       const deadlines = (facts.loadSources?.commitments || []).filter((commitment) => {
         if (commitment.concluido !== false || commitment.objetivo_id !== row.objetivo_id
@@ -385,13 +410,18 @@ function prioritizeWeek({ facts, signals, target, referenceInstant, maintained }
           link.compromisso_id === commitment.id && facts.topics.find((topic) => topic.id === link.topico_id)?.materia_id === row.materia_id)
       }).sort((a, b) => a.data.localeCompare(b.data) || a.id.localeCompare(b.id))
       return { ...row, prazo: deadlines[0]?.data || null, compromisso_ids: deadlines.map((entry) => entry.id),
+        primeira_exposicao_pendente: Boolean(cycle && goal.tipo === 'concurso' && !exposed.has(row.materia_id) && !used.has(row.materia_id)),
         selecoes_no_dia: usedToday.get(`${base.alvo_temporal.data}:${row.materia_id}`) || 0,
+        selecoes_dia_anterior: usedToday.get(`${previousDay}:${row.materia_id}`) || 0,
         selecoes_nesta_avaliacao: used.get(row.materia_id) || 0 }
     }).sort((a, b) => (a.prazo || '9999-12-31').localeCompare(b.prazo || '9999-12-31')
+      || Number(b.primeira_exposicao_pendente) - Number(a.primeira_exposicao_pendente)
       || a.selecoes_no_dia - b.selecoes_no_dia
-      || Number(b.estado === 'em_andamento') - Number(a.estado === 'em_andamento')
+      || (cycle ? a.selecoes_dia_anterior - b.selecoes_dia_anterior : 0)
+      || (!cycle ? Number(b.estado === 'em_andamento') - Number(a.estado === 'em_andamento') : 0)
       || a.selecoes_nesta_avaliacao - b.selecoes_nesta_avaliacao
       || (a.ultima_execucao ? Date.parse(a.ultima_execucao) : -Infinity) - (b.ultima_execucao ? Date.parse(b.ultima_execucao) : -Infinity)
+      || (cycle ? Number(b.estado === 'em_andamento') - Number(a.estado === 'em_andamento') : 0)
       || a.materia_id.localeCompare(b.materia_id) || a.material_id.localeCompare(b.material_id))
     if (!alternatives.length) continue
     const selected = alternatives[0]
@@ -403,6 +433,7 @@ function prioritizeWeek({ facts, signals, target, referenceInstant, maintained }
     const codes = ['CURRICULUM_CONTINUITY', 'CURRICULUM_GAP', 'UNKNOWN_MASTERY', 'LOAD_MAINTAINED',
       goal.tipo === 'concurso' ? 'STRUCTURAL_CONTEST_PRIORITY' : 'FACULTY_CONTINUITY',
       ...(selected.estado === 'em_andamento' ? ['MATERIAL_IN_PROGRESS'] : []),
+      ...(selected.primeira_exposicao_pendente ? ['INITIAL_SUBJECT_COVERAGE'] : []),
       ...(selected.prazo ? ['CONFIRMED_DEADLINE'] : []),
       ...(alternatives.length > 1 ? ['PRIORITY_TRADEOFF'] : []),
       ...(recencyBreaksTie ? ['RECENCY_TIEBREAK'] : []),
@@ -471,6 +502,11 @@ function generateWeek({ resolved, facts, result, referenceInstant, allowed }) {
     if (day < today || (cycle && day < cycle.inicio) || occupied.has(key)) return
     if (initialWeek && (slot.atividade !== 'ESTUDO' || slot.duracao_minutos !== 50)) { issues.push('BASE_INICIAL_SOMENTE_ESTUDO_50'); return }
     if (!allowed(slot.atividade)) { issues.push('MODALIDADE_DE_CAPACIDADE_NAO_AUTORIZADA'); return }
+    if (cycle && objectives.get(slot.objetivo_id).tipo === 'faculdade' && slot.atividade === 'ESTUDO'
+      && !academicClassForDay(facts.context.calendario_academico, slot.objetivo_id, day)) {
+      if (!facts.context.calendario_academico) issues.push('CALENDARIO_ACADEMICO_AUSENTE')
+      return
+    }
     requests.push({ index, day, minutes: slot.duracao_minutos, objectiveId: slot.objetivo_id,
       faculty: objectives.get(slot.objetivo_id).tipo === 'faculdade' })
   })
@@ -525,11 +561,20 @@ function generateWeek({ resolved, facts, result, referenceInstant, allowed }) {
       }
     }
     if (base.tipo_atividade === 'ESTUDO') {
-      if (!selection) { issues.push('NO_ELIGIBLE_CURRICULUM'); continue }
-      subjectId = selection.materia_id; topicId = null; related = selection.alvos_relacionados
-      const material = facts.prioritySources.materials.find((row) => row.id === related[0].id)
-      title = `Estudo: ${material.nome || `Material ${material.ordem_curso}`}`
-      codes = selection.reason_codes.filter((code) => code !== 'LOAD_MAINTAINED')
+      const academic = cycle && objectives.get(base.objetivo_id).tipo === 'faculdade'
+        ? academicClassForDay(facts.context.calendario_academico, base.objetivo_id, base.alvo_temporal.data) : null
+      if (academic) {
+        subjectId = academic.materia_id; topicId = null
+        if (subjects.get(subjectId)?.objetivo_id !== base.objetivo_id || !subjects.get(subjectId)?.nome) throw new Error('DISCIPLINA_CALENDARIO_INVALIDA')
+        title = `${subjects.get(subjectId).nome} · Aula dada, aula estudada`
+        codes = ['ACADEMIC_CLASS_SAME_DAY', 'FACULTY_CONTINUITY', 'UNKNOWN_MASTERY']
+      } else {
+        if (!selection) { issues.push('NO_ELIGIBLE_CURRICULUM'); continue }
+        subjectId = selection.materia_id; topicId = null; related = selection.alvos_relacionados
+        const material = facts.prioritySources.materials.find((row) => row.id === related[0].id)
+        title = `Estudo: ${material.nome || `Material ${material.ordem_curso}`}`
+        codes = selection.reason_codes.filter((code) => code !== 'LOAD_MAINTAINED')
+      }
     } else {
       if (subjects.get(subjectId)?.objetivo_id !== base.objetivo_id || topics.get(topicId)?.materia_id !== subjectId) throw new Error('CONTEUDO_CAPACIDADE_INVALIDO')
       if (base.tipo_atividade === 'QUESTOES' && !facts.prioritySources.questions.some((row) => row.topico_id === topicId)) {
