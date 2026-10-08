@@ -39,6 +39,13 @@ before(async () => {
   // Replay the actual full application migrations through 0068 in this EMPTY CI database.
   // storage.buckets is a minimal Supabase platform dependency, not a mock of review tables.
   for (const file of files) {
+    if (file.startsWith('0045_')) {
+      // Historical 0045 requires at least one eligible curriculum topic.
+      // Supply only a synthetic prerequisite; do not change the real migration.
+      const objective = (await scalar("select id from objetivo where tipo='concurso' and ativo=true limit 1")).id
+      const matter = (await scalar("insert into materia(objetivo_id,nome) values($1,'CI historical prerequisite') returning id", [objective])).id
+      await db.query("insert into topico(materia_id,nome) values($1,'CI historical topic')", [matter])
+    }
     try { await db.query(await readFile(new URL(file, directory), 'utf8')); await db.query('insert into schema_migration(nome) values($1)', [file]) }
     catch (error) { throw new Error(`Schema baseline failed at ${file}: ${error.code}`) }
   }
