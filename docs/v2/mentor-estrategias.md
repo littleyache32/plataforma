@@ -10,7 +10,7 @@ Objetivo: maximizar a probabilidade de aprovação sob restrições reais de tem
 
 ## Baseline operacional
 
-O ciclo configurado começa segunda-feira, 12/10/2026, com semana inicial até 18/10. A data não é regra permanente do motor. `config/mentor-ciclo-atual.json` é entrada de manutenção, não é lida pelo runtime. `prepareCycleContext` converte essa entrada em `mentor_contexto.dados.ciclo_operacional` e `dados.capacidade_inicial`, as fontes operacionais canônicas.
+Decisão vigente de 08/10/2026: o ciclo começa em 08/10, com bootstrap de 08 a 11/10. A semana seguinte começa em 12/10 sem resetar execução, aderência ou progresso. A data não é regra permanente do motor. `config/mentor-ciclo-atual.json` é entrada de manutenção, não é lida pelo runtime. `prepareCycleContext` converte essa entrada em `mentor_contexto.dados.ciclo_operacional` e `dados.capacidade_inicial`, as fontes operacionais canônicas.
 
 Primeira semana: duas demandas de concurso e uma de Faculdade diariamente, todas de Estudo e 50 minutos, quando houver disponibilidade factual. São 150 minutos de base diária, não um teto permanente. Um dia sem capacidade não despeja os blocos em outro dia. Não adicionar questões, revisões, cards ou simulados rotineiramente. Uma necessidade acadêmica factual pode mudar o conteúdo dos blocos, sem aumentar automaticamente a carga.
 

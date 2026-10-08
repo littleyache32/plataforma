@@ -59,7 +59,7 @@ export default async function handler(req, res) {
       if (status) {
         if (!['planejada', 'feita', 'parcial'].includes(status)) return res.status(400).json({ error: 'Status de conclusao invalido.' })
         update.status = status
-        update.duracao_realizada = status === 'planejada' ? null : Number.isInteger(duracaoRealizada) ? duracaoRealizada : null
+        if (Number.isInteger(duracaoRealizada) && duracaoRealizada >= 0) update.duracao_realizada = duracaoRealizada
         update.concluida_em = status === 'feita' ? new Date().toISOString() : null
       }
       if (data) Object.assign(update, { data, movida_em: new Date().toISOString() })

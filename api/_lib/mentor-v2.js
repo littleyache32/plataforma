@@ -49,7 +49,7 @@ export async function evaluateMentorWeekV2({ supabase, inicio, instanteReferenci
       loadSources: { history: history.data, times: times.data, objectives: objectives.data, commitments: commitments.data } }
     if (facts && policyRecord.conteudo.politica.regras.some((rule) => rule.id === 'PRIORIZACAO_CURRICULAR_SEMANAL')) {
       const [materials, progress, links, reviews, questions, attempts] = await Promise.all([
-        readAll(() => supabase.from('material').select('id,objetivo_id,materia_id,nome,status,ordem_curso,estado_extracao')),
+        readAll(() => supabase.from('material').select('id,objetivo_id,materia_id,nome,status,ordem_curso,estado_extracao,criado_em')),
         readAll(() => supabase.from('material_progresso').select('material_id,estado,iniciado_em,concluido_em,atualizado_em'), 'material_id'),
         readAll(() => supabase.from('compromisso_topico').select('compromisso_id,topico_id').order('topico_id'), 'compromisso_id'),
         readAll(() => supabase.from('revisao_item').select('id,questao_id,motivo,status,agendada_para')),

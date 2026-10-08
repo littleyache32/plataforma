@@ -9,8 +9,11 @@ const read = (path) => readFileSync(path, 'utf8')
 describe('UX V2', () => {
   it('renderiza shell com controle recolhivel e navegacao mobile sem submenu antigo', () => {
     const html = renderToStaticMarkup(<Layout area="semana" catalog={[]}><h1>Plano</h1></Layout>)
-    expect(html).toContain('Recolher sidebar')
-    expect(html).toContain('Navegação mobile')
+    expect(html).toContain('Recolher navegação')
+    expect(html).toContain('aria-controls="primary-navigation"')
+    expect(html).not.toContain('sidebar-foot')
+    expect(html).not.toContain('Sair')
+    expect(html).toContain('Navegação principal')
     expect(html).toContain('aria-current="page"')
     expect(html).not.toContain('Objetivas')
   })

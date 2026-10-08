@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from './supabase.js'
+import { reconcileSessionDuration } from '../../shared/session-duration.js'
 import { allowMethods, fail, queryParam, readSession, requireAccess } from './http.js'
 
 const fields = 'id,operacao_id,sessao_id,objetivo_id,materia_id,topico_id,contexto,titulo,status,segundos_acumulados,duracao_alvo_segundos,iniciado_em,retomado_em,finalizado_em,materia:materia_id(nome),objetivo:objetivo_id(nome,tipo)'
@@ -68,6 +69,7 @@ export default async function handler(req, res) {
       if (targetSeconds !== null && (!Number.isInteger(targetSeconds) || targetSeconds < 60 || targetSeconds > 43200)) return res.status(400).json({ error: 'O tempo de foco deve ficar entre 1 minuto e 12 horas.' })
       const created = await supabase.from('tempo_estudo').insert({ operacao_id: operacaoId || null, sessao_id: sessaoId || null, objetivo_id: objetivoId || null, materia_id: materiaId || null, topico_id: topicoId || null, contexto, titulo: String(titulo).trim(), status: completedOffline ? 'concluido' : 'rodando', segundos_acumulados: completedOffline ? manualSeconds : 0, duracao_alvo_segundos: targetSeconds, iniciado_em: manualStart?.toISOString() || new Date().toISOString(), retomado_em: completedOffline ? null : new Date().toISOString(), finalizado_em: completedOffline ? (manualEnd || new Date()).toISOString() : null }).select(fields).single()
       if (created.error) throw created.error
+      if (completedOffline) await reconcileSessionDuration(supabase, sessaoId)
       return res.status(201).json({ timer: created.data })
     }
     const { id, acao, operacaoId } = req.body || {}
@@ -75,11 +77,13 @@ export default async function handler(req, res) {
     if (operacaoId) { const prior = await supabase.from('tempo_estudo').select(fields).eq('operacao_id', operacaoId).maybeSingle(); if (prior.data?.status === 'concluido') return res.status(200).json({ timer: prior.data, repetida: true }) }
     const current = await supabase.from('tempo_estudo').select(fields).eq('id', id).single()
     if (current.error) throw current.error
+    const permitted = { pausar: ['rodando'], retomar: ['pausado'], concluir: ['rodando', 'pausado'] }
+    if (!permitted[acao].includes(current.data.status)) return res.status(409).json({ error: 'Transição inválida para o estado atual do timer.' })
     const now = new Date().toISOString(); const seconds = elapsed(current.data)
     const changes = acao === 'retomar' ? { status: 'rodando', retomado_em: now, atualizado_em: now } : { status: acao === 'concluir' ? 'concluido' : 'pausado', segundos_acumulados: seconds, retomado_em: null, finalizado_em: acao === 'concluir' ? now : null, atualizado_em: now, ...(operacaoId && acao === 'concluir' ? { operacao_id: operacaoId } : {}) }
-    const updated = await supabase.from('tempo_estudo').update(changes).eq('id', id).select(fields).single()
+    const updated = await supabase.from('tempo_estudo').update(changes).eq('id', id).eq('status', current.data.status).select(fields).single()
     if (updated.error) throw updated.error
-    if (acao === 'concluir' && current.data.sessao_id) await supabase.from('sessao').update({ duracao_realizada: Math.round(seconds / 60) }).eq('id', current.data.sessao_id)
+    if (acao === 'concluir') await reconcileSessionDuration(supabase, current.data.sessao_id)
     return res.status(200).json({ timer: updated.data })
   } catch (error) { return fail(res, error, 'Nao foi possivel registrar o tempo de estudo.') }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { legacyPracticeTransition as practiceTransition, selectPracticeQuestion, shouldShowExplanation } from '../shared/practice.js'
+import { practiceTransition, selectPracticeQuestion, shouldShowExplanation } from '../shared/practice.js'
 
 describe('ciclo de pratica', () => {
   it('manda falsa certeza para revisao imediata com prioridade maxima', () => {

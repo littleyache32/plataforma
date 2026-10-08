@@ -28,7 +28,7 @@ export const MENTOR_V2_REASONS = Object.freeze([
   'CURRICULUM_CONTINUITY', 'STRUCTURAL_CONTEST_PRIORITY', 'FACULTY_CONTINUITY', 'RECENCY_TIEBREAK', 'NO_ELIGIBLE_CURRICULUM',
   'APPROVED_WEEKLY_CAPACITY', 'WEEKLY_PLAN_SELECTION',
   'PENDING_CONTINUITY', 'PENDING_DEFERRED', 'PENDING_REPLACED', 'PENDING_REDISTRIBUTED',
-  'INITIAL_CONTENT_BASE', 'CYCLE_NOT_STARTED',
+  'INITIAL_CONTENT_BASE', 'CYCLE_NOT_STARTED', 'INITIAL_CYCLE_BOOTSTRAP',
 ])
 const ACTIVITIES = Object.freeze(['ESTUDO', 'QUESTOES', 'QUESTION_CARDS', 'REVISAO'])
 const ACTIVITY_BY_TYPE = Object.freeze({ estudo: 'ESTUDO', exercicio: 'QUESTOES', especial: 'QUESTION_CARDS', revisao: 'REVISAO' })
@@ -39,6 +39,7 @@ export const MENTOR_V2_PENDING_RULE = 'TRATAMENTO_PENDENCIAS_SEMANAIS'
 const PENDING_TYPES = ['MANTER_PENDENCIA', 'REAGENDAR_SEMANA_FUTURA', 'SUBSTITUIR_PENDENCIA', 'ABANDONAR_PENDENCIA', 'REDISTRIBUIR_PENDENCIA']
 const TEXT = Object.freeze({
   INITIAL_CONTENT_BASE: 'Semana inicial dedicada à construção de base, dentro da disponibilidade factual.',
+  INITIAL_CYCLE_BOOTSTRAP: 'Demanda da configuração inicial factual do ciclo, sem inferência estatística de carga.',
   CYCLE_NOT_STARTED: 'A semana antecede o início configurado do ciclo. Nenhuma demanda nova foi criada.',
   DATA_UNAVAILABLE: 'A policy V2 ou uma fonte factual necessária não está disponível. O plano foi preservado.',
   DATA_INCONSISTENCY: 'Há uma configuração ou referência factual inconsistente. O plano foi preservado.',
@@ -388,8 +389,8 @@ function prioritizeWeek({ facts, signals, target, referenceInstant, maintained }
         selecoes_nesta_avaliacao: used.get(row.materia_id) || 0 }
     }).sort((a, b) => (a.prazo || '9999-12-31').localeCompare(b.prazo || '9999-12-31')
       || a.selecoes_no_dia - b.selecoes_no_dia
-      || a.selecoes_nesta_avaliacao - b.selecoes_nesta_avaliacao
       || Number(b.estado === 'em_andamento') - Number(a.estado === 'em_andamento')
+      || a.selecoes_nesta_avaliacao - b.selecoes_nesta_avaliacao
       || (a.ultima_execucao ? Date.parse(a.ultima_execucao) : -Infinity) - (b.ultima_execucao ? Date.parse(b.ultima_execucao) : -Infinity)
       || a.materia_id.localeCompare(b.materia_id) || a.material_id.localeCompare(b.material_id))
     if (!alternatives.length) continue
@@ -467,7 +468,7 @@ function generateWeek({ resolved, facts, result, referenceInstant, allowed }) {
     const date = new Date(`${result.alvo_temporal.semana_inicio}T12:00:00Z`)
     date.setUTCDate(date.getUTCDate() + slot.dia)
     const day = date.toISOString().slice(0, 10), key = `${prefix}${index}`
-    if (day < today || occupied.has(key)) return
+    if (day < today || (cycle && day < cycle.inicio) || occupied.has(key)) return
     if (initialWeek && (slot.atividade !== 'ESTUDO' || slot.duracao_minutos !== 50)) { issues.push('BASE_INICIAL_SOMENTE_ESTUDO_50'); return }
     if (!allowed(slot.atividade)) { issues.push('MODALIDADE_DE_CAPACIDADE_NAO_AUTORIZADA'); return }
     requests.push({ index, day, minutes: slot.duracao_minutos, objectiveId: slot.objetivo_id,
@@ -549,7 +550,7 @@ function generateWeek({ resolved, facts, result, referenceInstant, allowed }) {
       }
     }
     codes = [...new Set([...codes, 'APPROVED_WEEKLY_CAPACITY', 'WEEKLY_PLAN_SELECTION', 'NO_HOUR_DEBT',
-      ...(packed.constrained ? ['AVAILABILITY_CONSTRAINT'] : []), ...(initialWeek ? ['INITIAL_CONTENT_BASE'] : [])])]
+      ...(packed.constrained ? ['AVAILABILITY_CONSTRAINT'] : []), ...(initialWeek ? ['INITIAL_CONTENT_BASE', 'INITIAL_CYCLE_BOOTSTRAP'] : [])])]
     const selectedEvidence = plannedReview ? [...evidence, { evidencia_id: 'revisao_planejada', natureza: 'SINAL',
       fonte: 'revisao_item/question_card/registro', valor: plannedReview, corte: referenceInstant }]
       : selection?.evidencias_utilizadas || evidence
@@ -590,7 +591,7 @@ export function evaluateMentorV2({ policyRecord, facts, weekStart, referenceInst
   let cycle
   try { cycle = readOperationalCycle(facts.context.ciclo_operacional) }
   catch (error) { return unavailable('DATA_INCONSISTENCY', error.message, 'mentor_contexto') }
-  if (cycle && weekStart < cycle.inicio) return unavailable('CYCLE_NOT_STARTED', 'SEMANA_ANTERIOR_AO_CICLO', 'mentor_contexto')
+  if (cycle && target.semana_fim < cycle.inicio) return unavailable('CYCLE_NOT_STARTED', 'SEMANA_ANTERIOR_AO_CICLO', 'mentor_contexto')
   let fallback
   try { fallback = conservativeFallback(facts, referenceInstant) }
   catch (error) { return unavailable('DATA_INCONSISTENCY', error.message, 'sinais_derivados') }

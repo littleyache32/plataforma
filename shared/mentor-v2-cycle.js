@@ -7,12 +7,19 @@ const validDate = (day) => /^\d{4}-\d{2}-\d{2}$/.test(day || '') && Number.isFin
 export function readOperationalCycle(value) {
   if (value == null) return null
   if (value.versao !== 'ciclo-operacional-v2/1' || !/^[a-zA-Z0-9_-]+$/.test(value.id || '')
-    || !validDate(value.inicio) || new Date(`${value.inicio}T12:00:00Z`).getUTCDay() !== 1
+    || !validDate(value.inicio)
     || value.etapa_inicial !== 'BASE_CONTEUDO'
     || Object.keys(value).some((key) => !['versao', 'id', 'inicio', 'etapa_inicial'].includes(key))) throw new Error('CICLO_OPERACIONAL_INVALIDO')
   return structuredClone(value)
 }
-export function isInitialCycleWeek(cycle, weekStart) { return !!cycle && cycle.inicio === weekStart }
+export function isInitialCycleWeek(cycle, weekStart) {
+  if (!cycle) return false
+  const date = new Date(`${cycle.inicio}T12:00:00Z`), offset = (date.getUTCDay() + 6) % 7
+  date.setUTCDate(date.getUTCDate() - offset)
+  const containingWeek = date.toISOString().slice(0, 10)
+  date.setUTCDate(date.getUTCDate() + 7)
+  return weekStart === containingWeek || (offset > 0 && weekStart === date.toISOString().slice(0, 10))
+}
 export function cycleDemandPrefix(weekStart, cycle) {
   return `v2:${weekStart}:${cycle ? `ciclo:${cycle.id}:` : ''}`
 }

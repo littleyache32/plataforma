@@ -380,6 +380,3 @@ Há também cobertura de estudo como exposição factual sem domínio, ausência
 - FSRS não implementado. Contrato de entrada permanece preparado; datas de cards legados não se tornam elegibilidade FSRS ou nova demanda automática de cards. Combinação multicomponente permanece limitada conforme 4.8.
 
 Sem banco real, migrations, deploy, commit ou push. Trabalho local anterior e fontes privadas preservados. Aprendizado: compartilhar qualificação local fecha leitura/planejamento sem transformar observação em autorização ampla; validar integração não equivale a migrar silenciosamente escritor legado ou inventar parâmetros de aprendizagem. Encerrar na 4.10.
-# Correção 4.12: neutralidade do calendário
-
-07/10/2026, diagnóstico antes de migration: `0002_plataforma_pessoal.sql` declara `revisao_item.agendada_para NOT NULL DEFAULT now()`. Essa restrição impede uma necessidade sem data e o default inventa vencimento. A correção local proposta remove exclusivamente a obrigatoriedade/default; datas históricas permanecem intactas. Não aplicar ao banco nesta fase. Novos vínculos factuais de tentativa com necessidade, demanda e erro-alvo serão opcionais; registros antigos permanecem válidos. Nenhum calendário de questões será calculado pelo FSRS ou pela antiga tabela de intervalos.

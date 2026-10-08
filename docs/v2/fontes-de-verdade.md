@@ -170,3 +170,6 @@ Essa integração não migra o escritor legado de prática, não qualifica autom
 # Atualização da Fase 3.17
 
 07/10/2026: `mentor_contexto.dados.ciclo_operacional` é a fonte factual do ciclo; `dados.capacidade_inicial` define a base planejável. `config/mentor-ciclo-atual.json` é somente entrada de manutenção convertida por `prepareCycleContext`, nunca consultada pelo motor em paralelo ao banco. Tetos 450/240/180 e restrições de materialização ficam no contrato central `shared/mentor-v2-cycle.js`, aplicado pelo allocator único. O arsenal futuro e a precedência atual estão em `mentor-estrategias.md`. Nenhum contexto ou cancelamento foi aplicado ao banco real nesta subfase.
+# MVP de 08/10/2026
+
+Decisão mais recente: início factual em 08/10, bootstrap até 11/10, sem reset em 12/10. `docs/v2/mvp-estudo.md` registra escopo e limites. A configuração local não substitui disponibilidade factual nem comprova ativação no banco. Tempo e demanda permanecem entidades separadas; o MVP deriva duração dos registros concluídos e preserva-a ao marcar/desmarcar a demanda, sem prometer atomicidade entre tabelas.

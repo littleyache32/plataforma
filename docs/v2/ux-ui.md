@@ -12,11 +12,23 @@ O usuário é mentorado. A interface não deve transferir ao usuário decisões 
 
 ## Identidade e design system
 
-Minimalismo japonês contemporâneo como simplicidade, organização e contenção, sem símbolos culturais decorativos. Nome Mentor e marca ME preservados. Branco/off-white, texto preto suave, cinza neutro e teal profundo como único acento. Vermelho reservado a erro/ação destrutiva. Nenhum gradiente decorativo novo; gráfico circular de tempo usa gradiente cônico somente como representação quantitativa.
+Minimalismo japonês contemporâneo como simplicidade, organização e contenção, sem símbolos culturais decorativos. Nome Mentor e marca ME preservados. Branco/off-white, texto preto suave, cinza neutro e teal profundo como acento principal. O adendo funcional abaixo autoriza cores dessaturadas auxiliares apenas em identificadores discretos. Vermelho reservado a erro/ação destrutiva. Nenhum gradiente decorativo novo; gráfico circular de tempo usa gradiente cônico somente como representação quantitativa.
 
 Tokens em src/product-theme.css: ink #222b29, muted #61706a, line #e1e6e3, paper #ffffff, paper-soft #f8f9f8, teal #22685e, teal-deep #184e46, teal-soft #edf5f2, red #a34242. Espaçamento em múltiplos de 4 px, bordas de 1 px, raio 10–12 px e sombra somente em camadas sobrepostas.
 
-Sans-serif de sistema com Inter como primeira opção, sem dependência de baixar fonte para operar. Título 28–32 px, seções 18–22 px, texto 14 px, labels 12–13 px. Timer usa números tabulares maiores. Ícones reutilizam Icon.jsx, sem nova biblioteca.
+Fonte principal da identidade visual: **KOUSHIKI SANS**, conforme correção explícita do usuário em 07/10/2026. Aplicar prioritariamente nos títulos de página/seção, sidebar, navegação, botões, labels, números de destaque, cabeçalhos de cards e demais elementos principais. Nenhuma outra fonte deve assumir a identidade principal. A direção anterior de Inter/sans-serif de sistema está superada como decisão de identidade, embora permaneça temporariamente no código até a disponibilidade do arquivo real da nova fonte.
+
+Fonte auxiliar neutra só pode ser adotada para parágrafos longos, explicações extensas e comentários longos de questões se a inspeção da KOUSHIKI SANS comprovar necessidade de legibilidade. Essa exceção não se estende aos controles da interface. Nenhuma fonte auxiliar foi escolhida neste ajuste.
+
+Preservar a hierarquia compacta: títulos aproximadamente 28–32 px no desktop, seções 18–22 px, texto 14–16 px e labels 12–13 px. Revisar pesos disponíveis, line-height, tracking, métricas dos números e espaçamento com a fonte carregada, sem inventar pesos ou validar medidas por uma fonte substituta. Conferir quebras em botões, alinhamento dos labels e legibilidade no mobile. Ícones reutilizam Icon.jsx, sem nova biblioteca.
+
+### Estado do ajuste tipográfico
+
+**Pendente de asset, não aplicado integralmente.** Em 07/10/2026 não foi localizado arquivo KOUSHIKI SANS no repositório, nos anexos disponíveis ou nas fontes instaladas verificadas. Não foi criado @font-face apontando para arquivo inexistente nem declarado sucesso de carregamento por mera presença do nome no CSS.
+
+Próximo requisito: receber o arquivo original da fonte (preferencialmente WOFF2, ou OTF/TTF) com permissão de uso web. Depois: integrar o asset, verificar carregamento efetivo e acentos em português, aplicar a hierarquia e revisar capturas desktop/mobile. As capturas e resultados da auditoria abaixo correspondem à tipografia anterior e não comprovam a nova fonte. Nenhum código funcional foi alterado nesta correção documental.
+
+Aprendizado registrado em 07/10/2026: a escolha explícita de KOUSHIKI SANS substitui a identidade tipográfica anterior. Regra resultante: fallback técnico não é aplicação da fonte solicitada; pesos, fonte auxiliar e aprovação visual dependem da inspeção do asset real.
 
 Primário preenchido teal; secundário branco/borda; ação discreta ghost; destrutivo vermelho; ícones com nome acessível/tooltip. Hover discreto, seleção com borda/acento, disabled distinguível, foco de teclado visível. Não usar apenas cor: texto de prioridade, Hoje, conclusão e labels acompanham os estados.
 
@@ -50,7 +62,7 @@ Registro manual e histórico continuam existentes. Não houve incorporação aut
 
 Fila complementar em Hoje, Atenção (datas anteriores) e Depois (datas futuras), com matéria/tópico, título, tipo, motivo, data e ação Revisar. Grupos sem itens não criam caixas vazias. Datas de apresentação usam Brasília.
 
-Limitação existente: /api/revisoes retorna somente itens já vencidos; Depois está preparado para dados futuros, mas esta fase não amplia a consulta nem inventa revisões/última interação. Uma fila vazia apresenta mensagem curta.
+Atualização da Fase 4.9, 07/10/2026: /api/revisoes inclui agendamentos futuros reais e última interação canônica quando existente. HOJE, ATENÇÃO e DEPOIS usam o corte do servidor em Brasília. A UI não mostra score, enunciado extenso nem indicadores de dashboard. Carregamento, erro e grupos vazios são distintos. Revisar transporta a questão/card selecionado; abrir não inicia timer nem registra revisão. Não há inferência de FSRS a partir do calendário legado.
 
 ### Questões e Caderno
 
@@ -70,7 +82,7 @@ Simulados mantém o bloqueio e placeholder compacto. Não cria prova, histórico
 
 Estatísticas mantém métricas reais existentes, com resumo e seções menos encaixotadas. Não cria retenção/cardstats/cobertura inexistentes. O rótulo Domínio real foi substituído por Acertos com certeza para descrever a medida efetiva sem inventar inferência de domínio. A proposta de novas abas analíticas não foi convertida em módulos sem dados.
 
-Estados vazios/bloqueados são compactos. Mascote/imagens do Mentor removidos da interface; acesso por botão discreto na barra superior, mantendo resumo, alertas, progresso e encontro já existentes. Não foi criada anamnese ou formulário novo de feedback.
+Estados vazios/bloqueados são compactos. Mascote/imagens do Mentor removidos da interface; acesso discreto na barra superior. O encontro anteriormente mantido na Fase 2 foi retirado da interface pelos ajustes finos descritos abaixo, sem apagar seus registros ou alterar o backend. Não foi criada anamnese ou formulário novo de feedback.
 
 Transições curtas, sem parallax, blur pesado ou animações novas; prefers-reduced-motion respeitado.
 
@@ -111,3 +123,29 @@ Não alterados: conhecimento/contexto/policy do Mentor, planner, schema/migratio
 ## Motivo discreto da demanda, Fase 3.9, 07/10/2026
 
 A modal existente da Semana apresenta uma única frase curta derivada da decisão original, por exemplo: “Continuidade curricular da disciplina.” Não há painel técnico, códigos, inputs, novos controles ou reformulação visual. Consulta somente ao abrir a demanda; falhas aparecem como aviso curto e não impedem ações. Demandas sem origem recuperável não recebem justificativa inventada. Tipografia e layout existentes são preservados. Validação desta microetapa: renderização estática, consulta controlada e verificações estruturais; sem homologação visual em navegador real ou produção.
+
+## Ajustes finos de UI/UX, 07/10/2026
+
+Direção vigente: branco predominante, texto escuro, teal como acento, tipografia neutra, títulos contidos e separação visível dos cards. Minimalismo não significa ausência de bordas, contraste ou espaçamento. A Home ganhou regras próprias para métricas, gráfico, próximas demandas e disciplinas; cálculos e consultas permanecem iguais. Rótulos do gráfico usam formato curto, com descrição completa acessível.
+
+Koushiki Sans permanece a primeira família da interface, mas não há arquivo da fonte no projeto. Sem esse asset não é possível garantir sua aplicação integral. O fallback é Segoe UI, seguido de sans-serif do sistema; nenhum download de fonte ou família decorativa foi adicionado. Não foi necessária uma fonte auxiliar exclusiva para textos longos.
+
+Navegação: Início pertence ao menu principal. O próprio ME recolhe/expande a sidebar; a coluna de ícones continua disponível em desktop e mobile. No celular, a expansão sobrepõe o conteúdo sem alterar sua largura; selecionar uma área recolhe a barra. Rodapé com Início/Sair, botão textual Recolher e menu inferior duplicado foram retirados. Autenticação e backend não mudaram. Header mantém sincronização discreta e acesso ao Mentor por ícone com nome acessível.
+
+Mentor: painel somente leitura com observações de carga/execução da avaliação V2, sinais existentes e direção já registrada. Nenhum formulário de encontro, conversa longa, hipótese fabricada ou nova decisão. Dados ausentes são identificados como ausentes. API, encontros históricos, policy e planner permanecem intactos nesta subfase. Falhas de consulta aparecem explicitamente e Escape fecha o painel.
+
+Validação local com fixture sintética: desktop 1440x1000, tablet 1024x768, mobile 390x844 e 320x740. Home, barra expandida/recolhida e Mentor revisados; rótulos colados no gráfico e reposicionamento indevido do conteúdo ao expandir a sidebar mobile foram corrigidos. Não houve homologação autenticada em produção nem teste em aparelho físico. Os registros sintéticos da fixture nunca são enviados ao banco e ela não integra o build de produção.
+
+Testes direcionados: 32 aprovados em quatro arquivos (shell/UI, Home e encontro canônico com backend preservado). Lint estrutural aprovado em 167 arquivos e build aprovado. Evidências locais em output/ui-fine-tuning/home-desktop.jpg e home-mobile.jpg, sem versionamento. Alterações anteriores de outras fases no diretório de trabalho foram preservadas; nenhum commit, push, migration ou deploy faz parte destes ajustes.
+
+## Adendo: diferenciação visual funcional, 07/10/2026
+
+Regra vigente: neutralidade não pode apagar a distinção operacional. Filtros do Plano são pills compactas, delimitadas, com hover, foco, aria-pressed e check visível na seleção. Todos limpa os filtros existentes, sem introduzir nova regra de planejamento.
+
+Demandas no Plano e na Home apresentam matéria, contexto, atividade, conteúdo e duração nessa hierarquia. BACEN usa ponto teal; Faculdade usa marcador quadrado castanho dessaturado, sempre acompanhados de texto. Atividades usam ícone e rótulo: documento para Estudo, retorno para Revisão, interrogação para Exercício/Questões, cards para Question Cards e calendário para eventos. Especial permanece Especial; não se presume que todo registro especial seja um card.
+
+Identidade de matéria: pequena barra e paleta limitada de seis tons dessaturados, calculados deterministicamente pelo ID da matéria, com nome normalizado como fallback quando não há ID. Ordem, semana e material não alteram a cor. A Home reaproveita os IDs dos registros de tempo para manter a correspondência com o Plano. A paleta limitada pode compartilhar tons; nome, posição, texto de contexto e ícone continuam sendo as informações principais. Cards permanecem brancos, sem fundos multicoloridos.
+
+Nenhuma alteração de Mentor, carga, planner, revisão, banco, datas ou arquitetura. Validação deste adendo limitada à inspeção local e testes direcionados de apresentação; suíte completa, lint e build ficam para o próximo fechamento integrado, conforme protocolo econômico.
+
+Resultado local do adendo: 16 testes direcionados aprovados em três arquivos; Plano desktop e Plano/Home mobile revisados com dados sintéticos. Selecionar Faculdade exibiu somente suas sete demandas sintéticas; Todos restaurou as 21. Nenhum overflow horizontal observado nas vistas conferidas. Evidência em output/ui-fine-tuning/plano-identidade-desktop.jpg. Não houve validação pesada ou publicação.

@@ -1,5 +1,5 @@
 import { readOperationalCycle } from '../../shared/mentor-v2-cycle.js'
-import { resolveMentorV2Policy } from '../../shared/mentor-v2-policy.js'
+import { resolveMentorV2Policy, mentorWeekTarget } from '../../shared/mentor-v2-policy.js'
 
 async function allRows(query) {
   const rows = []
@@ -18,7 +18,7 @@ export async function cancelPreviousCyclePlans({ supabase, inicio, today }) {
   const context = await supabase.from('mentor_contexto').select('id,dados').eq('id', 1).maybeSingle()
   if (context.error) throw context.error
   const cycle = readOperationalCycle(context.data?.dados?.ciclo_operacional)
-  if (!cycle || inicio < cycle.inicio) return { canceladas: 0 }
+  if (!cycle || mentorWeekTarget(inicio).semana_fim < cycle.inicio) return { canceladas: 0 }
   const policy = await supabase.from('conhecimento_modulo').select('id,modulo,ativo,versao,conteudo').eq('modulo', 'mentor').eq('ativo', true)
   if (policy.error) throw policy.error
   if (policy.data?.length !== 1 || !resolveMentorV2Policy(policy.data[0]).ok) return { canceladas: 0 }

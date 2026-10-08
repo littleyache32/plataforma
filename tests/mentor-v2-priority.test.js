@@ -50,7 +50,10 @@ describe('priorização central V2', () => {
   it('em andamento continua no mesmo material em blocos separados, sem conclusão implícita', () => {
     const facts = fixture(); facts.prioritySources.progress = [{ material_id: 'a1', estado: 'em_andamento', concluido_em: null }]
     const result = run(facts)
-    expect(ids(result).slice(0, 2)).toEqual(['a1', 'a1'])
+    // MVP: interleave two subjects on the same day; continuation of subject A
+    // still points at a1, never advancing because a block was completed.
+    expect(ids(result).slice(0, 2)).toEqual(['a1', 'b1'])
+    expect(selected(result).filter((row) => row.materia_id === 'a').every((row) => row.alvos_relacionados[0].id === 'a1')).toBe(true)
     expect(selected(result)[0].reason_codes).toContain('MATERIAL_IN_PROGRESS')
     expect(facts.prioritySources.progress[0].estado).toBe('em_andamento')
   })

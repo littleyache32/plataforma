@@ -11,7 +11,7 @@ import { meetingDatabase } from './helpers/mentor-meeting-db.js'
 const start = '2026-10-12'
 function database() {
   const db = meetingDatabase(), context = db.tables.mentor_contexto[0]
-  context.dados = prepareCycleContext({ definition, objectives: db.tables.objetivo, current: context.dados })
+  context.dados = prepareCycleContext({ definition: { ...definition, ciclo: { ...definition.ciclo, inicio: start } }, objectives: db.tables.objetivo, current: context.dados })
   context.dados.disponibilidade.dias = Array.from({ length: 7 }, (_, i) => ({ data: `2026-10-${12 + i}`, minutos: 600 }))
   db.tables.materia.push(...['c', 'd'].map((id) => ({ id, objetivo_id: 'contest' })))
   db.tables.material.push(...['c', 'd'].map((id) => ({ id: `pdf-${id}`, materia_id: id, objetivo_id: 'contest', status: 'aceito', nome: id, ordem_curso: 1 })))

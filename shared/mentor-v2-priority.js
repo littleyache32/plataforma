@@ -29,13 +29,17 @@ export function calculateMentorV2PriorityFacts(facts, referenceInstant) {
     grouped.set(row.materia_id, [...(grouped.get(row.materia_id) || []), row])
   }
   const candidates = []
+  const objectiveTypes = new Map((facts.loadSources?.objectives || []).map((row) => [row.id, row.tipo]))
   const history = [...(facts.loadSources?.history || []), ...facts.demands]
   for (const [subjectId, rows] of grouped) {
-    if (rows.some((row) => !Number.isInteger(row.ordem_curso) || row.ordem_curso <= 0)
-      || new Set(rows.map((row) => row.ordem_curso)).size !== rows.length) {
+    const facultyWithoutOrder = objectiveTypes.get(rows[0].objetivo_id) === 'faculdade' && rows.every((row) => row.ordem_curso == null)
+    if (!facultyWithoutOrder && (rows.some((row) => !Number.isInteger(row.ordem_curso) || row.ordem_curso <= 0)
+      || new Set(rows.map((row) => row.ordem_curso)).size !== rows.length)) {
       gaps.push({ materia_id: subjectId, motivo: 'ORDEM_CURRICULAR_NAO_IDENTIFICADA' }); continue
     }
-    const pending = [...rows].sort((a, b) => a.ordem_curso - b.ordem_curso)
+    const pending = [...rows].sort((a, b) => facultyWithoutOrder
+      ? (a.criado_em || '').localeCompare(b.criado_em || '') || a.id.localeCompare(b.id)
+      : a.ordem_curso - b.ordem_curso)
       .find((row) => !isMaterialCompleted(byMaterial.get(row.id)))
     if (!pending) continue // Completed curriculum never restarts implicitly.
     if (pending.estado_extracao === 'pendente_ocr') {
